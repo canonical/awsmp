@@ -1,0 +1,50 @@
+---
+name: awsmp
+base: core22
+version: git
+summary: A tool to create, inspect, and manage products on the AWS Marketplace.
+description: |
+  A tool to create, inspect, and manage products on the AWS Marketplace.
+
+  Credentials in ~/.aws/ need to be configured to be able to use this tool.
+
+  Note: This snap is provided and maintained by Canonical!
+  (**not** by Amazon/AWS)
+confinement: strict
+license: GPL-3.0
+
+plugs:
+  dot-aws-config:
+    interface: personal-files
+    read:
+    - $HOME/.aws/config
+  dot-aws-credentials:
+    interface: personal-files
+    read:
+    - $HOME/.aws/credentials
+  dot-aws-models:
+    interface: personal-files
+    read:
+    - $HOME/.aws/models
+
+apps:
+  awsmp:
+    command: bin/awsmp
+    environment:
+      PYTHONPATH: $SNAP/lib/python3.10/site-packages
+      # need to set $HOME to the real HOME here because this is a strict snap
+      # and the creds for aws are in $HOME/.aws
+      HOME: $SNAP_REAL_HOME
+    plugs:
+      - home
+      - network
+      - dot-aws-config
+      - dot-aws-credentials
+      - dot-aws-models
+
+parts:
+  awsmp:
+    plugin: python
+    source: .
+    stage-packages:
+      - python3-poetry

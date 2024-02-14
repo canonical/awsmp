@@ -1,0 +1,58 @@
+[tool.poetry]
+name = "awsmp"
+version = "0.1.0"
+description = ""
+authors = [
+    "Thomas Bechtold <thomas.bechtold@canonical.com>",
+    "Jess Jang <jess.jang@canonical.com>",
+    "Ryan Hill <ryan.hill@canonical.com>",
+]
+
+readme = "README.rst"
+
+[tool.poetry.scripts]
+awsmpcli = "awsmp.cli:main"
+awsmp = "awsmp.cli:main"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+boto3 = "^1.28.28"
+pydantic = "^2.2.0"
+click = "^8.1.6"
+prettytable = "^3.8.0"
+pyyaml = "^6.0.1"
+
+[tool.poetry.group.dev.dependencies]
+black = "^23.7.0"
+poethepoet = "^0.22.0"
+pytest = "^7.4.0"
+tox = "^4.10.0"
+isort = "^5.12.0"
+mypy = "^1.6.1"
+boto3-stubs = "^1.28.74"
+types-pyyaml = "^6.0.12.12"
+pytest-cov = "^4.1.0"
+typing-extensions = "^4.8.0"
+
+[tool.poe.tasks]
+tox = "tox"
+lint = ["isort-check", "black-check", "mypy"]
+format = ["isort", "black"]
+test = "pytest --cov=awsmp"
+test-cov-details = "pytest --cov=awsmp --cov-report term-missing"
+black = "black ."
+black-check = "black --check ."
+isort = "isort ."
+isort-check = "isort --check ."
+mypy = "mypy . --check-untyped-defs"
+
+[tool.black]
+line-length = 120
+
+[tool.isort]
+profile = "black"
+
+
+[build-system]
+requires = ["poetry-core>=1.2.0"]
+build-backend = "poetry.core.masonry.api"

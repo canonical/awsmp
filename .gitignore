@@ -1,0 +1,21 @@
+# editors
+/.idea/
+
+# python
+/awsmp.egg-info/
+*.pyc
+.tox/
+.cache
+.mypy_cache/
+.pytest_cache/
+__pycache__/
+build
+dist
+venv/
+.coverage
+/.eggs/
+
+# temp files
+*~
+*.csv
+*.snap

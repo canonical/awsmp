@@ -1,0 +1,69 @@
+# This is sample config file
+#
+# Field Types
+#
+# product_title: str
+# logourl: str
+# video_urls: Optional[List[str]], can only have 1 url
+# short_description: str
+# long_description: str
+# highlights: List[str]
+# search_keywords: List[str]
+# categories: List[str]
+# support_description: str
+# support_resources: Optional[str]0
+# additional_resources: Optional[List[Dict[str, str]]]
+# sku: Optional[str]
+#
+# For empty value, please use '~' for str type and '[]' for List type
+# 
+description:
+  product_title: "temp-listing"
+  logourl: "https://awsmp-logos.s3.amazonaws.com/8350ae04bad5625623cc02c64eb8b0b5"
+  video_urls: []
+  short_description: |
+    A short, single sentence description of the offering.
+  long_description: |
+    A longer description of the offering.
+
+    This can be multiple paragraphs and should fully describe the product, as well as links to external documentation where relevant.
+  highlights:
+    - A bullet pointed list of highlights
+    - Why does the user want this product
+  search_keywords: 
+    - Key
+    - Terms
+    - Searchability
+  categories: # https://docs.aws.amazon.com/marketplace/latest/buyerguide/buyer-product-categories.html
+    - Operating Systems
+    - Application Servers
+  support_description: Description of the support offered or available for this product
+  support_resources: ~
+  additional_resources: []
+  sku: ~
+region:
+  commercial_regions:
+    - us-east-1
+    - us-east-2
+  future_region_support: true
+version:
+  version_title: "this is new title"
+  release_notes: |
+    This is sample release note
+  ami_id: ami-testing
+  access_role_arn: arn:aws:something
+  os_user_name: ubuntu
+  os_system_version: "20.04"
+  os_system_name: UBUNTU
+  scanning_port: 22
+  usage_instructions: |
+    This is sample instructions
+  recommended_instance_type: t2.micro
+  ip_protocol: tcp
+  ip_ranges:
+    - "0.0.0.0/0"
+  from_port: 22
+  to_port: 22
+eula_url: https://testing-eula
+refund_policy: |
+    Your refund policy.
