@@ -16,7 +16,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version; ${{ matrix.python }}
+          python-version: ${{ matrix.python }}
       - name: Install tox and any other packages
         run: |
           pip3 install tox poetry
