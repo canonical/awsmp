@@ -14,9 +14,7 @@ confinement: strict
 license: GPL-3.0
 architectures:
   - build-on: [amd64]
-    run-on: [amd64]
   - build-on: [arm64]
-    run-on: [arm64]
 
 plugs:
   dot-aws-config:
