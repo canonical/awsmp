@@ -8,10 +8,13 @@ AWS Marketplace API.
 CLI usage
 #########
 
-The command line interface called `awsmpcli` accepts the standard
+The command line interface called `awsmp` accepts the standard
 AWS environment variables (e.g. `AWS_PROFILE`). Note that Marketplace
 interaction needs to happen in the `us-east-1` region (which is set
 as the default in the CLI).
+
+*`awsmpcli` is the legacy binary name, and still available outside of
+snap builds*
 
 Some examples how to use the CLI.
 
@@ -23,7 +26,7 @@ Available offers can be listed:
 
 .. code-block::
 
-   $ awsmpcli entity-list Offer
+   $ awsmp entity-list Offer
    +---------------------------+------+------------+----------------------+
    |         entity-id         | name | visibility |     last-changed     |
    +---------------------------+------+------------+----------------------+
@@ -34,7 +37,7 @@ Details about an available offer can be shown using the `enitity-id`:
 
 .. code-block::
 
-   $ awsmpcli entity-show a8t4vhju1o9ibx6hfi9bnuo2x
+   $ awsmp entity-show a8t4vhju1o9ibx6hfi9bnuo2x
    {'AgreementToken': 'dummy-agreement-token',
     'Description': 'Worldwide offer for JUST FOR TESTING',
     'Id': 'a8t4vhju1o9ibx6hfi9bnuo2x',
@@ -50,7 +53,7 @@ A new private offer can be created with:
 
 .. code-block::
 
-   $ awsmpcli private-offer create \
+   $ awsmp private-offer create \
        --product-id 3a628887-30de-4d23-a949-93b32e4e4c5f \
        --buyer-accounts 887450378614 \
        --offer-name "toabctl testing" \
@@ -69,7 +72,7 @@ instance types (dimensions) available in the product.
 generating a prices.csv file
 ****************************
 
-The `awsmpcli private-offer create` command requires a `prices.csv` file be available.
+The `awsmp private-offer create` command requires a `prices.csv` file be available.
 That file contains 3 colums where the first column is the instance type, the
 second column is the hourly price (in USD) and the third column is the annual price.
 
@@ -78,7 +81,7 @@ a new offer. To generate the file for an available offer, do:
 
 .. code-block::
 
-   awsmpcli pricing-template \
+   awsmp pricing-template \
        --offer-id offer-rsf4l7ilje2ze \
        --pricing prices.csv
 
@@ -92,7 +95,7 @@ A new public AMI product listing can be created following steps below:
 
 1. Create product Id
 .. code-block::
-   awsmpcli public-offer create
+   awsmp public-offer create
 
    ChangeSet created (ID: gxy13m673kmhr4vdtpu0ltwf)
    https://aws.amazon.com/marketplace/management/requests/gxy13m673kmhr4vdtpu0ltwf
@@ -124,7 +127,7 @@ below or please see the sample config file (listing_configuration.yaml)
 For empty value, please use '~' for str type and '[]' for List type
 
 .. code-block::
-   awsmpcli public-offer update-description \
+   awsmp public-offer update-description \
       --product-id prod-xwpv7txqxg55e
       --config listing_configuration.yaml
 
@@ -149,11 +152,11 @@ If field value does not match with file format, it will show error before updati
 
       a. Using public-offer command
          If you create new listing and see what's available with given architecture and virtual type,
-         call `awsmpcli public-offer instance-type-template` and file `instance_type.csv` will be created.
+         call `awsmp public-offer instance-type-template` and file `instance_type.csv` will be created.
          You can remove or add instance types you want to update in the listing.
 
          .. code-block::
-            awsmpcli public-offer instance-type-template \
+            awsmp public-offer instance-type-template \
                --arch x86_64 \
                --virt hvm
 
@@ -162,7 +165,7 @@ If field value does not match with file format, it will show error before updati
          from the listing. (Please see below to find offer Id which is associated public product listing at the end of section)
 
          .. code-block::
-            awsmpcli pricing-template \
+            awsmp pricing-template \
                --offer-id offer-rsf4l7ilje2ze \
                --pricing prices.csv \
                --free
@@ -173,7 +176,7 @@ If field value does not match with file format, it will show error before updati
 
       a. Free listing update
          .. code-block::
-            awsmpcli public-offer update-instnace-type \
+            awsmp public-offer update-instnace-type \
                --product-id prod-xwpv7txqxg55e \
                --offer-id offer-t4vib6xp7tb3c \
                --instance-type-file instance_type.csv \
@@ -182,7 +185,7 @@ If field value does not match with file format, it will show error before updati
       
       b. Paid listing update
          .. code-block::
-            awsmpcli public-offer update-instnace-type \
+            awsmp public-offer update-instnace-type \
                --product-id prod-xwpv7txqxg55e \
                --offer-id offer-t4vib6xp7tb3c \
                --instance-type-file instance_type.csv \
@@ -210,7 +213,7 @@ Add and update region information to AMI product listing.
    ...
 
 .. code-block::
-   awsmpcli public-offer update-region \
+   awsmp public-offer update-region \
       --product-id prod-xwpv7txqxg55e \
       --config listing_configuration.yaml
 
@@ -240,7 +243,7 @@ Add new Ami version Ami to listing. Sample version config can be references in l
    ...
 
 .. code-block::
-   awsmpcli public-offer update-version \
+   awsmp public-offer update-version \
       --product-id prod-xwpv7txqxg55e
       --config listing_configuration.yaml
 
@@ -259,12 +262,12 @@ Legal/Support terms update in AMI product listing requires public offer id when 
 `refund_policy` is free form of text.
 
 .. code-block::
-   awsmpcli public-offer update-legal-terms \
+   awsmp public-offer update-legal-terms \
       --offer-id offer-t4vib6xp7tb3c
       --config listing_configuration.yaml
 
 .. code-block::
-   awsmpcli public-offer update-support-terms \
+   awsmp public-offer update-support-terms \
       --offer-id offer-t4vib6xp7tb3c
       --config listing_configuration.yaml
 
@@ -273,6 +276,6 @@ Legal/Support terms update in AMI product listing requires public offer id when 
 To release (published as limited), product id and public offer id are required.
 
 .. code-block::
-   awsmpcli public-offer release \
+   awsmp public-offer release \
       --product-id prod-fwu3xsqup23cs
       --offer-id offer-t4vib6xp7tb3c
