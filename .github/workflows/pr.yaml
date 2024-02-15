@@ -16,10 +16,11 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version; ${{ matrix.python }}
+          python-version: ${{ matrix.python }}
       - name: Install tox and any other packages
         run: |
-          pip3 install tox poetry
+          # FIXME: not pining to an exact version results in getting poetry 1.0.10 which doesn't work
+          pip3 install tox poetry==1.7.1
           poetry --version
       - uses: actions/checkout@v3
       - name: Run tox
