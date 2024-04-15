@@ -5,6 +5,41 @@ awsmp
 `awsmp` is a module and CLI tool to interact with the
 AWS Marketplace API.
 
+How to set up
+#############
+
+# Setup profile configuration
+
+Before using this tool, you need to setup aws configuration and credential files. Follow `CLI configuration documentation`_ to
+create those two files.
+
+Example of config file
+
+.. code-block::
+
+   $ cat ~/.aws/config
+   [default]
+   region = us-east-1
+
+Example of credential file
+
+.. code-block::
+
+   $ cat ~/.aws/credentials 
+   [default]
+   aws_secret_access_key = $YOUR_SECRET_ACCESS_KEY
+   aws_access_key_id = $YOUR_ACCESS_KEY_ID
+
+# Install with snap
+
+``awsmp`` is available in `Snapstore`_, installation can be done easily with command below.
+
+.. code-block::
+
+   snap install awsmp
+
+This will install latest version in your machine. We would highly recommend to install latest version but see this `snapcraft channel doc`_ for installing different version or channel.
+
 CLI usage
 #########
 
