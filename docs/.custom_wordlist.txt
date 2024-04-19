@@ -1,0 +1,14 @@
+awsmp
+yaml
+AMI
+config
+csv
+Snapcraft
+Snapstore
+AWS
+USD
+str
+awsmpcli
+GovCloud
+Instructions
+instance
