@@ -1,11 +1,11 @@
-Private Offer
-=============
+How to create a private offer
+=============================
 
 To create a private offer in the `AWS marketplace management portal`_, use the API calls described below.
 
 
-Listing and showing available offers
-------------------------------------
+List and show available offers
+------------------------------
 
 Available offers can be listed:
 
@@ -31,8 +31,8 @@ Details about an available offer can be seen using the ``enitity-id``:
     ... output stripped here ...
 
 
-Creating a new private offer
-----------------------------
+Create a new private offer
+--------------------------
 
 A new private offer can be created with:
 
@@ -54,8 +54,8 @@ That new request needs to be in the ``Succeeded`` state before a buyer can see t
 For this command to work, you'll need a ``prices.csv`` file that contains all the
 instance types (dimensions) and prices available in the product.
 
-Generating a ``prices.csv`` file
---------------------------------
+Generate a ``prices.csv`` file
+------------------------------
 
 The ``awsmp private-offer create`` command requires a ``prices.csv`` file to be available.
 That file contains 3 columns where the first column is the instance type, the

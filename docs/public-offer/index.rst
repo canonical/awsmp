@@ -1,7 +1,7 @@
-Public Offer
-============
+How to create a public offer
+============================
 
-To create a new pubic AMI product listing in the `AWS marketplace management portal`_, use the API calls described below:
+To create a new public AMI product listing in the `AWS marketplace management portal`_, use the API calls described below:
 
 
 Create product ID

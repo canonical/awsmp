@@ -19,20 +19,20 @@ In this documentation
    :padding: 0
    :reverse:
 
-   .. grid-item:: :doc:`Public Offer <public-offer/index>`
+   .. grid-item:: :doc:`Public offer <public-offer/index>`
 
-      **Public offer** - product creation related APIs
+      **Product** creation related APIs
 
-   .. grid-item:: :doc:`Private Offer <private-offer/index>`
+   .. grid-item:: :doc:`Private offer <private-offer/index>`
 
-      **Private offer** - offer creation related APIs
+      **Private offer** creation related APIs
 
 .. toctree::
    :hidden:
    :maxdepth: 4
 
    Installation <installation>
-   Public offer <public-offer/index>
-   Private offer <private-offer/index>
+   Create a public offer <public-offer/index>
+   Create a private offer <private-offer/index>
 
 .. _`AWS Marketplace API`: https://docs.aws.amazon.com/marketplace-catalog/latest/api-reference/welcome.html
