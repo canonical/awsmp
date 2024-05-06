@@ -92,9 +92,11 @@ def entity_versions_list(entity_id):
     List all versions for a provided entity id.
     """
     versions = _driver.get_entity_versions(entity_id)
-    display_list = [(v["CreationDate"], v["Id"], v["VersionTitle"]) for v in versions]
-    for version in display_list:
-        print(f"{version[0]} - {version[1]} - {version[2]}")
+    t = prettytable.PrettyTable()
+    t.field_names = ["CreationDate", "Id", "version title"]
+    for v in versions:
+        t.add_row([v["CreationDate"], v["Id"], v["VersionTitle"]])
+    print(t.get_string(sortby="CreationDate"))
 
 
 @private_offer.command("create")
