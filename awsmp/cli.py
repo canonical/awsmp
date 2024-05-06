@@ -48,7 +48,8 @@ def inspect():
 
 @inspect.command("entity-list")
 @click.argument("entity-type", type=click.Choice(["Offer", "AmiProduct"]))
-def entity_list(entity_type):
+@click.option("--filter-visibility", multiple=True, type=click.Choice(["Public", "Restricted", "Limited"]))
+def entity_list(entity_type, filter_visibility):
     """
     List available entities. Currently supported are entities of type "Offer"
     and "AmiProduct".
@@ -57,7 +58,8 @@ def entity_list(entity_type):
     t = prettytable.PrettyTable()
     t.field_names = ["entity-id", "name", "visibility", "last-changed"]
     for _, entity in entity_list.items():
-        t.add_row([entity["EntityId"], entity["Name"], entity["Visibility"], entity["LastModifiedDate"]])
+        if not filter_visibility or entity["Visibility"] in filter_visibility:
+            t.add_row([entity["EntityId"], entity["Name"], entity["Visibility"], entity["LastModifiedDate"]])
     print(t.get_string(sortby="last-changed"))
 
 
