@@ -48,7 +48,8 @@ def inspect():
 
 @inspect.command("entity-list")
 @click.argument("entity-type", type=click.Choice(["Offer", "AmiProduct"]))
-def entity_list(entity_type):
+@click.option("--filter-visibility", multiple=True, type=click.Choice(["Public", "Restricted", "Limited"]))
+def entity_list(entity_type, filter_visibility):
     """
     List available entities. Currently supported are entities of type "Offer"
     and "AmiProduct".
@@ -57,7 +58,8 @@ def entity_list(entity_type):
     t = prettytable.PrettyTable()
     t.field_names = ["entity-id", "name", "visibility", "last-changed"]
     for _, entity in entity_list.items():
-        t.add_row([entity["EntityId"], entity["Name"], entity["Visibility"], entity["LastModifiedDate"]])
+        if not filter_visibility or entity["Visibility"] in filter_visibility:
+            t.add_row([entity["EntityId"], entity["Name"], entity["Visibility"], entity["LastModifiedDate"]])
     print(t.get_string(sortby="last-changed"))
 
 
@@ -90,9 +92,11 @@ def entity_versions_list(entity_id):
     List all versions for a provided entity id.
     """
     versions = _driver.get_entity_versions(entity_id)
-    display_list = [(v["CreationDate"], v["Id"], v["VersionTitle"]) for v in versions]
-    for version in display_list:
-        print(f"{version[0]} - {version[1]} - {version[2]}")
+    t = prettytable.PrettyTable()
+    t.field_names = ["CreationDate", "Id", "version title"]
+    for v in versions:
+        t.add_row([v["CreationDate"], v["Id"], v["VersionTitle"]])
+    print(t.get_string(sortby="CreationDate"))
 
 
 @private_offer.command("create")
