@@ -64,3 +64,13 @@ class YamlMissingKeyException(Exception):
 Config file does not have key {*missing_keys,}. Please check the file and request again.
 """
         super().__init__(message)
+
+
+class NoProductIdProvidedException(Exception):
+    def __init__(self):
+        message = f"""
+
+
+No product ids are provided. Please pass at least one product id for using this function.
+"""
+        super().__init__(message)

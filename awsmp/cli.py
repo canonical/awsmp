@@ -4,6 +4,7 @@ import csv
 import json
 import logging
 import pprint
+import time
 from typing import Dict, List, TextIO
 
 import click
@@ -12,7 +13,11 @@ import yaml
 from botocore.exceptions import ClientError
 
 from . import _driver
-from .errors import AccessDeniedException, YamlMissingKeyException
+from .errors import (
+    AccessDeniedException,
+    NoProductIdProvidedException,
+    YamlMissingKeyException,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -233,17 +238,16 @@ def ami_product_update_description(product_id, config):
 
 @public_offer.command("update-instance-type")
 @click.option("--product-id", required=True, prompt=True)
-@click.option("--offer-id", required=True, prompt=True)
 @click.option("--instance-type-file", type=click.File("r"), required=True, prompt=True)
 @click.option("--dimension-unit", required=True, prompt=True, type=click.Choice(["Hrs", "Units"]))
 @click.option("--free", required=True, prompt=True, type=click.Choice(["Y", "N"]))
-def ami_product_update_instance_type(product_id, offer_id, instance_type_file, dimension_unit, free):
+def ami_product_update_instance_type(product_id, instance_type_file, dimension_unit, free):
     """
     Update AMI product instance type
     """
     free = True if free == "Y" else False
     product = _driver.AmiProduct(product_id=product_id)
-    response = product.update_instance_types(offer_id, instance_type_file, dimension_unit, free)
+    response = product.update_instance_types(instance_type_file, dimension_unit, free)
     print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
     print(f'https://aws.amazon.com/marketplace/management/requests/{response["ChangeSetId"]}')
 
@@ -315,45 +319,46 @@ def ami_product_update_version(product_id, config):
 
 
 @public_offer.command("update-legal-terms")
-@click.option("--offer-id", required=True, prompt=True)
+@click.option("--product-id", required=True, prompt=True)
 @click.option("--config", type=click.File("r"), required=True, prompt=True)
-def ami_product_update_legal_terms(offer_id, config):
+def ami_product_update_legal_terms(product_id, config):
     """
     Update AMI product legal terms
     """
     # Load yaml file
     eula_url = _load_configuration(config, ["eula_url"])["eula_url"]
 
-    response = _driver.AmiProduct.update_legal_terms(offer_id, eula_url)
+    product = _driver.AmiProduct(product_id=product_id)
+    response = product.update_legal_terms(eula_url)
     print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
     print(f'https://aws.amazon.com/marketplace/management/requests/{response["ChangeSetId"]}')
 
 
 @public_offer.command("update-support-terms")
-@click.option("--offer-id", required=True, prompt=True)
+@click.option("--product-id", required=True, prompt=True)
 @click.option("--config", type=click.File("r"), required=True, prompt=True)
-def ami_product_update_support_terms(offer_id, config):
+def ami_product_update_support_terms(product_id, config):
     """
     Update AMI product support terms
     """
     # Load yaml file
     refund_policy = _load_configuration(config, ["refund_policy"])["refund_policy"]
 
-    response = _driver.AmiProduct.update_support_terms(offer_id, refund_policy)
+    product = _driver.AmiProduct(product_id=product_id)
+    response = product.update_support_terms(refund_policy)
     print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
     print(f'https://aws.amazon.com/marketplace/management/requests/{response["ChangeSetId"]}')
 
 
 @public_offer.command("release")
 @click.option("--product-id", required=True, prompt=True)
-@click.option("--offer-id", required=True, prompt=True)
-def ami_product_release(product_id, offer_id):
+def ami_product_release(product_id):
     """
     Publish AMI product as Limited
     """
 
     product = _driver.AmiProduct(product_id=product_id)
-    response = product.release(offer_id)
+    response = product.release()
     print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
     print(f'https://aws.amazon.com/marketplace/management/requests/{response["ChangeSetId"]}')
 
@@ -381,6 +386,7 @@ def main():
     # Setting log format
     log_formatter = logging.Formatter("%(asctime)s:%(name)s:%(levelname)s:%(message)s")
     root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(log_formatter)
     root_logger.addHandler(console_handler)

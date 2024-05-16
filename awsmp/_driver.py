@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 class AmiProduct:
     def __init__(self, product_id: str):
         self.product_id: str = product_id
+        self.offer_id = get_public_offer_id(product_id)
 
     @staticmethod
     def create():
@@ -31,18 +32,16 @@ class AmiProduct:
 
         return get_response(changeset_stringified, changeset_name)
 
-    @staticmethod
-    def update_legal_terms(offer_id: str, eula_url: str) -> ChangeSetReturnType:
-        changeset = changesets.get_ami_listing_update_legal_terms_changesets(offer_id, eula_url)
-        changeset_name = f"Product {offer_id} legal terms update"
+    def update_legal_terms(self, eula_url: str) -> ChangeSetReturnType:
+        changeset = changesets.get_ami_listing_update_legal_terms_changesets(self.offer_id, eula_url)
+        changeset_name = f"Product {self.product_id} legal terms update"
         changeset_stringified = changesets.stringify_changeset_details(changeset)
 
         return get_response(changeset_stringified, changeset_name)
 
-    @staticmethod
-    def update_support_terms(offer_id: str, refund_policy: str) -> ChangeSetReturnType:
-        changeset = changesets.get_ami_listing_update_support_terms_changesets(offer_id, refund_policy)
-        changeset_name = f"Product {offer_id} support terms update"
+    def update_support_terms(self, refund_policy: str) -> ChangeSetReturnType:
+        changeset = changesets.get_ami_listing_update_support_terms_changesets(self.offer_id, refund_policy)
+        changeset_name = f"Product {self.product_id} support terms update"
         changeset_stringified = changesets.stringify_changeset_details(changeset)
 
         return get_response(changeset_stringified, changeset_name)
@@ -56,7 +55,7 @@ class AmiProduct:
         return get_response(changeset_stringified, changeset_name)
 
     def update_instance_types(
-        self, offer_id: str, instance_types: IO, dimension_unit: Literal["Hrs", "Units"], free: bool
+        self, instance_types: IO, dimension_unit: Literal["Hrs", "Units"], free: bool
     ) -> ChangeSetReturnType:
         csvreader = csv.DictReader(instance_types, fieldnames=["name", "price_hourly", "price_annual"])
         instance_type_pricing = [models.InstanceTypePricing(**line) for line in csvreader]  # type:ignore
@@ -68,7 +67,7 @@ class AmiProduct:
         new_instance_types = list(all_instance_types - existing_instance_types)
 
         changeset = changesets.get_ami_listing_update_instance_type_changesets(
-            self.product_id, offer_id, instance_type_pricing, dimension_unit, new_instance_types, free
+            self.product_id, self.offer_id, instance_type_pricing, dimension_unit, new_instance_types, free
         )
         changeset_name = f"Product {self.product_id} instance type update"
         changeset_stringified = changesets.stringify_changeset_details(changeset)
@@ -89,12 +88,15 @@ class AmiProduct:
 
         return get_response(changeset_stringified, changeset_name)
 
-    def release(self, offer_id: str) -> ChangeSetReturnType:
-        changeset = changesets.get_ami_release_changesets(self.product_id, offer_id)
+    def release(self) -> ChangeSetReturnType:
+        changeset = changesets.get_ami_release_changesets(self.product_id, self.offer_id)
         changeset_name = f"Product {self.product_id} publish as limited"
         changeset_stringified = changesets.stringify_changeset_details(changeset)
 
         return get_response(changeset_stringified, changeset_name)
+
+    def _get_product_title(self):
+        return get_entity_details(self.product_id)["Description"]["ProductTitle"]
 
 
 def get_client(service_name="marketplace-catalog", region_name="us-east-1"):
@@ -163,6 +165,29 @@ def get_entity_details(entity_id: str) -> Dict:
         _raise_client_error(error)
 
     return json.loads(e["Details"])
+
+
+def get_public_offer_id(entity_id: str):
+    client = get_client()
+    e = client.list_entities(
+        Catalog="AWSMarketplace",
+        EntityType="Offer",
+        EntityTypeFilters={
+            "OfferFilters": {
+                "ProductId": {
+                    "ValueList": [
+                        entity_id,
+                    ]
+                },
+                "Targeting": {"ValueList": ["None"]},
+            }
+        },
+    )
+    if not e["EntitySummaryList"]:
+        logger.exception(f"Offer with entity-id {entity_id} not found")
+        raise ResourceNotFoundException
+
+    return e["EntitySummaryList"][0]["EntityId"]
 
 
 def get_entity_versions(entity_id: str) -> List[dict[str, str]]:
