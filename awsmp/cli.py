@@ -56,10 +56,24 @@ def entity_list(entity_type, filter_visibility):
     """
     entity_list = _driver.list_entities(entity_type)
     t = prettytable.PrettyTable()
-    t.field_names = ["entity-id", "name", "visibility", "last-changed"]
+    if entity_type == "AmiProduct":
+        t.field_names = ["entity-id", "name", "visibility", "last-changed"]
+    else:
+        t.field_names = ["entity-id", "Product-Id", "name", "visibility", "last-changed"]
     for _, entity in entity_list.items():
         if not filter_visibility or entity["Visibility"] in filter_visibility:
-            t.add_row([entity["EntityId"], entity["Name"], entity["Visibility"], entity["LastModifiedDate"]])
+            if entity_type == "AmiProduct":
+                t.add_row([entity["EntityId"], entity["Name"], entity["Visibility"], entity["LastModifiedDate"]])
+            else:
+                t.add_row(
+                    [
+                        entity["EntityId"],
+                        entity["OfferSummary"]["ProductId"],
+                        entity["Name"],
+                        entity["Visibility"],
+                        entity["LastModifiedDate"],
+                    ]
+                )
     print(t.get_string(sortby="last-changed"))
 
 
