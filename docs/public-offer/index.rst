@@ -14,8 +14,7 @@ Create product ID
    ChangeSet created (ID: gxy13m673kmhr4vdtpu0ltwf)
    https://aws.amazon.com/marketplace/management/requests/gxy13m673kmhr4vdtpu0ltwf
 
-This request will generate an offer ID associated with the product ID. An offer ID is **required**
-to update the instance type, the legal terms and to release the listing, as seen in the API calls ahead.
+This request will generate an offer ID associated with the product ID. An offer ID is **required** generate pricing template file for updating instance types.
 
 .. note::
 
@@ -114,7 +113,6 @@ To update/add an instance type, you need to generate an instance type file and p
 
          awsmp public-offer update-instance-type \
             --product-id prod-xwpv7txqxg55e \
-            --offer-id offer-t4vib6xp7tb3c \
             --instance-type-file instance_type.csv \
             --dimension-unit Hrs \
             --free Y
@@ -125,7 +123,6 @@ To update/add an instance type, you need to generate an instance type file and p
 
          awsmp public-offer update-instance-type \
             --product-id prod-xwpv7txqxg55e \
-            --offer-id offer-t4vib6xp7tb3c \
             --instance-type-file instance_type.csv \
             --dimension-unit Hrs \
             --free N
@@ -214,7 +211,7 @@ To update the legal terms, use:
 .. code-block:: sh
 
    awsmp public-offer update-legal-terms \
-      --offer-id offer-t4vib6xp7tb3c \
+      --product-id prod-xwpv7txqxg55e \
       --config listing_configuration.yaml
 
 To update support terms, use:
@@ -222,7 +219,7 @@ To update support terms, use:
 .. code-block:: sh
 
    awsmp public-offer update-support-terms \
-      --offer-id offer-t4vib6xp7tb3c \
+      --product-id prod-xwpv7txqxg55e \
       --config listing_configuration.yaml
 
 Release AMI product listing
@@ -233,8 +230,7 @@ To publish drafted AMI listing to :guilabel:`Limited` state, product ID and publ
 .. code-block:: sh
 
    awsmp public-offer release \
-      --product-id prod-fwu3xsqup23cs \
-      --offer-id offer-t4vib6xp7tb3c
+      --product-id prod-fwu3xsqup23cs
 
 
 
