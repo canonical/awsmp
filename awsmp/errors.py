@@ -24,14 +24,17 @@ Check your IAM permission or seller registration if you use marketplace service.
 
 
 class ResourceNotFoundException(AWSException):
-    def __init__(self):
-        message = """
+    def __init__(self, *args):
+        if args:
+            super().__init__(*args)
+        else:
+            message = """
 
 
 Product/Offer ID does not exist. Please check your those information and try again.
 Product/Offer ID can be found in Home > Requests > Create new AMI Product from marketplace management portal https://aws.amazon.com/marketplace/management/requests/.
 """
-        super().__init__(message)
+            super().__init__(message)
 
 
 class UnrecognizedClientException(AWSException):

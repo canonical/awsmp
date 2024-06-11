@@ -184,8 +184,7 @@ def get_public_offer_id(entity_id: str):
         },
     )
     if not e["EntitySummaryList"]:
-        logger.exception(f"Offer with entity-id {entity_id} not found")
-        raise ResourceNotFoundException
+        raise ResourceNotFoundException(f"\n\nOffer with entity-id {entity_id} not found.\n")
 
     return e["EntitySummaryList"][0]["EntityId"]
 
