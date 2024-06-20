@@ -2,12 +2,14 @@ from unittest.mock import patch
 
 import pytest
 import yaml
+from botocore.exceptions import ClientError
 from pydantic import ValidationError
 
 from awsmp import _driver
 from awsmp.errors import (
     AccessDeniedException,
     MissingInstanceTypeError,
+    ResourceNotFoundException,
     UnrecognizedClientException,
 )
 
@@ -15,9 +17,12 @@ from awsmp.errors import (
 class TestAmiProduct(object):
     """Tests to validate AmiProduct"""
 
-    def test_ami_product_class(self):
+    @patch("awsmp._driver.get_public_offer_id")
+    def test_ami_product_class(self, mock_get_public_offer_id):
+        mock_get_public_offer_id.return_value = "fake-offer-id"
         test_ami_product = _driver.AmiProduct(product_id="fake")
         assert test_ami_product.product_id == "fake"
+        assert test_ami_product.offer_id == "fake-offer-id"
 
 
 @pytest.mark.parametrize(
@@ -161,7 +166,7 @@ def test_ami_product_update_instance_type(mock_get_details, mock_get_client):
         "Dimensions": [{"Name": "c3.2xlarge"}, {"Name": "c3.4xlarge"}, {"Name": "c3.8xlarge"}]
     }
     with open("./tests/prices.csv") as prices:
-        ap.update_instance_types("test-public-offer", prices, "Hrs", True)
+        ap.update_instance_types(prices, "Hrs", True)
     assert mock_get_client.return_value.start_change_set.call_count == 1
     assert (
         mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][1]["Details"]
@@ -300,7 +305,9 @@ def test_ami_product_update_version(mock_get_client):
 @patch("awsmp._driver.get_client")
 def test_ami_product_update_legal_terms(mock_get_client):
     mock_eula = "https://testing-eula"
-    _driver.AmiProduct.update_legal_terms(offer_id="testing", eula_url=mock_eula)
+
+    ap = _driver.AmiProduct(product_id="testing")
+    ap.update_legal_terms(eula_url=mock_eula)
 
     assert (
         '{"Type": "CustomEula", "Url": "https://testing-eula"}'
@@ -311,7 +318,8 @@ def test_ami_product_update_legal_terms(mock_get_client):
 @patch("awsmp._driver.get_client")
 def test_ami_product_update_support_terms(mock_get_client):
     mock_refund_policy = "testing is not refundable"
-    _driver.AmiProduct.update_support_terms(offer_id="testing", refund_policy=mock_refund_policy)
+    ap = _driver.AmiProduct(product_id="testing")
+    ap.update_support_terms(refund_policy=mock_refund_policy)
 
     assert (
         '{"Terms": [{"Type": "SupportTerm", "RefundPolicy": "testing is not refundable"}]}'
@@ -322,7 +330,7 @@ def test_ami_product_update_support_terms(mock_get_client):
 @patch("awsmp._driver.get_client")
 def test_ami_product_release(mock_get_client):
     ap = _driver.AmiProduct(product_id="testing")
-    ap.release(offer_id="testing")
+    ap.release()
 
     assert (
         mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][0]["ChangeType"]
@@ -342,3 +350,18 @@ def test_ami_product_release(mock_get_client):
 def test_get_entity_versions(mock_get_details):
     mock_get_details.return_value = {"Versions": [{"CreationDate": "20231010"}, {"CreationDate": "20230202"}]}
     assert _driver.get_entity_versions("foo") == [{"CreationDate": "20230202"}, {"CreationDate": "20231010"}]
+
+
+@patch("awsmp._driver.get_client")
+def test_get_public_offer_id(mock_get_client):
+    mock_get_client.return_value.list_entities.return_value = {
+        "EntitySummaryList": [{"EntityType": "Offer", "EntityId": "testing-public-offer-id"}]
+    }
+    assert _driver.get_public_offer_id("testing") == "testing-public-offer-id"
+
+
+@patch("awsmp._driver.get_client")
+def test_get_public_no_offer_id(mock_get_client):
+    mock_get_client.return_value.list_entities.return_value = {"EntitySummaryList": []}
+    with pytest.raises(ResourceNotFoundException):
+        _driver.get_public_offer_id("no-offer-id")

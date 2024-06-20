@@ -7,7 +7,7 @@ awsmp
 Documentation
 #############
 
-The documentation can be found (#TODO).
+The documentation can be found `here <https://canonical-awsmp.readthedocs-hosted.com/en/latest/>_`.
 
 It'll cover installation instructions and specific use cases such as creating a private offer.
 

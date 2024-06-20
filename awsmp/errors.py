@@ -24,14 +24,17 @@ Check your IAM permission or seller registration if you use marketplace service.
 
 
 class ResourceNotFoundException(AWSException):
-    def __init__(self):
-        message = """
+    def __init__(self, *args):
+        if args:
+            super().__init__(*args)
+        else:
+            message = """
 
 
 Product/Offer ID does not exist. Please check your those information and try again.
 Product/Offer ID can be found in Home > Requests > Create new AMI Product from marketplace management portal https://aws.amazon.com/marketplace/management/requests/.
 """
-        super().__init__(message)
+            super().__init__(message)
 
 
 class UnrecognizedClientException(AWSException):
@@ -62,5 +65,15 @@ class YamlMissingKeyException(Exception):
 
 
 Config file does not have key {*missing_keys,}. Please check the file and request again.
+"""
+        super().__init__(message)
+
+
+class NoProductIdProvidedException(Exception):
+    def __init__(self):
+        message = f"""
+
+
+No product ids are provided. Please pass at least one product id for using this function.
 """
         super().__init__(message)
