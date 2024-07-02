@@ -3,7 +3,6 @@
 import csv
 import json
 import logging
-import pprint
 import time
 from typing import Dict, List, TextIO
 
@@ -72,7 +71,7 @@ def entity_list(entity_type, filter_visibility):
 @click.argument("entity-id")
 def entity_show(entity_id):
     details = _driver.get_entity_details(entity_id)
-    pprint.pprint(details)
+    print(json.dumps(details, indent=2))
 
 
 @inspect.command("entity-versions-count")
