@@ -1,3 +1,4 @@
+import json
 import tempfile
 from unittest.mock import MagicMock, patch
 
@@ -72,3 +73,16 @@ def test_missing_keys_in_configuration(missing_key, expected_exception, expected
     with pytest.raises(expected_exception) as e:
         cli._load_configuration(mock_path, missing_key)
     assert expected_message in str(e.value)
+
+
+@patch("awsmp._driver.get_entity_details")
+def test_get_diff(mock_get_entity_details):
+    """
+    Test get_diff call
+    """
+    with open("./tests/test_config.json") as f:
+        mock_get_entity_details.return_value = json.load(f)
+
+    runner = CliRunner()
+    result = runner.invoke(cli.get_diff, ["temp-list", "--config", "./tests/test_config.yaml"])
+    assert result == [{}, {}, {}]
