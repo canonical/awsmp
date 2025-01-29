@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#mi!/usr/bin/env python
 
 import csv
 import json
@@ -101,6 +101,19 @@ def entity_versions_list(entity_id):
     for v in versions:
         t.add_row([v["CreationDate"], v["Id"], v["VersionTitle"]])
     print(t.get_string(sortby="CreationDate"))
+
+
+@inspect.command("get-diff")
+@click.argument("entity-id")
+@click.option("--config", type=click.File("r"), required=True, prompt=True)
+def entity_get_diff(entity_id, config):
+    """
+    Get the differences between marketplace listing
+    and local configuration file.
+    """
+
+    diff = _driver.get_entity_diff(entity_id, desc, region_config, refund_policy, eula_url)
+    print(diff)
 
 
 @private_offer.command("create")

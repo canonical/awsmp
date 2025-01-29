@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Dict, List, Literal, Optional, TypedDict
+from typing import Any, Dict, List, Literal, Optional, TypedDict
 
 import boto3
 from pydantic import BaseModel, Field, HttpUrl, conlist, constr, field_validator
@@ -139,3 +139,111 @@ class AmiVersion(BaseModel):
         if not value.startswith("arn:aws:iam::"):
             raise ValueError(f"{value} is invalid role format. Please check your role again.")
         return value
+
+
+class DescriptionModel(BaseModel):
+    ProductTitle: str
+    ProductCode: str
+    ShortDescription: str
+    LongDescription: str
+    Sku: str
+    Highlights: List[str]
+    SearchKeywords: List[str]
+    Categories: List[str]
+
+class PromotionalResourcesModel(BaseModel):
+    LogoUrl: str
+    Videos: List[str]
+    AdditionalResources: List[dict[str, str]]
+
+class SupportInformationModel(BaseModel):
+    Description: str
+    Resources: List[str]
+
+class RegionAvailabilityModel(BaseModel):
+    Regions: List[str]
+    FutureRegionSupport: str
+
+class Entity(BaseModel):
+    Description: DescriptionModel
+    PromotionalResources: PromotionalResourcesModel
+    SupportInformation: SupportInformationModel
+    RegionAvailability: RegionAvailabilityModel
+
+    @staticmethod
+    def _get_entity(response: dict[str, Any]):
+        return Entity(**response)
+
+    def _get_description_diff(self, local_config: AmiProduct):
+
+        desc = self.Description
+        promo = self.PromotionalResources
+        support = self.SupportInformation
+
+        json_yaml_description_mapping = {
+            "product_title": desc.ProductTitle,
+            "short_description": desc.ShortDescription,
+            "long_description": desc.LongDescription,
+            "highlights": desc.Highlights,
+            "logourl": promo.LogoUrl,
+            "search_keywords": desc.SearchKeywords,
+            "support_description": support.Description,
+            "categories": desc.Categories,
+        }
+
+        live_listing_config = AmiProduct(**json_yaml_description_mapping)
+        diffs = {}
+
+        for k, v in live_listing_config.dict().items():
+            local_value = local_config.dict()[k]
+            if local_value != v:
+                diffs[k] = local_value
+
+        return diffs
+
+    def _get_region_diff(self, local_config: Region):
+        regions = self.RegionAvailability
+
+        json_yaml_region_mapping = {
+            "commercial_regions": regions.Regions,
+            "future_region_support": True if regions.FutureRegionSupport == "All" else False,
+        }
+
+        live_listing_config = Region(**json_yaml_region_mapping)
+
+        diffs = {}
+
+        for k, v in live_listing_config.dict().items():
+            amiRegion_value = local_config.dict()[k]
+            if amiRegion_value != v:
+                if k == "commercial_regions":
+                    diffs[k] = list(set(amiRegion_value) - set(v))
+                else:
+                    diffs[k] = amiRegion_value
+
+        return diffs
+
+    def _get_support_and_legal_diff(self, support_term: dict[str, Any], legal_term: str):
+        # FIX ME legal term is not described from desribe_entity call
+        # getting diff of the support term for now
+        support = self.SupportInformation
+
+        response_support_mapping = {"description": support.Description, "resources": support.Resources}
+        diffs = {}
+
+        # support_term
+        for k, v in response_support_mapping.items():
+            if support_term[k] != v:
+                diffs[k] = support_term[k]
+
+        return diffs
+    
+    def get_diff(self, ami: AmiProduct, ami_region: Region, support_term: dict[str, Any], legal_term: str):
+
+        desc_diff = self._get_description_diff(ami)
+        region_diff = self._get_region_diff(ami_region)
+        support_diff = self._get_support_and_legal_diff(support_term, legal_term)
+
+        total_diff = [desc_diff, region_diff, support_diff]
+
+        return total_diff
