@@ -75,13 +75,13 @@ def test_missing_keys_in_configuration(missing_key, expected_exception, expected
     assert expected_message in str(e.value)
 
 
-@patch("awsmp._driver.get_entity_details")
-def test_get_diff(mock_get_entity_details):
+@patch("awsmp._driver.get_full_ami_product_details")
+def test_get_diff(mock_get_full_ami_product_details):
     """
     Test get_diff call
     """
     with open("./tests/test_config.json") as f:
-        mock_get_entity_details.return_value = json.load(f)
+        mock_get_full_ami_product_details.return_value = json.load(f)
 
     runner = CliRunner()
     result = runner.invoke(cli.get_diff, ["temp-list", "--config", "./tests/test_config.yaml"])

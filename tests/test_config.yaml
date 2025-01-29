@@ -1,21 +1,22 @@
 description:
   product_title: "test"
-  logourl: "https://awsmp-logos.s3.amazonaws.com/8350ae04bad5625623cc02c64eb8b0b5"
+  logourl: "https://test-logourl"
   video_urls: []
   short_description: "test_short_description"
   long_description: |
-    "test_long_description"
+    test_long_description
   highlights:
     - "test_highlight_1"
   search_keywords:
     - "test_keyword_1"
   categories:
-    - "test_category_1"
+    - "Migration"
   support_description: |
-    "test_support_description"
-  support_resources: "test_support_description"
+    test_support_description
+  support_resources: 
+    - "test_support_resource"
   additional_resources:
-    - test_additional_resource1: "resource1"
+    - test-link: "https://test-url"
   sku: "test"
 region:
   commercial_regions:
@@ -41,5 +42,5 @@ version:
   from_port: 22
   to_port: 22
 refund_policy: |
-  test_refund_policy
+  test_refund_policy_term
 eula_url: "test_eula_url"

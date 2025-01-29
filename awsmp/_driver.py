@@ -1,7 +1,7 @@
 import csv
 import json
 import logging
-from typing import IO, Dict, List, Literal, Optional
+from typing import IO, Any, Dict, List, Literal, Optional
 
 import boto3
 from botocore.exceptions import ClientError
@@ -189,11 +189,39 @@ def get_public_offer_id(entity_id: str):
     return e["EntitySummaryList"][0]["EntityId"]
 
 
+def get_full_ami_product_details(entity_id: str):
+    prod_details = get_entity_details(entity_id)
+
+    offer_id = get_public_offer_id(entity_id)
+    offer_details = get_entity_details(offer_id)
+
+    for detail in offer_details:
+        if detail["Type"] == "SupportTerm":
+            prod_details["SupportTerm"] = detail["RefundPolicy"]
+        elif detail["Type"] == "UsageBasedPricingTerm":
+            prod_details["UsageBasedPricingTerm"] = detail["RateCards"]
+        else:
+            # TODO EULA_URL
+            continue
+
+    return prod_details
+
+
 def get_entity_versions(entity_id: str) -> List[dict[str, str]]:
     details = get_entity_details(entity_id)
     if "Versions" not in details.keys():
         return []
     return sorted(details["Versions"], key=lambda x: x["CreationDate"])
+
+
+def get_entity_diff(entity_id: str, desc, region, refund_policy, eula_url) -> List[dict[str, Any]]:
+    details = get_entity_details(entity_id)
+
+    entity = models.Entity(details)
+    ami = models.AmiProduct(**desc)
+    region = models.Region(**region)
+
+    return entity.get_diff(ami, region, refund_policy, eula_url)
 
 
 def _get_ratecard_info(changeset: Dict, idx: int, instance_types: List[str]) -> List[Dict]:
