@@ -1,7 +1,7 @@
 import csv
 import json
 import logging
-from typing import IO, Dict, List, Literal, Optional
+from typing import Any, IO, Dict, List, Literal, Optional
 
 import boto3
 from botocore.exceptions import ClientError
@@ -163,7 +163,7 @@ def get_entity_details(entity_id: str) -> Dict:
         e = client.describe_entity(Catalog="AWSMarketplace", EntityId=entity_id)
     except ClientError as error:
         _raise_client_error(error)
-
+    breakpoint()
     return json.loads(e["Details"])
 
 
@@ -194,6 +194,16 @@ def get_entity_versions(entity_id: str) -> List[dict[str, str]]:
     if "Versions" not in details.keys():
         return []
     return sorted(details["Versions"], key=lambda x: x["CreationDate"])
+
+
+def get_entity_diff(entity_id: str, desc, region, refund_policy, eula_url) -> List[dict[str, Any]]:
+    details = get_entity_details(entity_id)
+
+    entity = models.Entity(details)
+    ami = models.AmiProduct(**desc)
+    region = models.Region(**region)
+
+    return entity.get_diff(ami, region, refund_policy, eula_url)
 
 
 def _get_ratecard_info(changeset: Dict, idx: int, instance_types: List[str]) -> List[Dict]:
