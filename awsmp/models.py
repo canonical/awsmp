@@ -1,5 +1,8 @@
+from __future__ import annotations
+
+import json
 from decimal import Decimal
-from typing import Dict, List, Literal, Optional, TypedDict
+from typing import Any, Dict, List, Literal, Optional, TypedDict
 
 import boto3
 from pydantic import BaseModel, Field, HttpUrl, conlist, constr, field_validator
@@ -60,7 +63,7 @@ class AmiProduct(BaseModel):
     categories: conlist(str, min_length=1, max_length=3)  # type:ignore
     search_keywords: conlist(str, min_length=1)  # type:ignore
     support_description: str = Field(max_length=2000)
-    support_resources: Optional[str] = Field(max_length=500, default=None)
+    support_resources: Optional[List[str]] = []
     sku: Optional[str] = Field(max_length=100, default=None)
     video_urls: Optional[conlist(HttpUrl, min_length=0, max_length=1)] = Field(default=[])  # type:ignore
     additional_resources: Optional[conlist(Dict[str, HttpUrl], min_length=0, max_length=3)] = Field(  # type:ignore
@@ -139,3 +142,145 @@ class AmiVersion(BaseModel):
         if not value.startswith("arn:aws:iam::"):
             raise ValueError(f"{value} is invalid role format. Please check your role again.")
         return value
+
+
+class DescriptionModel(BaseModel):
+    ProductTitle: str
+    ShortDescription: str
+    LongDescription: str
+    Sku: str
+    Highlights: List[str]
+    SearchKeywords: List[str]
+    Categories: List[str]
+
+
+class PromotionalResourcesModel(BaseModel):
+    LogoUrl: HttpUrl
+    Videos: List[HttpUrl]
+    AdditionalResources: List[
+        dict[
+            str,
+            str,
+        ]
+    ]
+
+    @field_validator("AdditionalResources")
+    def additional_resources_validator(cls, value) -> SupportResources:
+        return [{"Type": resource["Text"], "Url": HttpUrl(resource["Url"])} for resource in value]
+
+
+class SupportInformationModel(BaseModel):
+    Description: str
+    Resources: List[str]
+
+
+class RegionAvailabilityModel(BaseModel):
+    Regions: List[str]
+    FutureRegionSupport: str
+
+
+# class UsageBasedPricingTermModel(BaseModel):
+#    DimensionKey: str
+#    Price: str
+
+
+class EntityModel(BaseModel):
+    Description: DescriptionModel
+    PromotionalResources: PromotionalResourcesModel
+    SupportInformation: SupportInformationModel
+    RegionAvailability: RegionAvailabilityModel
+    SupportTerm: str
+    #    UsageBasedPricingTerm: List[dict[str, List[UsageBasedPricingTermModel]]]
+
+    @staticmethod
+    def _get_entity(response: dict[str, Any]):
+        return EntityModel(**response)
+
+    @staticmethod
+    def _get_entity_from_yaml(yaml_config: dict[str, Any]):
+        desc = AmiProduct(**yaml_config["description"])
+        region = Region(**yaml_config["region"])
+        refund_policy = yaml_config["refund_policy"]
+
+        yaml_to_api_response = {
+            "Description": {
+                "ProductTitle": desc.product_title,
+                "ShortDescription": desc.short_description,
+                "LongDescription": desc.long_description,
+                "Sku": desc.sku,
+                "Highlights": desc.highlights,
+                "SearchKeywords": desc.search_keywords,
+                "Categories": desc.categories,
+            },
+            "PromotionalResources": {
+                "LogoUrl": desc.logourl,
+                "Videos": desc.video_urls,
+                "AdditionalResources": desc.additional_resources,
+            },
+            "SupportInformation": {
+                "Description": desc.support_description,
+                "Resources": desc.support_resources,
+            },
+            "RegionAvailability": {
+                "Regions": region.commercial_regions,
+                "FutureRegionSupport": region.future_region_support[-1],
+            },
+            "SupportTerm": refund_policy,
+        }
+
+        return EntityModel(**yaml_to_api_response)
+
+    def _get_dict(self, key: Optional[str]):
+        if key is None:
+            return self.dict()[key]
+
+        return self.dict()[key]
+
+    def _get_description_diff(self, local_entity: EntityModel):
+        description_keys = ["Description", "PromotionalResources", "SupportInformation"]
+        diffs = {}
+        for key in description_keys:
+            live_listing_entity = self._get_dict(key)
+            local_config_entity = local_entity._get_dict(key)
+            for k, v in live_listing_entity.items():
+                # Compare unordered items for list data type
+                if k in ["Highlights", "SearchKeywords", "Categories", "Resources"]:
+                    list_diff = set(local_config_entity[k]) - set(live_listing_entity[k])
+                    if list_diff:
+                        diffs[k] = list(list_diff)
+                elif k in ["AdditionalResources"]:
+                    # Compare list of dictionary data type
+                    sorted_local_set = set(tuple(sorted(resource.items())) for resource in local_config_entity[k])
+                    sorted_live_set = set(tuple(sorted(resource.items())) for resource in live_listing_entity[k])
+                    if sorted_local_set != sorted_live_set:
+                        diffs[k] = list(sorted_local_set - sorted_live_set)
+                else:
+                    if local_config_entity[k] != v:
+                        diffs[k] = local_config_entity[k]  # Showing diffs in the local config
+        return diffs
+
+    def _get_region_diff(self, local_entity: EntityModel):
+        diffs = {}
+
+        for key, value in local_entity._get_dict("RegionAvailability").items():
+            if key == "Regions":
+                list_diff = set(local_entity.RegionAvailability.Regions) - set(self.RegionAvailability.Regions)
+                if list_diff:
+                    diffs["Regions"] = list(list_diff)
+            else:
+                if value != self.RegionAvailability.FutureRegionSupport:
+                    diffs[key] = value
+
+        return diffs
+
+    def _get_support_term_diff(self, local_entity: EntityModel):
+        return {"SupportTerm": local_entity.SupportTerm} if self.SupportTerm != local_entity.SupportTerm else {}
+
+    def get_diff(self, ami: AmiProduct, ami_region: Region, support_term: dict[str, Any], legal_term: str):
+        desc_diff = self._get_description_diff(ami)
+        region_diff = self._get_region_diff(ami_region)
+        support_diff = self._get_support_and_legal_diff(support_term, legal_term)
+
+        total_diff = [desc_diff, region_diff, support_diff]
+
+        return total_diff

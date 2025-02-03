@@ -11,7 +11,7 @@ import prettytable
 import yaml
 from botocore.exceptions import ClientError
 
-from . import _driver
+from . import _driver, models
 from .errors import (
     AccessDeniedException,
     NoProductIdProvidedException,
@@ -101,6 +101,22 @@ def entity_versions_list(entity_id):
     for v in versions:
         t.add_row([v["CreationDate"], v["Id"], v["VersionTitle"]])
     print(t.get_string(sortby="CreationDate"))
+
+
+@inspect.command("get-diff")
+@click.argument("entity-id")
+@click.option("--config", type=click.File("r"), required=True, prompt=True)
+def entity_get_diff(entity_id, config):
+    """
+    Get the differences between marketplace listing
+    and local configuration file.
+    """
+
+    live_listing_resp = _driver.get_full_ami_product_details(entity_id)
+    entity_from_live_listing = models.Entity(**live_listing_resp)
+
+    diff = entity_from_live_listing.get_diff(local_config)
+    print(diff)
 
 
 @private_offer.command("create")

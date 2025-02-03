@@ -1,0 +1,79 @@
+{"Description": {"ProductTitle": "test","ProductCode": "prod-test",
+            "ShortDescription": "test_short_description",
+            "Manufacturer": "",
+            "LongDescription": "test_long_description",
+            "Sku": "test",
+            "Highlights": ["test_highlight_1"],
+            "AssociatedProducts": "",
+            "SearchKeywords": ["test_keyword_1"],
+            "Visibility": "Public",
+            "ProductState": "Active",
+            "Categories": ["Migration"]
+        },
+        "SupportInformation": {"Description": "test_support_description", "Resources": ["test_support_resource"]},
+        "RegionAvailability": {"FutureRegionSupport": "All", "Restrict": [], "Regions": ["us-east-1", "us-east-2"]},
+        "Versions": [
+            {
+                "Id": "test-id",
+                "ReleaseNotes": "Automated version update for new release\n",
+                "UpgradeInstructions": "",
+                "VersionTitle": "test_version_title",
+                "CreationDate": "2034-11-11T21:58:08.747Z",
+                "Sources": [
+                    {
+                        "Id": "test-id",
+                        "Type": "AmazonMachineImage",
+                        "Image": "ami-test",
+                        "Architecture": "x86_64",
+                        "VirtualizationType": "hvm",
+                        "OperatingSystem": {
+                            "Name": "test_os",
+                            "Version": "test_os_system_version",
+                            "Username": "test_os_user_name",
+                            "ScanningPort": 22},
+                        "Compatibility": {"AvailableInstanceTypes": ["test-type-1"], "RestrictedInstanceTypes": []}}
+                ],
+                "DeliveryMethods": [
+                    {
+                        "Id": "testid",
+                        "Type": "AmazonMachineImage",
+                        "SourceId": "test-id",
+                        "ShortDescription": "No description provided for this delivery method",
+                        "Instructions": {"Usage": "test_usage_instructions\n"},
+                        "Recommendations": {
+                            "SecurityGroups": [
+                                {"Protocol": "tcp", "FromPort": 22, "ToPort": 22, "CidrIps": ["0.0.0.0/0"]}
+                            ],
+                            "InstanceType": "m5.large"},
+                        "Visibility": "Public",
+                        "Title": "(x86_64) Amazon Machine Image"}
+                ],
+                "DeliveryOptions": [
+                    {
+                        "Id": "test-id",
+                        "Type": "AmazonMachineImage",
+                        "SourceId": "test-id",
+                        "ShortDescription": "No description provided for this delivery method",
+                        "Instructions": {"Usage": "test_usage_instructions\n"},
+                        "Recommendations": {
+                            "SecurityGroups": [
+                                {"Protocol": "tcp", "FromPort": 22, "ToPort": 22, "CidrIps": ["0.0.0.0/0"]}
+                            ],
+                            "InstanceType": "m5.large"},
+                        "Visibility": "Public",
+                        "Title": "(x86_64) Amazon Machine Image"}
+                ]
+            }
+        ],
+        "PromotionalResources": {
+            "LogoUrl": "https://test-logourl",
+            "Videos": [],
+            "AdditionalResources": [{"Type": "Link", "Text": "test-link", "Url": "https://test-url"}],
+            "PromotionalMedia": []},
+        "Targeting": {"PositiveTargeting": {"BuyerAccounts": ["099720109477", "297512042063", "782858285006"]}},
+        "Dimensions": [{"Name": "a1.large", "Description": "a1.large", "Key": "a1.large", "Unit": "Hrs", "Types": ["Metered"]}],
+        "Compatibility": {"AvailableInstanceTypes": ["a1.large"], "RestrictedInstanceTypes": []},
+    "SupportTerm": "test_refund_policy_term\n",
+    "UsageBasedPricingTerm": [{"RateCard": [{"DimensionKey": "c3.2xlarge", "Price": "0.0"}, {"DimensionKey": "c3.4xlarge", "Price": "0.0"} ]}]
+}
+
