@@ -70,3 +70,7 @@ CATEGORIES = [
     "Industrial",
     "Energy",
 ]
+
+
+# Offer field keys
+TYPE = "Type"
