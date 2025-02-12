@@ -32,6 +32,7 @@ In this documentation
    :maxdepth: 4
 
    Installation <installation>
+   Manage offer <inspect/index>
    Create a public offer <public-offer/index>
    Create a private offer <private-offer/index>
 
