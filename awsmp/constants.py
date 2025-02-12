@@ -74,3 +74,11 @@ CATEGORIES = [
 
 # Offer field keys
 TYPE = "Type"
+TEXT = "Text"
+SUPPORT_TERM = "SupportTerm"
+REFUND_POLICY = "RefundPolicy"
+USAGE_BASED_PRICING_TERM = "UsageBasedPricingTerm"
+RATECARD = "RateCard"
+RATECARDS = "RateCards"
+URL = "Url"
+TERMS = "Terms"
