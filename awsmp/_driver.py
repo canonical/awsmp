@@ -1,12 +1,21 @@
 import csv
 import json
 import logging
-from typing import IO, Dict, List, Literal, Optional
+from typing import IO, Any, Dict, List, Literal, Optional
 
 import boto3
 from botocore.exceptions import ClientError
 
 from . import changesets, models
+from .constants import (
+    RATECARD,
+    RATECARDS,
+    REFUND_POLICY,
+    SUPPORT_TERM,
+    TERMS,
+    TYPE,
+    USAGE_BASED_PRICING_TERM,
+)
 from .errors import (
     AccessDeniedException,
     MissingInstanceTypeError,
@@ -187,6 +196,31 @@ def get_public_offer_id(entity_id: str):
         raise ResourceNotFoundException(f"\n\nOffer with entity-id {entity_id} not found.\n")
 
     return e["EntitySummaryList"][0]["EntityId"]
+
+
+def get_full_ami_product_details(entity_id: str) -> dict[str, Any]:
+    """
+    Get full ami details including public offer detail
+
+    :param str entity_id: product id of the listing
+    :return: dictionary with public product/offer details
+    :rtype: dict[str, Any]
+
+    """
+    prod_details = get_entity_details(entity_id)
+
+    offer_id = get_public_offer_id(entity_id)
+    offer_details = get_entity_details(offer_id)
+
+    for detail in offer_details[TERMS]:
+        if detail[TYPE] == SUPPORT_TERM:
+            prod_details[SUPPORT_TERM] = detail[REFUND_POLICY]
+        elif detail[TYPE] == USAGE_BASED_PRICING_TERM:
+            # detail[RATECARDS] have pricing information with instance type
+            # detail[RATECARDS] = [{'RateCard': [{'DimensionKey': 't3.medium', 'Price': '0.xxx'}, {...}]}]
+            prod_details[USAGE_BASED_PRICING_TERM] = detail[RATECARDS][-1][RATECARD]
+
+    return prod_details
 
 
 def get_entity_versions(entity_id: str) -> List[dict[str, str]]:
