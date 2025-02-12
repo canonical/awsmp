@@ -365,3 +365,25 @@ def test_get_public_no_offer_id(mock_get_client):
     mock_get_client.return_value.list_entities.return_value = {"EntitySummaryList": []}
     with pytest.raises(ResourceNotFoundException):
         _driver.get_public_offer_id("no-offer-id")
+
+
+@patch("awsmp._driver.get_public_offer_id")
+@patch("awsmp._driver.get_entity_details")
+def test_get_full_ami_product_details(mock_get_entity_details, mock_get_public_offer_id):
+    mock_get_entity_details.side_effect = [
+        {"Description": {"ProductTitle": "Test Product"}},
+        {
+            "Terms": [
+                {"Type": "SupportTerm", "RefundPolicy": "No Refund"},
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [{"RateCard": [{"DiemnsionKey": "c1.medium", "price": 0.01}]}],
+                },
+            ]
+        },
+    ]
+    mock_get_public_offer_id.return_value = "offer-123"
+    resp = _driver.get_full_ami_product_details("test-123")
+
+    assert resp["SupportTerm"] == "No Refund"
+    assert resp["UsageBasedPricingTerm"] == [{"DiemnsionKey": "c1.medium", "price": 0.01}]
