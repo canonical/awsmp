@@ -60,7 +60,7 @@ class AmiProduct(BaseModel):
     categories: conlist(str, min_length=1, max_length=3)  # type:ignore
     search_keywords: conlist(str, min_length=1)  # type:ignore
     support_description: str = Field(max_length=2000)
-    support_resources: Optional[str] = Field(max_length=500, default=None)
+    support_resources: Optional[List[str]] = Field(default=[])
     sku: Optional[str] = Field(max_length=100, default=None)
     video_urls: Optional[conlist(HttpUrl, min_length=0, max_length=1)] = Field(default=[])  # type:ignore
     additional_resources: Optional[conlist(Dict[str, HttpUrl], min_length=0, max_length=3)] = Field(  # type:ignore
