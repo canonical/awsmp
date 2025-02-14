@@ -1,11 +1,13 @@
+import json
 import tempfile
+from typing import Any, List
 from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
 from click.testing import CliRunner
 
-from awsmp import _driver, cli, errors
+from awsmp import _driver, cli, errors, models
 
 
 @patch("awsmp._driver.get_client")
@@ -72,3 +74,64 @@ def test_missing_keys_in_configuration(missing_key, expected_exception, expected
     with pytest.raises(expected_exception) as e:
         cli._load_configuration(mock_path, missing_key)
     assert expected_message in str(e.value)
+
+
+@patch("awsmp._driver.get_entity_details")
+@patch("awsmp.models.boto3")
+def test_entity_get_diff_no_diff(mock_boto3, mock_get_entity_details):
+    """
+    Test get_diff call
+    """
+    with open("./tests/test_config.json") as f:
+        mock_get_entity_details.return_value = json.load(f)
+
+    mock_boto3.client.return_value.describe_regions.return_value = {
+        "Regions": [
+            {"Endpoint": "ec2.us-east-1.amazonaws.com", "RegionName": "us-east-1", "OptInStatus": "opted-in"},
+            {"Endpoint": "ec2.us-east-2.amazonaws.com", "RegionName": "us-east-2", "OptInStatus": "opted-in"},
+        ]
+    }
+    local_config_file = "./tests/local_config/test_config_1.yaml"
+    expected_diff: dict[str, List[Any]] = {"added": [], "removed": [], "changed": []}
+
+    runner = CliRunner()
+    result = runner.invoke(cli.entity_get_diff, ["temp-list", local_config_file])
+    assert result.output.strip() == json.dumps(expected_diff, indent=2).strip()
+
+
+@patch("awsmp._driver.get_entity_details")
+@patch("awsmp.models.boto3")
+def test_entity_get_diff(mock_boto3, mock_get_entity_details):
+    with open("./tests/test_config.json") as f:
+        mock_get_entity_details.return_value = json.load(f)
+
+    mock_boto3.client.return_value.describe_regions.return_value = {
+        "Regions": [
+            {"Endpoint": "ec2.us-east-1.amazonaws.com", "RegionName": "us-east-1", "OptInStatus": "opted-in"},
+            {"Endpoint": "ec2.us-east-2.amazonaws.com", "RegionName": "us-east-2", "OptInStatus": "opted-in"},
+            {"Endpoint": "ec2.eu-west-1.amazonaws.com", "RegionName": "eu-west-1", "OptInStatus": "opted-in"},
+        ]
+    }
+
+    local_config_file = "./tests/local_config/test_config_2.yaml"
+    expected_diff: dict[str, List[Any]] = {
+        "added": [],
+        "removed": [],
+        "changed": [
+            {
+                "name": "Highlights",
+                "old_value": ["test_highlight_1"],
+                "new_value": ["test_highlight_1", "test_highlight_2"],
+            },
+            {
+                "name": "Regions",
+                "old_value": ["us-east-1", "us-east-2"],
+                "new_value": ["us-east-1", "us-east-2", "eu-west-1"],
+            },
+        ],
+    }
+
+    runner = CliRunner()
+    result = runner.invoke(cli.entity_get_diff, ["temp-list", local_config_file])
+
+    assert result.output.strip() == json.dumps(expected_diff, indent=2).strip()

@@ -1,0 +1,23 @@
+{"Description": {"ProductTitle": "test","ProductCode": "prod-test",
+            "ShortDescription": "test_short_description",
+            "Manufacturer": "",
+            "LongDescription": "test_long_description",
+            "Sku": "test",
+            "Highlights": ["test_highlight_1"],
+            "AssociatedProducts": "",
+            "SearchKeywords": ["test_keyword_1"],
+            "Visibility": "Public",
+            "ProductState": "Active",
+            "Categories": ["Migration"]
+        },
+        "SupportInformation": {"Description": "test_support_description", "Resources": ["test_support_resource"]},
+        "RegionAvailability": {"FutureRegionSupport": "All", "Restrict": [], "Regions": ["us-east-1", "us-east-2"]},
+        "PromotionalResources": {
+            "LogoUrl": "https://test-logourl",
+            "Videos": [],
+            "AdditionalResources": [{"Type": "Link", "Text": "test-link", "Url": "https://test-url"}],
+            "PromotionalMedia": []},
+        "Targeting": {"PositiveTargeting": {"BuyerAccounts": ["099720109477", "297512042063", "782858285006"]}},
+        "Dimensions": [{"Name": "a1.large", "Description": "a1.large", "Key": "a1.large", "Unit": "Hrs", "Types": ["Metered"]}],
+        "Compatibility": {"AvailableInstanceTypes": ["a1.large"], "RestrictedInstanceTypes": []}}
+
