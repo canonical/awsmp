@@ -193,6 +193,47 @@ class RegionAvailabilityModel(BaseModel):
     FutureRegionSupport: str
 
 
+class DiffAddedModel(BaseModel):
+    """
+    Model for fields that have been added in a diff comparison
+    """
+
+    name: str
+    value: Any
+
+
+class DiffRemovedModel(BaseModel):
+    """
+    Model for fields that have been removed in a diff comparison
+    """
+
+    name: str
+    value: Any
+
+
+class DiffChangedModel(BaseModel):
+    """
+    Model for fields that have been changed in a diff comparison
+    """
+
+    name: str
+    old_value: Any
+    new_value: Any
+
+
+class DiffModel(BaseModel):
+    """
+    The result of a diff comparison, tracking changes to fields.
+    """
+
+    added: List[DiffAddedModel]
+    removed: List[DiffRemovedModel]
+    changed: List[DiffChangedModel]
+
+    def __repr__(self):
+        return self.model_dump_json(indent=2)
+
+
 class EntityModel(BaseModel):
     """
     Entity model to get details information
@@ -254,3 +295,106 @@ class EntityModel(BaseModel):
 
         return EntityModel(**yaml_to_api_response)
 
+    @staticmethod
+    def is_changed(name: str, value1: Any, value2: Any) -> bool:
+        """
+        Check if values are changed
+
+        :param str key: Name of field of two values
+        :param Any value1: The value to compare
+        :param Any value2: The value to compare
+        :return: True or False
+        :rtypr: bool
+        """
+        # These fields don't need to consider the ordering between values.
+        # If the items in the list are same, there will be no listing changes.
+        non_ordered_fields = ["Regions"]
+
+        if name in non_ordered_fields:
+            return set(value1) != set(value2)
+        else:
+            return value1 != value2
+
+        return False
+
+    @staticmethod
+    def get_diff_model_type(
+        field_name: str, value1: Any, value2: Any
+    ) -> Optional[Union[DiffAddedModel, DiffRemovedModel, DiffChangedModel]]:
+        """
+        Determine the type of diff by comparing values in the field between the Marketplace listing and the local config
+
+        :param str field_name: The name of the field being compared
+        :param Any value1: The value of the field in the Marketplace listing
+        :param Any value2: The value of the field in the local config file
+        :return: Types of diff models or None
+        :rtype: Optional[Union[DiffAddedModel, DiffRemovedModel, DiffChangedModel]]
+        """
+        # These fields don't need to consider the ordering between values.
+        # If the items in the list are same, there will be no listing changes.
+        non_ordered_fields = ["Regions"]
+
+        if not value1 and value2:
+            return DiffAddedModel(name=field_name, value=value2)
+        elif value1 and not value2:
+            return DiffRemovedModel(name=field_name, value=value1)
+        else:
+            if EntityModel.is_changed(name=field_name, value1=value1, value2=value2):
+                return DiffChangedModel(name=field_name, old_value=value1, new_value=value2)
+        return None
+
+    @staticmethod
+    def add_to_diff_list(
+        res: Optional[Union[DiffAddedModel, DiffRemovedModel, DiffChangedModel]],
+        diff_added: List[DiffAddedModel],
+        diff_removed: List[DiffRemovedModel],
+        diff_changed: List[DiffChangedModel],
+    ) -> None:
+        """
+        Add a diff model to the correct diff list
+
+        :param Union[DiffAddedModel, DiffRemovedModel, DiffChangedModel, None]: The diff model instance to be added
+        :param List[DiffAddedModel]: List of DiffAddedModel
+        :param List[DiffRemovedModel]: List of DiffRemovedModel
+        :param List[DiffChangedModel]: List of DiffChangedModel
+        :return: None
+        :rtype: None
+        """
+        if res is None:
+            return
+
+        if isinstance(res, DiffAddedModel):
+            diff_added.append(res)
+        elif isinstance(res, DiffRemovedModel):
+            diff_removed.append(res)
+        elif isinstance(res, DiffChangedModel):
+            diff_changed.append(res)
+
+    def _get_diff_model(self, local_entity: EntityModel) -> DiffModel:
+        """
+        Get complete DiffModel instance of diff from listing and local config
+
+        :param EntityModel local_entity: Entity object created by local configuration
+        :return DiffModel with added, deleted and changed diff details
+        :rtype DiffModel
+        """
+        non_model_fields = ["SupportTerm"]
+        diff_added: List[DiffAddedModel] = []
+        diff_removed: List[DiffRemovedModel] = []
+        diff_changed: List[DiffChangedModel] = []
+
+        for entity_key, entity_value in local_entity.model_dump().items():
+            if entity_key not in non_model_fields:
+                for model_key, model_value in entity_value.items():
+                    res = EntityModel.get_diff_model_type(
+                        model_key, self.model_dump()[entity_key][model_key], model_value
+                    )
+                    EntityModel.add_to_diff_list(res, diff_added, diff_removed, diff_changed)
+            else:
+                res = EntityModel.get_diff_model_type(entity_key, self.model_dump()[entity_key], entity_value)
+                EntityModel.add_to_diff_list(res, diff_added, diff_removed, diff_changed)
+
+        return DiffModel(added=diff_added, removed=diff_removed, changed=diff_changed)
+
+    def get_diff(self, local_entity: EntityModel) -> DiffModel:
+        return self._get_diff_model(local_entity)
