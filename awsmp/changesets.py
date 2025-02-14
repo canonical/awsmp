@@ -262,7 +262,7 @@ def _changeset_update_ami_product_future_region(product_id: str, region_config: 
             "Type": "AmiProduct@1.0",
             "Identifier": product_id,
         },
-        "Details": {"FutureRegionSupport": {"SupportedRegions": region.future_region_support}},
+        "Details": {"FutureRegionSupport": {"SupportedRegions": region.future_region_supported()}},
     }
 
 

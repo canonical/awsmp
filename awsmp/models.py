@@ -29,9 +29,8 @@ class Region(BaseModel):
                 raise ValueError(f"{invalid_regions} are not valid for commercial regions")
             return value
 
-    @field_validator("future_region_support")
-    def future_region_support_validator(cls, value):
-        return ["All" if value else "None"]
+    def future_region_supported(self) -> List[str]:
+        return ["All" if self.future_region_support else "None"]
 
 
 class SupportResourcesItem(TypedDict):
