@@ -1,10 +1,13 @@
+from __future__ import annotations
+
+import json
 from decimal import Decimal
-from typing import Dict, List, Literal, Optional, TypedDict
+from typing import Any, Dict, List, Literal, Optional, Tuple, TypedDict, Union
 
 import boto3
 from pydantic import BaseModel, Field, HttpUrl, conlist, constr, field_validator
 
-from awsmp.constants import CATEGORIES
+from .constants import CATEGORIES
 
 
 class InstanceTypePricing(BaseModel):
@@ -29,9 +32,8 @@ class Region(BaseModel):
                 raise ValueError(f"{invalid_regions} are not valid for commercial regions")
             return value
 
-    @field_validator("future_region_support")
-    def future_region_support_validator(cls, value):
-        return ["All" if value else "None"]
+    def future_region_supported(self) -> List[str]:
+        return ["All" if self.future_region_support else "None"]
 
 
 class SupportResourcesItem(TypedDict):
@@ -60,7 +62,7 @@ class AmiProduct(BaseModel):
     categories: conlist(str, min_length=1, max_length=3)  # type:ignore
     search_keywords: conlist(str, min_length=1)  # type:ignore
     support_description: str = Field(max_length=2000)
-    support_resources: Optional[str] = Field(max_length=500, default=None)
+    support_resources: Optional[List[str]] = Field(default=[])
     sku: Optional[str] = Field(max_length=100, default=None)
     video_urls: Optional[conlist(HttpUrl, min_length=0, max_length=1)] = Field(default=[])  # type:ignore
     additional_resources: Optional[conlist(Dict[str, HttpUrl], min_length=0, max_length=3)] = Field(  # type:ignore
@@ -139,3 +141,260 @@ class AmiVersion(BaseModel):
         if not value.startswith("arn:aws:iam::"):
             raise ValueError(f"{value} is invalid role format. Please check your role again.")
         return value
+
+
+class DescriptionModel(BaseModel):
+    """
+    Model for description details from entity details
+    """
+
+    ProductTitle: str
+    ShortDescription: str
+    LongDescription: str
+    Sku: str
+    Highlights: List[str]
+    SearchKeywords: List[str]
+    Categories: List[str]
+
+
+class PromotionalResourcesModel(BaseModel):
+    """
+    Model for promotional resource details from entity details
+    """
+
+    LogoUrl: HttpUrl
+    Videos: List[HttpUrl]
+    AdditionalResources: YamlSupportResources
+
+    @field_validator("AdditionalResources")
+    def additional_resources_validator(cls, value) -> SupportResources:
+        # The Ami class takes url as HttpUrl and converts it to string format for API request.
+        # And HttpUrl adds a trailing slash to the end of a URL.
+        # To compare values correctly, the link value from entity's AdditionalResources field also
+        # needs to be converted to an HttpUrl and then back to string format.
+        return [{"Text": resource["Text"], "Url": str(HttpUrl(resource["Url"]))} for resource in value]
+
+
+class SupportInformationModel(BaseModel):
+    """
+    Model for support information details from entity details
+    """
+
+    Description: str
+    Resources: List[str]
+
+
+class RegionAvailabilityModel(BaseModel):
+    """
+    Model for region availability inforation details from entity details
+    """
+
+    Regions: List[str]
+    FutureRegionSupport: str
+
+
+class DiffAddedModel(BaseModel):
+    """
+    Model for fields that have been added in a diff comparison
+    """
+
+    name: str
+    value: Any
+
+
+class DiffRemovedModel(BaseModel):
+    """
+    Model for fields that have been removed in a diff comparison
+    """
+
+    name: str
+    value: Any
+
+
+class DiffChangedModel(BaseModel):
+    """
+    Model for fields that have been changed in a diff comparison
+    """
+
+    name: str
+    old_value: Any
+    new_value: Any
+
+
+class DiffModel(BaseModel):
+    """
+    The result of a diff comparison, tracking changes to fields.
+    """
+
+    added: List[DiffAddedModel]
+    removed: List[DiffRemovedModel]
+    changed: List[DiffChangedModel]
+
+    def __repr__(self):
+        return self.model_dump_json(indent=2)
+
+
+class EntityModel(BaseModel):
+    """
+    Entity model to get details information
+    """
+
+    Description: DescriptionModel
+    PromotionalResources: PromotionalResourcesModel
+    SupportInformation: SupportInformationModel
+    RegionAvailability: RegionAvailabilityModel
+
+    @staticmethod
+    def get_entity(response: dict[str, Any]) -> EntityModel:
+        """
+        Convert a dictionary response into an EntityModel object
+
+        :param dict[str, Any] response: JSON output from `_driver.get_full_ami_details`
+        :return: An instance of `EntityModel` create from the response
+        :rtype: EntityModel
+        """
+        return EntityModel(**response)
+
+    @staticmethod
+    def get_entity_from_yaml(yaml_config: dict[str, Any]) -> EntityModel:
+        """
+        Convert a dictionary config into an EntityModel object
+
+        :param dict[str, Any] yaml_config: dictionary data from loading local yaml config file
+        :return: An instance of `EntityModel` create from the yaml_config
+        :rtype: EntityModel
+        """
+        desc = AmiProduct(**yaml_config["description"])
+        region = Region(**yaml_config["region"])
+        refund_policy = yaml_config["refund_policy"]
+
+        yaml_to_api_response: dict[str, Any] = {
+            "Description": {
+                "ProductTitle": desc.product_title,
+                "ShortDescription": desc.short_description,
+                "LongDescription": desc.long_description,
+                "Sku": desc.sku,
+                "Highlights": desc.highlights,
+                "SearchKeywords": desc.search_keywords,
+                "Categories": desc.categories,
+            },
+            "PromotionalResources": {
+                "LogoUrl": desc.logourl,
+                "Videos": desc.video_urls,
+                "AdditionalResources": desc.additional_resources,
+            },
+            "SupportInformation": {
+                "Description": desc.support_description,
+                "Resources": desc.support_resources,
+            },
+            "RegionAvailability": {
+                "Regions": region.commercial_regions,
+                "FutureRegionSupport": region.future_region_supported()[-1],
+            },
+        }
+
+        return EntityModel(**yaml_to_api_response)
+
+    @staticmethod
+    def is_changed(name: str, value1: Any, value2: Any) -> bool:
+        """
+        Check if values are changed
+
+        :param str key: Name of field of two values
+        :param Any value1: The value to compare
+        :param Any value2: The value to compare
+        :return: True or False
+        :rtypr: bool
+        """
+        # These fields don't need to consider the ordering between values.
+        # If the items in the list are same, there will be no listing changes.
+        non_ordered_fields = ["Regions"]
+
+        if name in non_ordered_fields:
+            return set(value1) != set(value2)
+        else:
+            return value1 != value2
+
+        return False
+
+    @staticmethod
+    def get_diff_model_type(
+        field_name: str, value1: Any, value2: Any
+    ) -> Optional[Union[DiffAddedModel, DiffRemovedModel, DiffChangedModel]]:
+        """
+        Determine the type of diff by comparing values in the field between the Marketplace listing and the local config
+
+        :param str field_name: The name of the field being compared
+        :param Any value1: The value of the field in the Marketplace listing
+        :param Any value2: The value of the field in the local config file
+        :return: Types of diff models or None
+        :rtype: Optional[Union[DiffAddedModel, DiffRemovedModel, DiffChangedModel]]
+        """
+        # These fields don't need to consider the ordering between values.
+        # If the items in the list are same, there will be no listing changes.
+        non_ordered_fields = ["Regions"]
+
+        if not value1 and value2:
+            return DiffAddedModel(name=field_name, value=value2)
+        elif value1 and not value2:
+            return DiffRemovedModel(name=field_name, value=value1)
+        else:
+            if EntityModel.is_changed(name=field_name, value1=value1, value2=value2):
+                return DiffChangedModel(name=field_name, old_value=value1, new_value=value2)
+        return None
+
+    @staticmethod
+    def add_to_diff_list(
+        res: Optional[Union[DiffAddedModel, DiffRemovedModel, DiffChangedModel]],
+        diff_added: List[DiffAddedModel],
+        diff_removed: List[DiffRemovedModel],
+        diff_changed: List[DiffChangedModel],
+    ) -> None:
+        """
+        Add a diff model to the correct diff list
+
+        :param Union[DiffAddedModel, DiffRemovedModel, DiffChangedModel, None]: The diff model instance to be added
+        :param List[DiffAddedModel]: List of DiffAddedModel
+        :param List[DiffRemovedModel]: List of DiffRemovedModel
+        :param List[DiffChangedModel]: List of DiffChangedModel
+        :return: None
+        :rtype: None
+        """
+        if res is None:
+            return
+
+        if isinstance(res, DiffAddedModel):
+            diff_added.append(res)
+        elif isinstance(res, DiffRemovedModel):
+            diff_removed.append(res)
+        elif isinstance(res, DiffChangedModel):
+            diff_changed.append(res)
+
+    def _get_diff_model(self, local_entity: EntityModel) -> DiffModel:
+        """
+        Get complete DiffModel instance of diff from listing and local config
+
+        :param EntityModel local_entity: Entity object created by local configuration
+        :return DiffModel with added, deleted and changed diff details
+        :rtype DiffModel
+        """
+        non_model_fields = ["SupportTerm"]
+        diff_added: List[DiffAddedModel] = []
+        diff_removed: List[DiffRemovedModel] = []
+        diff_changed: List[DiffChangedModel] = []
+
+        for entity_key, entity_value in local_entity.model_dump().items():
+            if entity_key not in non_model_fields:
+                for model_key, model_value in entity_value.items():
+                    res = EntityModel.get_diff_model_type(
+                        model_key, self.model_dump()[entity_key][model_key], model_value
+                    )
+                    EntityModel.add_to_diff_list(res, diff_added, diff_removed, diff_changed)
+            else:
+                res = EntityModel.get_diff_model_type(entity_key, self.model_dump()[entity_key], entity_value)
+                EntityModel.add_to_diff_list(res, diff_added, diff_removed, diff_changed)
+
+        return DiffModel(added=diff_added, removed=diff_removed, changed=diff_changed)
+
+    def get_diff(self, local_entity: EntityModel) -> DiffModel:
+        return self._get_diff_model(local_entity)
