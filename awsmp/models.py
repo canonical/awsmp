@@ -1,10 +1,13 @@
+from __future__ import annotations
+
+import json
 from decimal import Decimal
-from typing import Dict, List, Literal, Optional, TypedDict
+from typing import Any, Dict, List, Literal, Optional, Tuple, TypedDict, Union
 
 import boto3
 from pydantic import BaseModel, Field, HttpUrl, conlist, constr, field_validator
 
-from awsmp.constants import CATEGORIES
+from .constants import CATEGORIES
 
 
 class InstanceTypePricing(BaseModel):
@@ -138,3 +141,116 @@ class AmiVersion(BaseModel):
         if not value.startswith("arn:aws:iam::"):
             raise ValueError(f"{value} is invalid role format. Please check your role again.")
         return value
+
+
+class DescriptionModel(BaseModel):
+    """
+    Model for description details from entity details
+    """
+
+    ProductTitle: str
+    ShortDescription: str
+    LongDescription: str
+    Sku: str
+    Highlights: List[str]
+    SearchKeywords: List[str]
+    Categories: List[str]
+
+
+class PromotionalResourcesModel(BaseModel):
+    """
+    Model for promotional resource details from entity details
+    """
+
+    LogoUrl: HttpUrl
+    Videos: List[HttpUrl]
+    AdditionalResources: YamlSupportResources
+
+    @field_validator("AdditionalResources")
+    def additional_resources_validator(cls, value) -> SupportResources:
+        # The Ami class takes url as HttpUrl and converts it to string format for API request.
+        # And HttpUrl adds a trailing slash to the end of a URL.
+        # To compare values correctly, the link value from entity's AdditionalResources field also
+        # needs to be converted to an HttpUrl and then back to string format.
+        return [{"Text": resource["Text"], "Url": str(HttpUrl(resource["Url"]))} for resource in value]
+
+
+class SupportInformationModel(BaseModel):
+    """
+    Model for support information details from entity details
+    """
+
+    Description: str
+    Resources: List[str]
+
+
+class RegionAvailabilityModel(BaseModel):
+    """
+    Model for region availability inforation details from entity details
+    """
+
+    Regions: List[str]
+    FutureRegionSupport: str
+
+
+class EntityModel(BaseModel):
+    """
+    Entity model to get details information
+    """
+
+    Description: DescriptionModel
+    PromotionalResources: PromotionalResourcesModel
+    SupportInformation: SupportInformationModel
+    RegionAvailability: RegionAvailabilityModel
+
+    @staticmethod
+    def get_entity(response: dict[str, Any]) -> EntityModel:
+        """
+        Convert a dictionary response into an EntityModel object
+
+        :param dict[str, Any] response: JSON output from `_driver.get_full_ami_details`
+        :return: An instance of `EntityModel` create from the response
+        :rtype: EntityModel
+        """
+        return EntityModel(**response)
+
+    @staticmethod
+    def get_entity_from_yaml(yaml_config: dict[str, Any]) -> EntityModel:
+        """
+        Convert a dictionary config into an EntityModel object
+
+        :param dict[str, Any] yaml_config: dictionary data from loading local yaml config file
+        :return: An instance of `EntityModel` create from the yaml_config
+        :rtype: EntityModel
+        """
+        desc = AmiProduct(**yaml_config["description"])
+        region = Region(**yaml_config["region"])
+        refund_policy = yaml_config["refund_policy"]
+
+        yaml_to_api_response: dict[str, Any] = {
+            "Description": {
+                "ProductTitle": desc.product_title,
+                "ShortDescription": desc.short_description,
+                "LongDescription": desc.long_description,
+                "Sku": desc.sku,
+                "Highlights": desc.highlights,
+                "SearchKeywords": desc.search_keywords,
+                "Categories": desc.categories,
+            },
+            "PromotionalResources": {
+                "LogoUrl": desc.logourl,
+                "Videos": desc.video_urls,
+                "AdditionalResources": desc.additional_resources,
+            },
+            "SupportInformation": {
+                "Description": desc.support_description,
+                "Resources": desc.support_resources,
+            },
+            "RegionAvailability": {
+                "Regions": region.commercial_regions,
+                "FutureRegionSupport": region.future_region_supported()[-1],
+            },
+        }
+
+        return EntityModel(**yaml_to_api_response)
+
