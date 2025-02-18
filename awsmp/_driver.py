@@ -1,5 +1,4 @@
 import csv
-import json
 import logging
 from typing import IO, Dict, List, Literal, Optional
 
@@ -164,7 +163,7 @@ def get_entity_details(entity_id: str) -> Dict:
     except ClientError as error:
         _raise_client_error(error)
 
-    return json.loads(e["Details"])
+    return e["DetailsDocument"]
 
 
 def get_public_offer_id(entity_id: str):
