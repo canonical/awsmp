@@ -387,6 +387,23 @@ def ami_product_release(product_id):
     print(f'https://aws.amazon.com/marketplace/management/requests/{response["ChangeSetId"]}')
 
 
+@public_offer.command("update")
+@click.option("--product-id", required=True, prompt=True)
+@click.option("--config", type=click.File("r"), required=True, prompt=True)
+def ami_product_update(product_id, config):
+    """
+    Update AMI product details (description, region) with single call
+    """
+
+    # Load yaml file
+    configs = _load_configuration(config, ["description", "region"])
+
+    product = _driver.AmiProduct(product_id=product_id)
+    response = product.update(configs)
+    print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
+    print(f'https://aws.amazon.com/marketplace/management/requests/{response["ChangeSetId"]}')
+
+
 def _load_configuration(config_path: TextIO, required_fields: List[str]) -> Dict:
     """
     Check if keys exist in config file before creating changeset and return config dict

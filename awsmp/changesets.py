@@ -443,3 +443,11 @@ def get_ami_release_changesets(product_id: str, offer_id: str) -> List[ChangeSet
         _changeset_update_information(f"Product id {product_id} public offer", offer_id),
         _changeset_release_offer(offer_id=offer_id),
     ]
+
+
+def get_ami_listing_update_changesets(product_id: str, description: dict, region_config: dict) -> List[ChangeSetType]:
+    return [
+        _changeset_update_ami_product_description(product_id, description),
+        _changeset_update_ami_product_region(product_id, region_config),
+        _changeset_update_ami_product_future_region(product_id, region_config),
+    ]

@@ -1,6 +1,6 @@
 import csv
 import logging
-from typing import IO, Dict, List, Literal, Optional
+from typing import IO, Any, Dict, List, Literal, Optional
 
 import boto3
 from botocore.exceptions import ClientError
@@ -69,30 +69,37 @@ class AmiProduct:
             self.product_id, self.offer_id, instance_type_pricing, dimension_unit, new_instance_types, free
         )
         changeset_name = f"Product {self.product_id} instance type update"
-        changeset_stringified = changesets.stringify_changeset_details(changeset)
 
-        return get_response(changeset_stringified, changeset_name)
+        return get_response(changeset, changeset_name)
 
     def update_regions(self, region_config: Dict) -> ChangeSetReturnType:
         changeset = changesets.get_ami_listing_update_region_changesets(self.product_id, region_config)
         changeset_name = f"Product {self.product_id} region update"
-        changeset_stringified = changesets.stringify_changeset_details(changeset)
 
-        return get_response(changeset_stringified, changeset_name)
+        return get_response(changeset, changeset_name)
 
     def update_version(self, version_config: Dict) -> ChangeSetReturnType:
         changeset = changesets.get_ami_listing_update_version_changesets(self.product_id, version_config)
         changeset_name = f"Product {self.product_id} version update"
-        changeset_stringified = changesets.stringify_changeset_details(changeset)
 
-        return get_response(changeset_stringified, changeset_name)
+        return get_response(changeset, changeset_name)
 
     def release(self) -> ChangeSetReturnType:
         changeset = changesets.get_ami_release_changesets(self.product_id, self.offer_id)
         changeset_name = f"Product {self.product_id} publish as limited"
-        changeset_stringified = changesets.stringify_changeset_details(changeset)
 
-        return get_response(changeset_stringified, changeset_name)
+        return get_response(changeset, changeset_name)
+
+    def update(self, configs: dict[str, Any]) -> ChangeSetReturnType:
+        """
+        Update AMI product details (Description, Region)
+        """
+        changeset = changesets.get_ami_listing_update_changesets(
+            self.product_id, configs["description"], configs["region"]
+        )
+        changeset_name = f"Product {self.product_id} update product details"
+
+        return get_response(changeset, changeset_name)
 
     def _get_product_title(self):
         return get_entity_details(self.product_id)["Description"]["ProductTitle"]

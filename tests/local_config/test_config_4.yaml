@@ -1,0 +1,60 @@
+description:
+  product_title: "test_prod_id"
+  logourl: "https://test-logourl.svg"
+  video_urls: []
+  short_description: "test_long_description and another short description and short description"
+  long_description: |
+    test_long_description
+    new_line
+    another_new_line
+  highlights:
+    - "test_highlight_1"
+    - "test_highlight_2"
+    - "test_highlight_3"
+  search_keywords:
+    - "test_keyword_1"
+    - "test_keyword_2"
+    - "test_keyword_3"
+    - "test_keyword_4"
+    - "test_keyword_5"
+    - "test_keyword_6"
+  categories:
+    - "Migration"
+    - "Testing"
+    - "Blockchain"
+  support_description: |
+    test_support_description
+    with multiple line
+    lines
+  support_resources:
+    - "test_support_resource"
+  additional_resources:
+    - test-link1: "https://test-url1"
+    - test-link2: "https://test-url2"
+    - test-link3: "https://test-url3"
+  sku: "test"
+region:
+  commercial_regions:
+    - us-east-2
+  future_region_support: True
+version:
+  version_title: "test_version_title"
+  release_notes: |
+    test_release_notes
+  ami_id: ami-test4
+  access_role_arn: arn:aws:iam::test
+  os_user_name: test_os_user_name
+  os_system_version: test_os_system_version
+  os_system_name: test_os
+  scanning_port: 22
+  usage_instructions: |
+    test_usage_instructions
+  recommended_instance_type: m5.large
+  ip_protocol: tcp
+  ip_ranges:
+    - "0.0.0.0/0"
+  from_port: 22
+  to_port: 22
+refund_policy: |
+  test_refund_policy_term
+eula_url: "test_eula_url"

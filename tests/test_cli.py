@@ -135,3 +135,23 @@ def test_entity_get_diff(mock_boto3, mock_get_entity_details):
     result = runner.invoke(cli.entity_get_diff, ["temp-list", local_config_file])
 
     assert result.output.strip() == json.dumps(expected_diff, indent=2).strip()
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.changesets.models.boto3")
+def test_public_offer_product_update_details(mock_boto3, mock_get_client):
+    mock_boto3.client.return_value.describe_regions.return_value = {
+        "Regions": [
+            {"Endpoint": "ec2.us-east-1.amazonaws.com", "RegionName": "us-east-1", "OptInStatus": "opted-in"},
+            {"Endpoint": "ec2.us-east-2.amazonaws.com", "RegionName": "us-east-2", "OptInStatus": "opted-in"},
+        ]
+    }
+
+    runner = CliRunner()
+    runner.invoke(cli.ami_product_update, ["--product-id", "some-prod-id", "--config", "./tests/test_config.yaml"])
+    mock_start_change_set = mock_get_client.return_value.start_change_set
+    assert {"Regions": ["us-east-1", "us-east-2"]} == mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][1][
+        "DetailsDocument"
+    ] and ["test_highlight_1"] == mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][0]["DetailsDocument"][
+        "Highlights"
+    ]
