@@ -203,7 +203,7 @@ def offer_pricing_template(offer_id, pricing, free):
     """
     client = _driver.get_client()
     e = client.describe_entity(Catalog="AWSMarketplace", EntityId=offer_id)
-    details = json.loads(e["Details"])
+    details = e["DetailsDocument"]
 
     prices_hourly = {}
     prices_annual = {}
