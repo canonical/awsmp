@@ -1,6 +1,6 @@
 import csv
 import logging
-from typing import IO, Dict, List, Literal, Optional
+from typing import IO, Any, Dict, List, Literal, Optional
 
 import boto3
 from botocore.exceptions import ClientError
@@ -27,31 +27,26 @@ class AmiProduct:
     def create():
         changeset = changesets.get_ami_listing_creation_changesets()
         changeset_name = "Create new AMI Product"
-        changeset_stringified = changesets.stringify_changeset_details(changeset)
 
-        return get_response(changeset_stringified, changeset_name)
+        return get_response(changeset, changeset_name)
 
     def update_legal_terms(self, eula_url: str) -> ChangeSetReturnType:
         changeset = changesets.get_ami_listing_update_legal_terms_changesets(self.offer_id, eula_url)
         changeset_name = f"Product {self.product_id} legal terms update"
-        changeset_stringified = changesets.stringify_changeset_details(changeset)
 
-        return get_response(changeset_stringified, changeset_name)
+        return get_response(changeset, changeset_name)
 
     def update_support_terms(self, refund_policy: str) -> ChangeSetReturnType:
         changeset = changesets.get_ami_listing_update_support_terms_changesets(self.offer_id, refund_policy)
         changeset_name = f"Product {self.product_id} support terms update"
-        changeset_stringified = changesets.stringify_changeset_details(changeset)
 
-        return get_response(changeset_stringified, changeset_name)
+        return get_response(changeset, changeset_name)
 
     def update_description(self, desc: Dict) -> ChangeSetReturnType:
         changeset = changesets.get_ami_listing_update_description_changesets(self.product_id, desc)
         changeset_name = f"Product {self.product_id} description update"
 
-        changeset_stringified = changesets.stringify_changeset_details(changeset)
-
-        return get_response(changeset_stringified, changeset_name)
+        return get_response(changeset, changeset_name)
 
     def update_instance_types(
         self, instance_types: IO, dimension_unit: Literal["Hrs", "Units"], free: bool
@@ -69,30 +64,37 @@ class AmiProduct:
             self.product_id, self.offer_id, instance_type_pricing, dimension_unit, new_instance_types, free
         )
         changeset_name = f"Product {self.product_id} instance type update"
-        changeset_stringified = changesets.stringify_changeset_details(changeset)
 
-        return get_response(changeset_stringified, changeset_name)
+        return get_response(changeset, changeset_name)
 
     def update_regions(self, region_config: Dict) -> ChangeSetReturnType:
         changeset = changesets.get_ami_listing_update_region_changesets(self.product_id, region_config)
         changeset_name = f"Product {self.product_id} region update"
-        changeset_stringified = changesets.stringify_changeset_details(changeset)
 
-        return get_response(changeset_stringified, changeset_name)
+        return get_response(changeset, changeset_name)
 
     def update_version(self, version_config: Dict) -> ChangeSetReturnType:
         changeset = changesets.get_ami_listing_update_version_changesets(self.product_id, version_config)
         changeset_name = f"Product {self.product_id} version update"
-        changeset_stringified = changesets.stringify_changeset_details(changeset)
 
-        return get_response(changeset_stringified, changeset_name)
+        return get_response(changeset, changeset_name)
 
     def release(self) -> ChangeSetReturnType:
         changeset = changesets.get_ami_release_changesets(self.product_id, self.offer_id)
         changeset_name = f"Product {self.product_id} publish as limited"
-        changeset_stringified = changesets.stringify_changeset_details(changeset)
 
-        return get_response(changeset_stringified, changeset_name)
+        return get_response(changeset, changeset_name)
+
+    def update(self, configs: dict[str, Any]) -> ChangeSetReturnType:
+        """
+        Update AMI product details (Description, Region)
+        """
+        changeset = changesets.get_ami_listing_update_changesets(
+            self.product_id, configs["description"], configs["region"]
+        )
+        changeset_name = f"Product {self.product_id} update product details"
+
+        return get_response(changeset, changeset_name)
 
     def _get_product_title(self):
         return get_entity_details(self.product_id)["Description"]["ProductTitle"]
@@ -102,11 +104,11 @@ def get_client(service_name="marketplace-catalog", region_name="us-east-1"):
     return boto3.client(service_name, region_name=region_name)
 
 
-def get_response(changeset_stringified: ChangeSetType, changeset_name: str) -> ChangeSetReturnType:
+def get_response(changeset: List[ChangeSetType], changeset_name: str) -> ChangeSetReturnType:
     """
     Request to AWS and get response of either success of failure
 
-    :param ChangeSetType changeset_stringified: string type of changeset
+    :param List[ChangeSetType] changeset: list of changesets
     :param str changeset_name: name of changeset
     :return: changeset with type, entity, details etc.
     :rtype: ChangeSetReturnType
@@ -114,7 +116,7 @@ def get_response(changeset_stringified: ChangeSetType, changeset_name: str) -> C
     try:
         response = get_client().start_change_set(
             Catalog="AWSMarketplace",
-            ChangeSet=changeset_stringified,
+            ChangeSet=changeset,
             ChangeSetName=changeset_name,
         )
     except ClientError as e:
@@ -196,7 +198,7 @@ def get_entity_versions(entity_id: str) -> List[dict[str, str]]:
 
 
 def _get_ratecard_info(changeset: Dict, idx: int, instance_types: List[str]) -> List[Dict]:
-    ratecard = changeset[3]["Details"]["Terms"][idx]["RateCards"][0]["RateCard"]
+    ratecard = changeset[3]["DetailsDocument"]["Terms"][idx]["RateCards"][0]["RateCard"]
     return [r for r in ratecard if r["DimensionKey"] in instance_types]
 
 
@@ -212,7 +214,7 @@ def _get_existing_instance_types(product_id: str):
 def _filter_instance_types(product_id: str, changeset):
     existing_instance_types = _get_existing_instance_types(product_id)
     pricing_instance_types = {
-        t["DimensionKey"] for t in changeset[3]["Details"]["Terms"][0]["RateCards"][0]["RateCard"]
+        t["DimensionKey"] for t in changeset[3]["DetailsDocument"]["Terms"][0]["RateCards"][0]["RateCard"]
     }
 
     if missing_instance_types := existing_instance_types.difference(pricing_instance_types):
@@ -222,7 +224,7 @@ def _filter_instance_types(product_id: str, changeset):
 
     # idx 0 is hourly pricing, and 1 is annual
     for idx in {0, 1}:
-        changeset[3]["Details"]["Terms"][idx]["RateCards"][0]["RateCard"] = _get_ratecard_info(
+        changeset[3]["DetailsDocument"]["Terms"][idx]["RateCards"][0]["RateCard"] = _get_ratecard_info(
             changeset, idx, intersect
         )
     return changeset
@@ -251,13 +253,12 @@ def offer_create(
     )
 
     changeset_list = _filter_instance_types(product_id, changeset_list)
-    changeset_stringified = changesets.stringify_changeset_details(changeset_list)
 
     client = get_client()
 
     changeset_name = f'{f"create private offer for {product_id}: {offer_name}"[:95]}...'.replace(",", "_")
 
-    return get_response(changeset_stringified, changeset_name)
+    return get_response(changeset_list, changeset_name)
 
 
 def create_offer_name(product_id: str, buyer_accounts: List[str], with_support: bool, customer_name: str) -> str:

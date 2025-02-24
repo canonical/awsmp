@@ -203,7 +203,7 @@ def offer_pricing_template(offer_id, pricing, free):
     """
     client = _driver.get_client()
     e = client.describe_entity(Catalog="AWSMarketplace", EntityId=offer_id)
-    details = json.loads(e["Details"])
+    details = e["DetailsDocument"]
 
     prices_hourly = {}
     prices_annual = {}
@@ -383,6 +383,23 @@ def ami_product_release(product_id):
 
     product = _driver.AmiProduct(product_id=product_id)
     response = product.release()
+    print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
+    print(f'https://aws.amazon.com/marketplace/management/requests/{response["ChangeSetId"]}')
+
+
+@public_offer.command("update")
+@click.option("--product-id", required=True, prompt=True)
+@click.option("--config", type=click.File("r"), required=True, prompt=True)
+def ami_product_update(product_id, config):
+    """
+    Update AMI product details (description, region) with single call
+    """
+
+    # Load yaml file
+    configs = _load_configuration(config, ["description", "region"])
+
+    product = _driver.AmiProduct(product_id=product_id)
+    response = product.update(configs)
     print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
     print(f'https://aws.amazon.com/marketplace/management/requests/{response["ChangeSetId"]}')
 

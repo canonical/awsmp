@@ -234,4 +234,16 @@ To publish drafted AMI listing to :guilabel:`Limited` state, product ID and publ
 
 
 
+Update AMI product listing details
+----------------------------------
+
+To update AMI product listing with multiple requests for product details (Description and Region Availability), run the command below, passing the product ID and product configuration file:
+
+.. code-block:: sh
+
+   awsmp public-offer update \
+      --product-id prod-fwu3xsqup23cs
+      --config listing_configuration.yaml
+
+
 .. _`AWS marketplace management portal`: https://aws.amazon.com/marketplace/management/

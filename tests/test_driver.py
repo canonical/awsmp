@@ -60,7 +60,7 @@ def test_filter_instance_types(mock_get_details):
         None,
         None,
         None,
-        {"Details": {"Terms": [ratecards, ratecards]}},
+        {"DetailsDocument": {"Terms": [ratecards, ratecards]}},
     ]
     res = _driver._filter_instance_types("product-id", changeset)
     assert res == changeset
@@ -74,7 +74,7 @@ def test_filter_instance_types_missing_types(mock_get_details):
         None,
         None,
         None,
-        {"Details": {"Terms": [ratecards, ratecards]}},
+        {"DetailsDocument": {"Terms": [ratecards, ratecards]}},
     ]
     with pytest.raises(MissingInstanceTypeError):
         _driver._filter_instance_types("product-id", changeset)
@@ -129,8 +129,8 @@ def test_ami_product_update_description(mock_get_client):
     mock_start_change_set = mock_get_client.return_value.start_change_set
 
     assert (
-        '"LogoUrl": "https://awsmp-logos.s3.amazonaws.com/8350ae04bad5625623cc02c64eb8b0b5"'
-        in mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][0]["Details"]
+        mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][0]["DetailsDocument"]["LogoUrl"]
+        == "https://awsmp-logos.s3.amazonaws.com/8350ae04bad5625623cc02c64eb8b0b5"
     )
 
 
@@ -168,13 +168,18 @@ def test_ami_product_update_instance_type(mock_get_details, mock_get_client):
     with open("./tests/prices.csv") as prices:
         ap.update_instance_types(prices, "Hrs", True)
     assert mock_get_client.return_value.start_change_set.call_count == 1
+    assert mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][1][
+        "DetailsDocument"
+    ] == {"InstanceTypes": ["c4.large"]}
     assert (
-        mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][1]["Details"]
-        == '{"InstanceTypes": ["c4.large"]}'
-    )
-    assert (
-        '{"DimensionKey": "c4.large", "Price": "0.00"}'
-        in mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][2]["Details"]
+        mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][2]["DetailsDocument"][
+            "Terms"
+        ][0]["RateCards"][0]["RateCard"][-1]["DimensionKey"]
+        == "c4.large"
+        and mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][2]["DetailsDocument"][
+            "Terms"
+        ][0]["RateCards"][0]["RateCard"][-1]["Price"]
+        == "0.00"
     )
 
 
@@ -228,14 +233,12 @@ def test_ami_product_update_region_valid_values(mock_boto3, mock_get_client, val
     ap.update_regions(mock_region_config)
 
     assert mock_get_client.return_value.start_change_set.call_count == 1
-    assert (
-        mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][0]["Details"]
-        == '{"Regions": ["eu-north-1"]}'
-    )
-    assert (
-        mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][1]["Details"]
-        == '{"FutureRegionSupport": {"SupportedRegions": ["All"]}}'
-    )
+    assert mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][0][
+        "DetailsDocument"
+    ] == {"Regions": ["eu-north-1"]}
+    assert mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][1][
+        "DetailsDocument"
+    ] == {"FutureRegionSupport": {"SupportedRegions": ["All"]}}
 
 
 @pytest.mark.parametrize(
@@ -296,10 +299,24 @@ def test_ami_product_update_version(mock_get_client):
     ap.update_version(mock_version_config)
 
     assert mock_get_client.return_value.start_change_set.call_count == 1
-    assert (
-        '"AmiDeliveryOptionDetails": {"AmiSource": {"AmiId": "ami-sample", "AccessRoleArn": "arn:aws:iam::testingrole", "UserName": "testing", "OperatingSystemName": "TESTING SYSTEM", "OperatingSystemVersion": "testing version", "ScanningPort": 22}'
-        in mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][0]["Details"]
-    )
+    assert {
+        "AmiId": "ami-sample",
+        "AccessRoleArn": "arn:aws:iam::testingrole",
+        "UserName": "testing",
+        "OperatingSystemName": "TESTING SYSTEM",
+        "OperatingSystemVersion": "testing version",
+        "ScanningPort": 22,
+    } == mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][0]["DetailsDocument"][
+        "DeliveryOptions"
+    ][
+        0
+    ][
+        "Details"
+    ][
+        "AmiDeliveryOptionDetails"
+    ][
+        "AmiSource"
+    ]
 
 
 @patch("awsmp._driver.get_client")
@@ -309,10 +326,18 @@ def test_ami_product_update_legal_terms(mock_get_client):
     ap = _driver.AmiProduct(product_id="testing")
     ap.update_legal_terms(eula_url=mock_eula)
 
-    assert (
-        '{"Type": "CustomEula", "Url": "https://testing-eula"}'
-        in mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][0]["Details"]
-    )
+    assert {
+        "Type": "CustomEula",
+        "Url": "https://testing-eula",
+    } == mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][0]["DetailsDocument"][
+        "Terms"
+    ][
+        0
+    ][
+        "Documents"
+    ][
+        0
+    ]
 
 
 @patch("awsmp._driver.get_client")
@@ -321,10 +346,9 @@ def test_ami_product_update_support_terms(mock_get_client):
     ap = _driver.AmiProduct(product_id="testing")
     ap.update_support_terms(refund_policy=mock_refund_policy)
 
-    assert (
-        '{"Terms": [{"Type": "SupportTerm", "RefundPolicy": "testing is not refundable"}]}'
-        == mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][0]["Details"]
-    )
+    assert {
+        "Terms": [{"Type": "SupportTerm", "RefundPolicy": "testing is not refundable"}]
+    } == mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][0]["DetailsDocument"]
 
 
 @patch("awsmp._driver.get_client")
@@ -365,3 +389,29 @@ def test_get_public_no_offer_id(mock_get_client):
     mock_get_client.return_value.list_entities.return_value = {"EntitySummaryList": []}
     with pytest.raises(ResourceNotFoundException):
         _driver.get_public_offer_id("no-offer-id")
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.changesets.models.boto3")
+def test_ami_product_update(mock_boto3, mock_get_client):
+    with open("./tests/test_config.yaml", "r") as f:
+        config = yaml.safe_load(f)
+
+    mock_boto3.client.return_value.describe_regions.return_value = {
+        "Regions": [
+            {"Endpoint": "ec2.us-east-1.amazonaws.com", "RegionName": "us-east-1", "OptInStatus": "opted-in"},
+            {"Endpoint": "ec2.us-east-2.amazonaws.com", "RegionName": "us-east-2", "OptInStatus": "opted-in"},
+        ]
+    }
+
+    ap = _driver.AmiProduct(product_id="testing")
+    ap.update(config)
+    mock_start_change_set = mock_get_client.return_value.start_change_set
+
+    assert (
+        "https://test-logourl"
+        == mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][0]["DetailsDocument"]["LogoUrl"]
+    )
+    assert {"Regions": ["us-east-1", "us-east-2"]} == mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][1][
+        "DetailsDocument"
+    ]

@@ -18,7 +18,7 @@ def _changeset_create_offer(product_id: str, offer_name: str) -> ChangeSetType:
         "ChangeType": "CreateOffer",
         "ChangeName": "CreateOfferChange",
         "Entity": {"Type": "Offer@1.0"},
-        "Details": {
+        "DetailsDocument": {
             "ProductId": product_id,
         },
     }
@@ -29,7 +29,7 @@ def _changeset_create_ami_product() -> ChangeSetType:
         "ChangeType": "CreateProduct",
         "ChangeName": "CreateProductChange",
         "Entity": {"Type": "AmiProduct@1.0"},
-        "Details": {},
+        "DetailsDocument": {},
     }
 
 
@@ -40,7 +40,7 @@ def _changeset_update_information(
     return {
         "ChangeType": "UpdateInformation",
         "Entity": {"Type": "Offer@1.0", "Identifier": offer_id},
-        "Details": {
+        "DetailsDocument": {
             "Name": offer_name,
             "Description": "testing automatic offer creation",
         },
@@ -51,7 +51,7 @@ def _changeset_update_targeting(buyer_accounts: List[str]) -> ChangeSetType:
     return {
         "ChangeType": "UpdateTargeting",
         "Entity": {"Type": "Offer@1.0", "Identifier": "$CreateOfferChange.Entity.Identifier"},
-        "Details": {"PositiveTargeting": {"BuyerAccounts": buyer_accounts}},
+        "DetailsDocument": {"PositiveTargeting": {"BuyerAccounts": buyer_accounts}},
     }
 
 
@@ -120,7 +120,7 @@ def _changeset_update_pricing_terms(
     return {
         "ChangeType": "UpdatePricingTerms",
         "Entity": {"Type": "Offer@1.0", "Identifier": offer_id},
-        "Details": {"PricingModel": "Usage", "Terms": terms},
+        "DetailsDocument": {"PricingModel": "Usage", "Terms": terms},
     }
 
 
@@ -132,7 +132,7 @@ def _changeset_update_availability(days_from_today: int) -> ChangeSetType:
             "Type": "Offer@1.0",
             "Identifier": "$CreateOfferChange.Entity.Identifier",
         },
-        "Details": {"AvailabilityEndDate": end.strftime("%Y-%m-%d")},
+        "DetailsDocument": {"AvailabilityEndDate": end.strftime("%Y-%m-%d")},
     }
 
 
@@ -147,7 +147,7 @@ def _changeset_update_legal_terms(offer_id: Optional[str] = None, eula_url: Opti
     return {
         "ChangeType": "UpdateLegalTerms",
         "Entity": {"Type": "Offer@1.0", "Identifier": offer_id},
-        "Details": {
+        "DetailsDocument": {
             "Terms": [
                 {
                     "Type": "LegalTerm",
@@ -162,7 +162,7 @@ def _changeset_update_validity_terms(days: int) -> ChangeSetType:
     return {
         "ChangeType": "UpdateValidityTerms",
         "Entity": {"Type": "Offer@1.0", "Identifier": "$CreateOfferChange.Entity.Identifier"},
-        "Details": {"Terms": [{"Type": "ValidityTerm", "AgreementDuration": f"P{days}D"}]},
+        "DetailsDocument": {"Terms": [{"Type": "ValidityTerm", "AgreementDuration": f"P{days}D"}]},
     }
 
 
@@ -175,7 +175,7 @@ def _changeset_release_offer(offer_id: Optional[str] = None) -> ChangeSetType:
             "Type": "Offer@1.0",
             "Identifier": offer_id,
         },
-        "Details": {},
+        "DetailsDocument": {},
     }
 
 
@@ -188,7 +188,7 @@ def _changeset_update_support_terms(refund_policy: str, offer_id: Optional[str] 
             "Type": "Offer@1.0",
             "Identifier": offer_id,
         },
-        "Details": {
+        "DetailsDocument": {
             "Terms": [
                 {
                     "Type": "SupportTerm",
@@ -210,7 +210,7 @@ def _changeset_update_ami_product_description(product_id: str, desc: Dict) -> Ch
             "Type": "AmiProduct@1.0",
             "Identifier": product_id,
         },
-        "Details": {
+        "DetailsDocument": {
             "ProductTitle": desc["product_title"],
             "LogoUrl": desc["logourl"],
             "ShortDescription": desc["short_description"],
@@ -234,7 +234,7 @@ def _changeset_update_ami_product_instance_type(product_id: str, new_instance_ty
             "Type": "AmiProduct@1.0",
             "Identifier": product_id,
         },
-        "Details": {"InstanceTypes": new_instance_types},
+        "DetailsDocument": {"InstanceTypes": new_instance_types},
     }
 
 
@@ -249,7 +249,7 @@ def _changeset_update_ami_product_region(product_id: str, region_config: Dict) -
             "Type": "AmiProduct@1.0",
             "Identifier": product_id,
         },
-        "Details": {"Regions": regions.commercial_regions},
+        "DetailsDocument": {"Regions": regions.commercial_regions},
     }
 
 
@@ -262,7 +262,7 @@ def _changeset_update_ami_product_future_region(product_id: str, region_config: 
             "Type": "AmiProduct@1.0",
             "Identifier": product_id,
         },
-        "Details": {"FutureRegionSupport": {"SupportedRegions": region.future_region_supported()}},
+        "DetailsDocument": {"FutureRegionSupport": {"SupportedRegions": region.future_region_supported()}},
     }
 
 
@@ -292,7 +292,7 @@ def _changeset_update_ami_product_dimension(
             "Type": "AmiProduct@1.0",
             "Identifier": product_id,
         },
-        "Details": dimension_changeset,
+        "DetailsDocument": dimension_changeset,
     }
 
 
@@ -305,7 +305,7 @@ def _changeset_update_ami_product_version(product_id: str, version_config: Dict)
             "Type": "AmiProduct@1.0",
             "Identifier": product_id,
         },
-        "Details": {
+        "DetailsDocument": {
             "Version": {
                 "VersionTitle": version.version_title,
                 "ReleaseNotes": version.release_notes,
@@ -347,20 +347,8 @@ def _changeset_release_ami_product(product_id: str) -> ChangeSetType:
             "Type": "AmiProduct@1.0",
             "Identifier": product_id,
         },
-        "Details": {},
+        "DetailsDocument": {},
     }
-
-
-def stringify_changeset_details(changesets: List[ChangeSetType]):
-    for change_type in changesets:
-        # Only stringify details section if it is not empty
-        if change_type["Details"] != "{}":
-            string_details = json.dumps(change_type["Details"])
-            change_type["Details"] = string_details
-        else:
-            pass
-
-    return changesets
 
 
 def get_changesets(
@@ -442,4 +430,12 @@ def get_ami_release_changesets(product_id: str, offer_id: str) -> List[ChangeSet
         _changeset_release_ami_product(product_id),
         _changeset_update_information(f"Product id {product_id} public offer", offer_id),
         _changeset_release_offer(offer_id=offer_id),
+    ]
+
+
+def get_ami_listing_update_changesets(product_id: str, description: dict, region_config: dict) -> List[ChangeSetType]:
+    return [
+        _changeset_update_ami_product_description(product_id, description),
+        _changeset_update_ami_product_region(product_id, region_config),
+        _changeset_update_ami_product_future_region(product_id, region_config),
     ]

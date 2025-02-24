@@ -7,13 +7,49 @@ import pytest
 import yaml
 from click.testing import CliRunner
 
-from awsmp import _driver, cli, errors, models
+from awsmp import _driver, changesets, cli, errors, models
 
 
 @patch("awsmp._driver.get_client")
 def test_offer_pricing_template(mock_get_client):
     mock_get_client.return_value.describe_entity.return_value = {
-        "Details": '{"Terms":[{"Type":"UsageBasedPricingTerm","Id":"usage_id","CurrencyCode":"USD","RateCards":[{"RateCard":[{"DimensionKey":"m6i.xlarge","Price":"0.007"},{"DimensionKey":"t2.nano","Price":"0.002"},{"DimensionKey":"r5d.24xlarge","Price":"0.168"}]}]},{"Type":"ConfigurableUpfrontPricingTerm","Id":"annual_id","CurrencyCode":"USD","RateCards":[{"Selector":{"Type":"Duration","Value":"P365D"},"Constraints":{"MultipleDimensionSelection":"Allowed","QuantityConfiguration":"Allowed"},"RateCard":[{"DimensionKey":"m6i.xlarge","Price":"49.056"},{"DimensionKey":"t2.nano","Price":"12.264"},{"DimensionKey":"r5d.24xlarge","Price":"1177.344"}]}]}]}'
+        "DetailsDocument": {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "Id": "usage_id",
+                    "CurrencyCode": "USD",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "m6i.xlarge", "Price": "0.007"},
+                                {"DimensionKey": "t2.nano", "Price": "0.002"},
+                                {"DimensionKey": "r5d.24xlarge", "Price": "0.168"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "Id": "annual_id",
+                    "CurrencyCode": "USD",
+                    "RateCards": [
+                        {
+                            "Selector": {"Type": "Duration", "Value": "P365D"},
+                            "Constraints": {
+                                "MultipleDimensionSelection": "Allowed",
+                                "QuantityConfiguration": "Allowed",
+                            },
+                            "RateCard": [
+                                {"DimensionKey": "m6i.xlarge", "Price": "49.056"},
+                                {"DimensionKey": "t2.nano", "Price": "12.264"},
+                                {"DimensionKey": "r5d.24xlarge", "Price": "1177.344"},
+                            ],
+                        }
+                    ],
+                },
+            ]
+        }
     }
     runner = CliRunner()
     pricing_file = tempfile.NamedTemporaryFile()
@@ -42,10 +78,10 @@ def test_offer_create(mock_get_client, mock_get_entity_details):
             prices,
         )
     mock_start_change_set = mock_get_client.return_value.start_change_set
-    assert (
-        '{"RateCard": [{"DimensionKey": "c3.2xlarge", "Price": "0.014"}, {"DimensionKey": "c3.4xlarge", "Price": "0.028"}]}'
-        in mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][3]["Details"]
-    )
+
+    assert {
+        "RateCard": [{"DimensionKey": "c3.2xlarge", "Price": "0.014"}, {"DimensionKey": "c3.4xlarge", "Price": "0.028"}]
+    } == mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][3]["DetailsDocument"]["Terms"][0]["RateCards"][0]
 
 
 def test_ami_product_instance_type_template():
@@ -135,3 +171,23 @@ def test_entity_get_diff(mock_boto3, mock_get_entity_details):
     result = runner.invoke(cli.entity_get_diff, ["temp-list", local_config_file])
 
     assert result.output.strip() == json.dumps(expected_diff, indent=2).strip()
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.changesets.models.boto3")
+def test_public_offer_product_update_details(mock_boto3, mock_get_client):
+    mock_boto3.client.return_value.describe_regions.return_value = {
+        "Regions": [
+            {"Endpoint": "ec2.us-east-1.amazonaws.com", "RegionName": "us-east-1", "OptInStatus": "opted-in"},
+            {"Endpoint": "ec2.us-east-2.amazonaws.com", "RegionName": "us-east-2", "OptInStatus": "opted-in"},
+        ]
+    }
+
+    runner = CliRunner()
+    runner.invoke(cli.ami_product_update, ["--product-id", "some-prod-id", "--config", "./tests/test_config.yaml"])
+    mock_start_change_set = mock_get_client.return_value.start_change_set
+    assert {"Regions": ["us-east-1", "us-east-2"]} == mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][1][
+        "DetailsDocument"
+    ] and ["test_highlight_1"] == mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][0]["DetailsDocument"][
+        "Highlights"
+    ]
