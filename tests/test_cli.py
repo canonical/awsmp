@@ -97,8 +97,12 @@ def test_ami_product_instance_type_template():
 @pytest.mark.parametrize(
     "missing_key, expected_exception, expected_message",
     [
-        (["test_description"], errors.YamlMissingKeyException, "does not have key ('test_description',)"),
-        (["test_eula"], errors.YamlMissingKeyException, "does not have key ('test_eula',)"),
+        (
+            ["product:test_description"],
+            errors.YamlMissingKeyException,
+            "does not have key ('product:test_description',)",
+        ),
+        (["offer:test_eula"], errors.YamlMissingKeyException, "does not have key ('offer',)"),
     ],
 )
 def test_missing_keys_in_configuration(missing_key, expected_exception, expected_message):
@@ -186,6 +190,7 @@ def test_public_offer_product_update_details(mock_boto3, mock_get_client):
     runner = CliRunner()
     runner.invoke(cli.ami_product_update, ["--product-id", "some-prod-id", "--config", "./tests/test_config.yaml"])
     mock_start_change_set = mock_get_client.return_value.start_change_set
+    print(mock_start_change_set.call_args_list[0].kwargs["ChangeSet"])
     assert {"Regions": ["us-east-1", "us-east-2"]} == mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][1][
         "DetailsDocument"
     ] and ["test_highlight_1"] == mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][0]["DetailsDocument"][

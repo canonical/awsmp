@@ -2,18 +2,100 @@ from __future__ import annotations
 
 import json
 from decimal import Decimal
-from typing import Any, Dict, List, Literal, Optional, Tuple, TypedDict, Union
+from typing import (
+    Annotated,
+    Any,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    TypedDict,
+    Union,
+)
 
 import boto3
-from pydantic import BaseModel, Field, HttpUrl, conlist, constr, field_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    HttpUrl,
+    StrictStr,
+    conlist,
+    constr,
+    field_validator,
+    model_validator,
+)
 
 from .constants import CATEGORIES
 
 
 class InstanceTypePricing(BaseModel):
     name: str
-    price_hourly: Decimal = Field(ge=0.0, decimal_places=4)
-    price_annual: Decimal = Field(ge=0.0, decimal_places=4)
+    price_hourly: Annotated[Decimal, Field(alias="hourly", ge=0.00)]
+    price_annual: Annotated[Optional[Decimal], Field(alias="yearly", default=None, ge=0.00)]
+    price_monthly: Annotated[Optional[Decimal], Field(alias="monthly", default=None, ge=0.00)]
+
+    @model_validator(mode="after")
+    def check_exclusive_fields(cls, values):
+        if values.price_annual and values.price_monthly:
+            raise ValueError("Yearly and monthly pricing cannot be set together.")
+        if values.price_annual is None and values.price_monthly is None:
+            raise ValueError("At least one of yearly or monthly must be provided.")
+
+        return values
+
+    @model_validator(mode="after")
+    def check_decimal_precision(cls, values):
+        # Check price_hourly
+        if values.price_hourly is not None:
+            if len(str(values.price_hourly).split(".")[-1]) > 3:
+                raise ValueError(f"price_hourly must have at most 3 decimal places, got {values.price_hourly}")
+
+        # Check price_annual
+        if values.price_annual is not None:
+            if len(str(values.price_annual).split(".")[-1]) > 3:
+                raise ValueError(f"price_annual must have at most 3 decimal places, got {values.price_annual}")
+
+        # Check price_monthly
+        if values.price_monthly is not None:
+            if len(str(values.price_monthly).split(".")[-1]) > 3:
+                raise ValueError(f"price_monthly must have at most 3 decimal places, got {values.price_monthly}")
+
+        return values
+
+
+class EulaDocumentItem(BaseModel):
+    """
+    DocumentItem model
+    """
+
+    type: Literal["CustomEula", "StandardEula"]
+    version: Optional[StrictStr] = Field(default=None)
+    url: Optional[StrictStr] = Field(default=None)
+
+    @model_validator(mode="after")
+    def required_field_check_by_type(cls, values):
+        if values.type == "CustomEula":
+            if values.version is not None:
+                raise ValueError("CustomEula can't pass version of standard document.")
+            elif values.url is None:
+                raise ValueError("CustomEula needs Url.")
+        else:
+            if values.url is not None:
+                raise ValueError("StandardEula cannot have a custom document Url.")
+            elif values.version is None:
+                raise ValueError("Specify version of StandardEula")
+        return values
+
+
+class Offer(BaseModel):
+    """
+    Offer model
+    """
+
+    eula_document: List[EulaDocumentItem] = Field(min_length=1)
+    instance_types: List[InstanceTypePricing] = Field(min_length=1)
+    refund_policy: str = Field(max_length=500)
 
 
 class Region(BaseModel):
@@ -50,7 +132,7 @@ def strip_string(field: str) -> str:
     return field.strip()
 
 
-class AmiProduct(BaseModel):
+class Description(BaseModel):
     class Config:
         validate_assignment = True
 
@@ -114,7 +196,7 @@ class AmiProduct(BaseModel):
         return [{"Text": key, "Url": str(url)} for item in additional_resources for key, url in item.items()]
 
 
-class AmiVersion(BaseModel):
+class Version(BaseModel):
     version_title: str = Field(max_length=36)
     release_notes: str = Field(max_length=30000)
     ami_id: str = Field(max_length=21)
@@ -141,6 +223,16 @@ class AmiVersion(BaseModel):
         if not value.startswith("arn:aws:iam::"):
             raise ValueError(f"{value} is invalid role format. Please check your role again.")
         return value
+
+
+class AmiProduct(BaseModel):
+    """
+    Ami Product model
+    """
+
+    description: Description
+    region: Region
+    version: Version
 
 
 class DescriptionModel(BaseModel):
@@ -264,32 +356,31 @@ class EntityModel(BaseModel):
         :return: An instance of `EntityModel` create from the yaml_config
         :rtype: EntityModel
         """
-        desc = AmiProduct(**yaml_config["description"])
-        region = Region(**yaml_config["region"])
-        refund_policy = yaml_config["refund_policy"]
+        ami_product = AmiProduct(**yaml_config["product"])
+        ami_offer = Offer(**yaml_config["offer"])
 
         yaml_to_api_response: dict[str, Any] = {
             "Description": {
-                "ProductTitle": desc.product_title,
-                "ShortDescription": desc.short_description,
-                "LongDescription": desc.long_description,
-                "Sku": desc.sku,
-                "Highlights": desc.highlights,
-                "SearchKeywords": desc.search_keywords,
-                "Categories": desc.categories,
+                "ProductTitle": ami_product.description.product_title,
+                "ShortDescription": ami_product.description.short_description,
+                "LongDescription": ami_product.description.long_description,
+                "Sku": ami_product.description.sku,
+                "Highlights": ami_product.description.highlights,
+                "SearchKeywords": ami_product.description.search_keywords,
+                "Categories": ami_product.description.categories,
             },
             "PromotionalResources": {
-                "LogoUrl": desc.logourl,
-                "Videos": desc.video_urls,
-                "AdditionalResources": desc.additional_resources,
+                "LogoUrl": ami_product.description.logourl,
+                "Videos": ami_product.description.video_urls,
+                "AdditionalResources": ami_product.description.additional_resources,
             },
             "SupportInformation": {
-                "Description": desc.support_description,
-                "Resources": desc.support_resources,
+                "Description": ami_product.description.support_description,
+                "Resources": ami_product.description.support_resources,
             },
             "RegionAvailability": {
-                "Regions": region.commercial_regions,
-                "FutureRegionSupport": region.future_region_supported()[-1],
+                "Regions": ami_product.region.commercial_regions,
+                "FutureRegionSupport": ami_product.region.future_region_supported()[-1],
             },
         }
 
