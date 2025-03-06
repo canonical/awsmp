@@ -5,7 +5,7 @@ To manage existing offers in `AWS marketplace management portal`_, use the API c
 
 
 Identify differences in public offer
------------------------------------
+------------------------------------
 
 Before requesting changes to a public offer, compare the listing information in the `AWS marketplace management portal`_ with
 the local configuration file to avoid unnecessary modifications.
