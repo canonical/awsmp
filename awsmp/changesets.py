@@ -57,9 +57,18 @@ def _changeset_update_targeting(buyer_accounts: List[str]) -> ChangeSetType:
 
 def _changeset_update_pricing_terms(
     instance_type_pricing: List[models.InstanceTypePricing],
+    monthly_subscription_fee: Optional[Decimal] = None,
     offer_id: Optional[str] = None,
-    free: bool = False,
 ) -> ChangeSetType:
+    """
+    Construct the changeset for update pricing term API reqeust
+
+    :param List[models.InstanceTypePricing] instance_type_pricing: List of InstanceTypePricing objects
+    :param Optional[Decimal] monthly_subscription_fee: Monthly subscription price for monthly recurring charge
+    :param Optional[str] offer_id: Offer Id to request API
+    :return: Changeset of updating pricing term
+    :rtype: ChangeSetReturnType
+    """
     rate_cards_hourly: List[Dict[str, str]] = []
     rate_cards_annual: List[Dict[str, str]] = []
 
@@ -69,8 +78,7 @@ def _changeset_update_pricing_terms(
 
     # generate the rate cards
     for instance_type_price in instance_type_pricing:
-        # Free public listing is 0.00 which is false
-        if instance_type_price.price_hourly or free:
+        if instance_type_price.price_hourly is not None:
             rate_cards_hourly.append(
                 {
                     "DimensionKey": instance_type_price.name,
@@ -78,7 +86,7 @@ def _changeset_update_pricing_terms(
                 }
             )
 
-        if instance_type_price.price_annual:
+        if instance_type_price.price_annual is not None:
             rate_cards_annual.append(
                 {
                     "DimensionKey": instance_type_price.name,
@@ -94,8 +102,18 @@ def _changeset_update_pricing_terms(
             "RateCards": [{"RateCard": rate_cards_hourly}],
         },
     ]
-    # annual pricing rate card for paid listing
-    if not free:
+
+    if monthly_subscription_fee:
+        terms.append(
+            {
+                "Type": "RecurringPaymentTerm",
+                "CurrencyCode": "USD",
+                "BillingPeriod": "Monthly",
+                "Price": str(monthly_subscription_fee),
+            }
+        )
+    # annual pricing can only be added with hourly
+    elif rate_cards_annual:
         terms.append(
             {
                 "Type": "ConfigurableUpfrontPricingTerm",
@@ -201,7 +219,7 @@ def _changeset_update_support_terms(refund_policy: str, offer_id: Optional[str] 
 
 def _changeset_update_ami_product_description(product_id: str, desc: Dict) -> ChangeSetType:
     # description data format checking
-    m = models.AmiProduct(**desc)
+    m = models.Description(**desc)
 
     # return changeset
     return {
@@ -388,15 +406,18 @@ def get_ami_listing_update_description_changesets(product_id: str, description: 
 def get_ami_listing_update_instance_type_changesets(
     product_id: str,
     offer_id: str,
-    instance_type_pricing: List[models.InstanceTypePricing],
+    offer_detail: models.Offer,
     dimension_unit: Literal["Hrs", "Units"],
     new_instance_types: List[str],
-    free: bool,
 ) -> List[ChangeSetType]:
     return [
         _changeset_update_ami_product_dimension(product_id, dimension_unit, new_instance_types),
         _changeset_update_ami_product_instance_type(product_id, new_instance_types),
-        _changeset_update_pricing_terms(instance_type_pricing, offer_id=offer_id, free=free),
+        _changeset_update_pricing_terms(
+            offer_detail.instance_types,
+            monthly_subscription_fee=offer_detail.monthly_subscription_fee,
+            offer_id=offer_id,
+        ),
     ]
 
 

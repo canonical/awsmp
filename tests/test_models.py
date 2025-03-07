@@ -9,21 +9,32 @@ from pydantic import HttpUrl, ValidationError
 from awsmp import _driver, models
 
 
-def build_ami_product(**kwargs):
-    defaults = dict(
-        product_title="p" * 72,
-        short_description="short_description",
-        long_description="long_descrption",
-        logourl="https://some-url",
-        highlights=["highlight1"],
-        categories=["Storage"],
-        search_keywords=["one_term"],
-        support_description="supported!",
-    )
-    return models.AmiProduct(**(defaults | kwargs))
+@pytest.fixture
+def mock_boto3():
+    with patch("awsmp.models.boto3") as mock_boto3:
+        mock_boto3.client.return_value.describe_regions.return_value = {
+            "Regions": [
+                {"Endpoint": "ec2.us-east-1.amazonaws.com", "RegionName": "us-east-1", "OptInStatus": "opted-in"},
+                {"Endpoint": "ec2.us-east-2.amazonaws.com", "RegionName": "us-east-2", "OptInStatus": "opted-in"},
+            ]
+        }
+        yield mock_boto3
 
 
-class TestAmiProductSuite:
+class TestAmiDescriptionSuite:
+    def _build_ami_description(self, **kwargs):
+        defaults = dict(
+            product_title="p" * 72,
+            short_description="short_description",
+            long_description="long_descrption",
+            logourl="https://some-url",
+            highlights=["highlight1"],
+            categories=["Storage"],
+            search_keywords=["one_term"],
+            support_description="supported!",
+        )
+        return models.Description(**(defaults | kwargs))
+
     @pytest.mark.parametrize(
         "provided_keys,expected",
         [
@@ -36,21 +47,228 @@ class TestAmiProductSuite:
         ],
     )
     def test_should_convert_additional_resources_to_api_format(self, provided_keys, expected):
-        product = build_ami_product(additional_resources=provided_keys)
+        product = self._build_ami_description(additional_resources=provided_keys)
         assert product.additional_resources == expected
 
     @pytest.mark.parametrize("ami_product_field", ["support_description", "long_description"])
     def test_should_strip_new_lines_from_relevent_fields(self, ami_product_field):
         valid_description = "my description\n\nafter separator"
-        product = build_ami_product(**{ami_product_field: f"\n\n\n{valid_description}\n\n"})
+        product = self._build_ami_description(**{ami_product_field: f"\n\n\n{valid_description}\n\n"})
         assert getattr(product, ami_product_field) == valid_description
 
     def test_search_keywords_should_not_accept_large_input(self):
         keywords = ["a" * 150, "b" * 105, "c", "d", "e"]
         with pytest.raises(ValueError) as e:
-            build_ami_product(search_keywords=keywords)
+            self._build_ami_description(search_keywords=keywords)
         err = "Combined character count of keywords can be at most 250 characters"
         assert err in str(e.value)
+
+
+class TestRegion:
+    def test_region_availability(self, mock_boto3):
+        region = models.Region(commercial_regions=["us-east-1", "us-east-2"], future_region_support=True)
+        assert region.future_region_support == True
+
+    def test_region_availability_invalid_regions(self, mock_boto3):
+        with pytest.raises(ValidationError):
+            models.Region(commercial_regions=["us-east-1", "us-west-1"], future_region_support=True)
+
+    def test_region_availability_future_region_supported(self, mock_boto3):
+        region = models.Region(commercial_regions=["us-east-1", "us-east-2"], future_region_support=False)
+        assert region.future_region_supported() == ["None"]
+
+
+class TestAmiVersion:
+    def _get_version_details(self):
+        return {
+            "version_title": "test_version_title",
+            "release_notes": "test_release_notes\n",
+            "ami_id": "ami-test",
+            "access_role_arn": "arn:aws:iam::test",
+            "os_user_name": "test_os_user_name",
+            "os_system_version": "test_os_system_version",
+            "os_system_name": "test_os",
+            "scanning_port": 22,
+            "usage_instructions": "test_usage_instructions",
+            "recommended_instance_type": "m5.large",
+            "ip_protocol": "tcp",
+            "ip_ranges": ["0.0.0.0/0"],
+            "from_port": 22,
+            "to_port": 22,
+        }
+
+    def test_version_ami_id(self):
+        model = models.AmiVersion(**self._get_version_details())
+        assert model.ami_id == "ami-test"
+
+    def test_version_ip_ranges(self):
+        model = models.AmiVersion(**self._get_version_details())
+        assert model.ip_ranges == ["0.0.0.0/0"]
+
+    def test_invalid_access_role_arn(self):
+        version = self._get_version_details()
+        version["access_role_arn"] = "arn:iam::test"
+        with pytest.raises(ValidationError):
+            models.AmiVersion(**version)
+
+    def test_invalid_ami_id(self):
+        version = self._get_version_details()
+        version["ami_id"] = "1234567"
+        with pytest.raises(ValidationError):
+            models.AmiVersion(**version)
+
+
+class TestAmiProduct:
+    @pytest.fixture
+    def local_config(self):
+        with open("./tests/test_config.yaml", "r") as f:
+            return yaml.safe_load(f)
+
+    def test_ami_product_short_description(self, mock_boto3, local_config):
+        ami_product = models.AmiProduct(**local_config["product"])
+        assert (
+            ami_product.description.short_description == "test_short_description"
+            and ami_product.description.product_title == "test"
+        )
+
+    def test_ami_product_region_availability(self, mock_boto3, local_config):
+        ami_product = models.AmiProduct(**local_config["product"])
+        assert ami_product.region.commercial_regions == ["us-east-1", "us-east-2"]
+
+    def test_ami_product_version(self, mock_boto3, local_config):
+        ami_product = models.AmiProduct(**local_config["product"])
+        assert ami_product.version.ami_id == "ami-test"
+
+    def test_ami_product_invalid_description(self, mock_boto3, local_config):
+        local_config["product"]["description"]["categories"] = ["test"]
+        with pytest.raises(ValidationError):
+            ami_product = models.AmiProduct(**local_config["product"])
+
+    def test_ami_product_invalid_region(self, mock_boto3, local_config):
+        local_config["product"]["region"]["commercial_regions"].append("eu-west-3")
+        with pytest.raises(ValidationError):
+            ami_product = models.AmiProduct(**local_config["product"])
+
+
+class TestInstanceTypePricing:
+    @pytest.mark.parametrize(
+        "instance_type_and_pricing,expected_hourly,expected_yearly",
+        [
+            ({"name": "c1.medium", "hourly": 0.004, "yearly": 24.528}, "0.004", "24.528"),
+            ({"name": "c3.medium", "hourly": 0.012}, "0.012", "None"),
+            ({"name": "c1.metal", "hourly": 0, "yearly": 0}, "0", "0"),
+        ],
+    )
+    def test_instance_type_pricing(self, instance_type_and_pricing, expected_hourly, expected_yearly):
+        model = models.InstanceTypePricing(**instance_type_and_pricing)
+        assert str(model.price_hourly) == expected_hourly and str(model.price_annual) == expected_yearly
+
+    def test_instance_type_without_hourly_pricing(self):
+        instance_type_and_pricing: dict[str, Any] = {
+            "name": "c1.medium",
+        }
+
+        with pytest.raises(ValidationError):
+            models.InstanceTypePricing(**instance_type_and_pricing)
+
+    def test_instance_type_with_four_digits(self):
+        instance_type_and_pricing: dict[str, Any] = {
+            "name": "c1.medium",
+            "hourly": 0.0045,
+            "yearly": 24.528,
+        }
+
+        with pytest.raises(ValidationError) as e:
+            models.InstanceTypePricing(**instance_type_and_pricing)
+
+        assert "must have at most 3 decimal places" in str(e.value)
+
+
+class TestEulaDocumentItem:
+    @pytest.mark.parametrize(
+        "eula_item,expected_url,expected_version",
+        [
+            ({"type": "CustomEula", "url": "https://eula.com"}, "https://eula.com", None),
+            ({"type": "StandardEula", "version": "2022-07-14"}, None, "2022-07-14"),
+        ],
+    )
+    def test_eula_document_item(self, eula_item, expected_url, expected_version):
+        model = models.EulaDocumentItem(**eula_item)
+        assert model.url == expected_url and model.version == expected_version
+
+    @pytest.mark.parametrize(
+        "eula_item,expected_error_msg",
+        [
+            (
+                {"type": "CustomEula", "url": "https://eula.com", "version": "2024-05-07"},
+                "CustomEula can't pass version",
+            ),
+            ({"type": "StandardEula", "url": "https://eula.com"}, "StandardEula cannot have a custom document Url."),
+            ({"type": "CustomEula"}, "CustomEula needs Url."),
+            ({"type": "StandardEula"}, "Specify version of StandardEula"),
+        ],
+    )
+    def test_eula_document_item_required_field_check_by_type(self, eula_item, expected_error_msg):
+        with pytest.raises(ValidationError) as e:
+            models.EulaDocumentItem(**eula_item)
+        assert expected_error_msg in str(e.value)
+
+
+class TestOffer:
+    def _get_offer_details(self):
+        return {
+            "eula_document": [{"type": "CustomEula", "url": "https://eula.com"}],
+            "instance_types": [
+                {"name": "c3.medium", "hourly": 0.012, "yearly": 57.528},
+                {"name": "c4.large", "hourly": 0.078, "yearly": 123.456},
+            ],
+            "refund_policy": "This is refund policy",
+        }
+
+    def test_refund_policy_from_offer(self):
+        model = models.Offer(**self._get_offer_details())
+        assert model.refund_policy == "This is refund policy"
+
+    def test_invalid_refund_policy_from_offer_too_long(self):
+        offer_detail = self._get_offer_details()
+        offer_detail["refund_policy"] = "refund policy" * 50
+        with pytest.raises(ValidationError):
+            models.Offer(**offer_detail)
+
+    def test_eula_document_from_offer(self):
+        model = models.Offer(**self._get_offer_details())
+        assert model.eula_document[0].url == "https://eula.com"
+
+    def test_invalid_eula_document_from_offer_with_version(self):
+        offer_detail = self._get_offer_details()
+        offer_detail["eula_document"][0]["version"] = "2025-02-04"
+        with pytest.raises(ValidationError):
+            models.Offer(**offer_detail)
+
+    def test_instance_type_and_pricing_from_offer(self):
+        model = models.Offer(**self._get_offer_details())
+        assert model.instance_types[1].name == "c4.large" and str(model.instance_types[1].price_annual) == "123.456"
+
+    def test_invalid_instance_type_and_pricing_without_pricing(self):
+        offer_detail = self._get_offer_details()
+        offer_detail["instance_types"][1] = {"name": "c4.large"}
+        with pytest.raises(ValidationError):
+            models.Offer(**offer_detail)
+
+    def test_monthly_subscription_fee(self):
+        offer_detail = self._get_offer_details()
+        offer_detail["monthly_subscription_fee"] = 50.04
+
+        model = models.Offer(**offer_detail)
+        assert str(model.monthly_subscription_fee) == "50.04"
+
+    def test_invalid_monthly_subscription_fee(self):
+        offer_detail = self._get_offer_details()
+        offer_detail["monthly_subscription_fee"] = 50.01234
+        with pytest.raises(ValidationError) as e:
+            models.Offer(**offer_detail)
+
+        assert "must have at most 3 decimal places" in str(e.value)
 
 
 class TestEntity:
@@ -68,17 +286,6 @@ class TestEntity:
         entity2 = models.EntityModel.get_entity_from_yaml(local_config)
 
         return entity1, entity2
-
-    @pytest.fixture
-    def mock_boto3(self):
-        with patch("awsmp.models.boto3") as mock_boto3:
-            mock_boto3.client.return_value.describe_regions.return_value = {
-                "Regions": [
-                    {"Endpoint": "ec2.us-east-1.amazonaws.com", "RegionName": "us-east-1", "OptInStatus": "opted-in"},
-                    {"Endpoint": "ec2.us-east-2.amazonaws.com", "RegionName": "us-east-2", "OptInStatus": "opted-in"},
-                ]
-            }
-            yield mock_boto3
 
     def test_valid_response(self):
         with open("./tests/test_config.json", "r") as f:
