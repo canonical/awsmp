@@ -184,6 +184,36 @@ class TestInstanceTypePricing:
         assert "must have at most 3 decimal places" in str(e.value)
 
 
+class TestEulaDocumentItem:
+    @pytest.mark.parametrize(
+        "eula_item,expected_url,expected_version",
+        [
+            ({"type": "CustomEula", "url": "https://eula.com"}, "https://eula.com", None),
+            ({"type": "StandardEula", "version": "2022-07-14"}, None, "2022-07-14"),
+        ],
+    )
+    def test_eula_document_item(self, eula_item, expected_url, expected_version):
+        model = models.EulaDocumentItem(**eula_item)
+        assert model.url == expected_url and model.version == expected_version
+
+    @pytest.mark.parametrize(
+        "eula_item,expected_error_msg",
+        [
+            (
+                {"type": "CustomEula", "url": "https://eula.com", "version": "2024-05-07"},
+                "CustomEula can't pass version",
+            ),
+            ({"type": "StandardEula", "url": "https://eula.com"}, "StandardEula cannot have a custom document Url."),
+            ({"type": "CustomEula"}, "CustomEula needs Url."),
+            ({"type": "StandardEula"}, "Specify version of StandardEula"),
+        ],
+    )
+    def test_eula_document_item_required_field_check_by_type(self, eula_item, expected_error_msg):
+        with pytest.raises(ValidationError) as e:
+            models.EulaDocumentItem(**eula_item)
+        assert expected_error_msg in str(e.value)
+
+
 class TestEntity:
     @pytest.fixture
     def get_entity(self):
