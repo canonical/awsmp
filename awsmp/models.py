@@ -50,7 +50,7 @@ def strip_string(field: str) -> str:
     return field.strip()
 
 
-class AmiProduct(BaseModel):
+class Description(BaseModel):
     class Config:
         validate_assignment = True
 
@@ -141,6 +141,16 @@ class AmiVersion(BaseModel):
         if not value.startswith("arn:aws:iam::"):
             raise ValueError(f"{value} is invalid role format. Please check your role again.")
         return value
+
+
+class AmiProduct(BaseModel):
+    """
+    Ami Product model
+    """
+
+    description: Description
+    region: Region
+    version: AmiVersion
 
 
 class DescriptionModel(BaseModel):
