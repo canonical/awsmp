@@ -1,4 +1,4 @@
-from typing import Any, List
+from typing import Any, Dict, List, cast
 from unittest.mock import patch
 
 import pytest
@@ -36,9 +36,10 @@ def test_get_ami_product_update_changeset_description_title(mock_boto3, file_pat
     with open(file_path, "r") as f:
         config = yaml.safe_load(f)
     res: List[types.ChangeSetType] = changesets.get_ami_listing_update_changesets(
-        "test-id", config["description"], config["region"]
+        "test-id", config["product"]["description"], config["product"]["region"]
     )
-    assert res[0]["DetailsDocument"]["ProductTitle"] == expected_desc
+    details_document = cast(Dict[str, Any], res[0]["DetailsDocument"])
+    assert details_document["ProductTitle"] == expected_desc
 
 
 @pytest.mark.parametrize(
@@ -60,9 +61,10 @@ def test_get_ami_product_update_changeset_description_long_desc(mock_boto3, file
     with open(file_path, "r") as f:
         config = yaml.safe_load(f)
     res: List[types.ChangeSetType] = changesets.get_ami_listing_update_changesets(
-        "test-id", config["description"], config["region"]
+        "test-id", config["product"]["description"], config["product"]["region"]
     )
-    assert res[0]["DetailsDocument"]["LongDescription"] == expected_desc
+    details_document = cast(Dict[str, Any], res[0]["DetailsDocument"])
+    assert details_document["LongDescription"] == expected_desc
 
 
 @pytest.mark.parametrize(
@@ -87,9 +89,10 @@ def test_get_ami_product_update_changeset_description_short_desc(mock_boto3, fil
     with open(file_path, "r") as f:
         config = yaml.safe_load(f)
     res: List[types.ChangeSetType] = changesets.get_ami_listing_update_changesets(
-        "test-id", config["description"], config["region"]
+        "test-id", config["product"]["description"], config["product"]["region"]
     )
-    assert res[0]["DetailsDocument"]["ShortDescription"] == expected_desc
+    details_document = cast(Dict[str, Any], res[0]["DetailsDocument"])
+    assert details_document["ShortDescription"] == expected_desc
 
 
 @pytest.mark.parametrize(
@@ -111,9 +114,10 @@ def test_get_ami_product_update_changeset_description_logourl(mock_boto3, file_p
     with open(file_path, "r") as f:
         config = yaml.safe_load(f)
     res: List[types.ChangeSetType] = changesets.get_ami_listing_update_changesets(
-        "test-id", config["description"], config["region"]
+        "test-id", config["product"]["description"], config["product"]["region"]
     )
-    assert res[0]["DetailsDocument"]["LogoUrl"] == expected_desc
+    details_document = cast(Dict[str, Any], res[0]["DetailsDocument"])
+    assert details_document["LogoUrl"] == expected_desc
 
 
 @pytest.mark.parametrize(
@@ -135,9 +139,10 @@ def test_get_ami_product_update_changeset_description_highlights(mock_boto3, fil
     with open(file_path, "r") as f:
         config = yaml.safe_load(f)
     res: List[types.ChangeSetType] = changesets.get_ami_listing_update_changesets(
-        "test-id", config["description"], config["region"]
+        "test-id", config["product"]["description"], config["product"]["region"]
     )
-    assert res[0]["DetailsDocument"]["Highlights"] == expected_desc
+    details_document = cast(Dict[str, Any], res[0]["DetailsDocument"])
+    assert details_document["Highlights"] == expected_desc
 
 
 @pytest.mark.parametrize(
@@ -169,9 +174,10 @@ def test_get_ami_product_update_changeset_description_search_keywords(mock_boto3
     with open(file_path, "r") as f:
         config = yaml.safe_load(f)
     res: List[types.ChangeSetType] = changesets.get_ami_listing_update_changesets(
-        "test-id", config["description"], config["region"]
+        "test-id", config["product"]["description"], config["product"]["region"]
     )
-    assert res[0]["DetailsDocument"]["SearchKeywords"] == expected_desc
+    details_document = cast(Dict[str, Any], res[0]["DetailsDocument"])
+    assert details_document["SearchKeywords"] == expected_desc
 
 
 @pytest.mark.parametrize(
@@ -193,9 +199,10 @@ def test_get_ami_product_update_changeset_description_categories(mock_boto3, fil
     with open(file_path, "r") as f:
         config = yaml.safe_load(f)
     res: List[types.ChangeSetType] = changesets.get_ami_listing_update_changesets(
-        "test-id", config["description"], config["region"]
+        "test-id", config["product"]["description"], config["product"]["region"]
     )
-    assert res[0]["DetailsDocument"]["Categories"] == expected_desc
+    details_document = cast(Dict[str, Any], res[0]["DetailsDocument"])
+    assert details_document["Categories"] == expected_desc
 
 
 @pytest.mark.parametrize(
@@ -227,9 +234,10 @@ def test_get_ami_product_update_changeset_additional_resources(mock_boto3, file_
     with open(file_path, "r") as f:
         config = yaml.safe_load(f)
     res: List[types.ChangeSetType] = changesets.get_ami_listing_update_changesets(
-        "test-id", config["description"], config["region"]
+        "test-id", config["product"]["description"], config["product"]["region"]
     )
-    assert res[0]["DetailsDocument"]["AdditionalResources"] == expected_desc
+    details_document = cast(Dict[str, Any], res[0]["DetailsDocument"])
+    assert details_document["AdditionalResources"] == expected_desc
 
 
 @pytest.mark.parametrize(
@@ -251,9 +259,10 @@ def test_get_ami_product_update_changeset_support_desc(mock_boto3, file_path, ex
     with open(file_path, "r") as f:
         config = yaml.safe_load(f)
     res: List[types.ChangeSetType] = changesets.get_ami_listing_update_changesets(
-        "test-id", config["description"], config["region"]
+        "test-id", config["product"]["description"], config["product"]["region"]
     )
-    assert res[0]["DetailsDocument"]["SupportDescription"] == expected_desc
+    details_document = cast(Dict[str, Any], res[0]["DetailsDocument"])
+    assert details_document["SupportDescription"] == expected_desc
 
 
 @pytest.mark.parametrize(
@@ -275,9 +284,10 @@ def test_get_ami_product_update_changeset_optional_video_urls(mock_boto3, file_p
     with open(file_path, "r") as f:
         config = yaml.safe_load(f)
     res: List[types.ChangeSetType] = changesets.get_ami_listing_update_changesets(
-        "test-id", config["description"], config["region"]
+        "test-id", config["product"]["description"], config["product"]["region"]
     )
-    assert res[0]["DetailsDocument"]["VideoUrls"] == expected_desc
+    details_document = cast(Dict[str, Any], res[0]["DetailsDocument"])
+    assert details_document["VideoUrls"] == expected_desc
 
 
 @pytest.mark.parametrize(
@@ -299,9 +309,10 @@ def test_get_ami_product_update_changeset_region(mock_boto3, file_path, expected
     with open(file_path, "r") as f:
         config = yaml.safe_load(f)
     res: List[types.ChangeSetType] = changesets.get_ami_listing_update_changesets(
-        "test-id", config["description"], config["region"]
+        "test-id", config["product"]["description"], config["product"]["region"]
     )
-    assert res[1]["DetailsDocument"]["Regions"] == expected_region
+    details_document = cast(Dict[str, Any], res[1]["DetailsDocument"])
+    assert details_document["Regions"] == expected_region
 
 
 @pytest.mark.parametrize(
@@ -323,9 +334,10 @@ def test_get_ami_product_update_changeset_future_region(mock_boto3, file_path, e
     with open(file_path, "r") as f:
         config = yaml.safe_load(f)
     res: List[types.ChangeSetType] = changesets.get_ami_listing_update_changesets(
-        "test-id", config["description"], config["region"]
+        "test-id", config["product"]["description"], config["product"]["region"]
     )
-    assert res[2]["DetailsDocument"]["FutureRegionSupport"]["SupportedRegions"] == expected_future_region
+    details_document = cast(Dict[str, Any], res[2]["DetailsDocument"])
+    assert details_document["FutureRegionSupport"]["SupportedRegions"] == expected_future_region
 
 
 @patch("awsmp.models.boto3")
@@ -339,3 +351,28 @@ def test_get_ami_product_update_non_valid_changeset(mock_boto3):
 
     with pytest.raises(ValidationError):
         changesets.get_ami_listing_update_changesets("test-id", {}, {})
+
+
+@pytest.mark.parametrize(
+    "file_path, expected_version_title, expected_ami_id",
+    [
+        ("./tests/local_config/test_config_1.yaml", "test_version_title_1", "ami-test1"),
+        ("./tests/local_config/test_config_2.yaml", "test_version_title_2", "ami-test2"),
+        ("./tests/local_config/test_config_3.yaml", "test_version_title_3", "ami-test3"),
+        ("./tests/local_config/test_config_4.yaml", "test_version_title_4", "ami-test4"),
+    ],
+)
+def test_get_ami_listing_update_version_changesets(file_path, expected_version_title, expected_ami_id):
+    with open(file_path, "r") as f:
+        config = yaml.safe_load(f)
+    res: List[types.ChangeSetType] = changesets.get_ami_listing_update_version_changesets(
+        "test-id", config["product"]["version"]
+    )
+    details_document = cast(Dict[str, Any], res[0]["DetailsDocument"])
+    assert (
+        details_document["Version"]["VersionTitle"] == expected_version_title
+        and details_document["DeliveryOptions"][0]["Details"]["AmiDeliveryOptionDetails"]["AmiSource"]["AmiId"]
+        == expected_ami_id
+    )
+
+

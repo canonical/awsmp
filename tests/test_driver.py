@@ -122,7 +122,7 @@ def test_ami_product_update_description_validation_failure(mock_get_client, inva
 def test_ami_product_update_description(mock_get_client):
     with open("./tests/description.yaml", "r") as f:
         config = yaml.safe_load(f)
-    desc = config["description"]
+    desc = config["product"]["description"]
 
     ap = _driver.AmiProduct(product_id="testing")
     ap.update_description(desc)

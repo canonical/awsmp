@@ -254,7 +254,7 @@ def ami_product_update_description(product_id, config):
     Update AMI product description
     """
     # Load yaml file
-    desc = _load_configuration(config, ["description"])["description"]
+    desc = _load_configuration(config, ["product:description"])["product"]["description"]
     response = _driver.AmiProduct(product_id=product_id).update_description(desc)
     print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
     print(f'https://aws.amazon.com/marketplace/management/requests/{response["ChangeSetId"]}')
@@ -318,7 +318,7 @@ def ami_product_update_regions(product_id, config):
     Update AMI product region
     """
     # Load yaml file
-    region_config = _load_configuration(config, ["region"])["region"]
+    region_config = _load_configuration(config, ["product:region"])["product"]["region"]
 
     product = _driver.AmiProduct(product_id=product_id)
     response = product.update_regions(region_config)
@@ -334,7 +334,7 @@ def ami_product_update_version(product_id, config):
     Update AMI product version
     """
     # Load yaml file
-    version_config = _load_configuration(config, ["version"])["version"]
+    version_config = _load_configuration(config, ["product:version"])["product"]["version"]
 
     product = _driver.AmiProduct(product_id=product_id)
     response = product.update_version(version_config)
@@ -396,7 +396,7 @@ def ami_product_update(product_id, config):
     """
 
     # Load yaml file
-    configs = _load_configuration(config, ["description", "region"])
+    configs = _load_configuration(config, ["product:description", "product:region"])
 
     product = _driver.AmiProduct(product_id=product_id)
     response = product.update(configs)
@@ -409,15 +409,26 @@ def _load_configuration(config_path: TextIO, required_fields: List[str]) -> Dict
     Check if keys exist in config file before creating changeset and return config dict
 
     :param TextIO config_path: File path for configuration yaml file
-    :param: List of :str: required_fields: List of required keys to request
+    :param: List of :str: required_fields: List of required keys to request (e.g. product:description)
     :return: dictionary of configuration
     :rtype: Dict
     """
     with open(config_path.name, "r") as f:
         config = yaml.safe_load(f)
-        missing_keys = [key for key in required_fields if key not in config]
+        missing_keys: List[str] = []
+
+        for required_field in required_fields:
+            product_type_key, field = required_field.split(":")
+            if product_type_key not in config:
+                missing_keys.append(product_type_key)
+            else:
+                if field is None:
+                    continue
+                elif field not in config[product_type_key]:
+                    missing_keys.append(required_field)
+
         if missing_keys:
-            logger.exception(f"{missing_keys} are missed in config file.")
+            logger.exception(f"Configuration file is missing: {missing_keys}")
             raise YamlMissingKeyException(missing_keys=missing_keys)
 
     return config

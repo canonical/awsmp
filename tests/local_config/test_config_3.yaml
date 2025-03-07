@@ -1,55 +1,56 @@
-description:
-  product_title: "test_prod"
-  logourl: "https://test-logourl.pdf"
-  video_urls:
-    - "https://test-video"
-  short_description: "test_short_description\nshort_description"
-  long_description: |
-    test_long_description
-
-    very_long
-  highlights:
-    - "test_highlight_1"
-    - "test_highlight_2"
-  search_keywords:
-    - "test_keyword_1"
-    - "test_keyword_2"
-  categories:
-    - "Migration"
-    - "Testing"
-  support_description: |
-    test_support_description
-
-    with new lines
-
-  support_resources:
-    - "test_support_resource"
-  additional_resources:
-    - test-link: "https://test-url"
-    - test-link2: "https://test-url2"
-  sku: "test"
-region:
-  commercial_regions:
-    - us-east-1
-  future_region_support: False
-version:
-  version_title: "test_version_title"
-  release_notes: |
-    test_release_notes
-  ami_id: ami-test3
-  access_role_arn: arn:aws:iam::test
-  os_user_name: test_os_user_name
-  os_system_version: test_os_system_version
-  os_system_name: test_os
-  scanning_port: 22
-  usage_instructions: |
-    test_usage_instructions
-  recommended_instance_type: m5.large
-  ip_protocol: tcp
-  ip_ranges:
-    - "0.0.0.0/0"
-  from_port: 22
-  to_port: 22
 refund_policy: |
   test_refund_policy_term
 eula_url: "test_eula_url"
+product:
+  description:
+    product_title: "test_prod"
+    logourl: "https://test-logourl.pdf"
+    video_urls:
+      - "https://test-video"
+    short_description: "test_short_description\nshort_description"
+    long_description: |
+      test_long_description
+  
+      very_long
+    highlights:
+      - "test_highlight_1"
+      - "test_highlight_2"
+    search_keywords:
+      - "test_keyword_1"
+      - "test_keyword_2"
+    categories:
+      - "Migration"
+      - "Testing"
+    support_description: |
+      test_support_description
+  
+      with new lines
+  
+    support_resources:
+      - "test_support_resource"
+    additional_resources:
+      - test-link: "https://test-url"
+      - test-link2: "https://test-url2"
+    sku: "test"
+  region:
+    commercial_regions:
+      - us-east-1
+    future_region_support: False
+  version:
+    version_title: "test_version_title_3"
+    release_notes: |
+      test_release_notes
+    ami_id: ami-test3
+    access_role_arn: arn:aws:iam::test
+    os_user_name: test_os_user_name
+    os_system_version: test_os_system_version
+    os_system_name: test_os
+    scanning_port: 22
+    usage_instructions: |
+      test_usage_instructions
+    recommended_instance_type: m5.large
+    ip_protocol: tcp
+    ip_ranges:
+      - "0.0.0.0/0"
+    from_port: 22
+    to_port: 22
