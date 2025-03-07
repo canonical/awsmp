@@ -5,7 +5,7 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from awsmp import changesets, types
+from awsmp import changesets, models, types
 
 
 @pytest.mark.parametrize(
@@ -14,7 +14,8 @@ from awsmp import changesets, types
 )
 def test_changeset_update_legal_terms_eula_options(eula_url, expected):
     result = changesets._changeset_update_legal_terms(eula_url=eula_url)
-    result["DetailsDocument"]["Terms"][0] == expected  # type: ignore
+    details_document = cast(Dict[str, Any], result["DetailsDocument"])
+    assert details_document["Terms"][0]["Documents"][0] == expected
 
 
 @pytest.mark.parametrize(
@@ -376,3 +377,50 @@ def test_get_ami_listing_update_version_changesets(file_path, expected_version_t
     )
 
 
+def test_get_ami_listing_update_instance_type_changesets_add_new_instance_type():
+    offer_config: Dict[str, Any] = {
+        "instance_types": [
+            {"name": "c3.xlarge", "yearly": 123.44, "hourly": 0.12},
+            {"name": "c4.large", "yearly": 78.56, "hourly": 0.55},
+        ],
+        "eula_document": [{"type": "StandardEula", "version": "2025-05-05"}],
+        "refund_policy": "refund_policy",
+    }
+    offer_detail = models.Offer(**offer_config)
+    res: List[types.ChangeSetType] = changesets.get_ami_listing_update_instance_type_changesets(
+        "test-id", "test-offer_id", offer_detail, "Hrs", ["c4.large"]
+    )
+    details_document = [cast(Dict[str, Any], item["DetailsDocument"]) for item in res[1:]]
+    assert (
+        details_document[0]["InstanceTypes"] == ["c4.large"]
+        and details_document[1]["Terms"][0]["RateCards"][0]["RateCard"][1]
+        == {"DimensionKey": "c4.large", "Price": "0.55"}
+        and details_document[1]["Terms"][1]["RateCards"][0]["RateCard"][1]
+        == {"DimensionKey": "c4.large", "Price": "78.56"}
+    )
+
+
+def test_get_ami_listing_update_instance_type_changesets_add_new_instance_type_with_monthly_subscription():
+    offer_config: Dict[str, Any] = {
+        "instance_types": [
+            {"name": "c3.xlarge", "yearly": 123.44, "hourly": 0.12},
+            {"name": "c4.large", "yearly": 78.56, "hourly": 0.55},
+        ],
+        "eula_document": [{"type": "StandardEula", "version": "2025-05-05"}],
+        "refund_policy": "refund_policy",
+        "monthly_subscription_fee": 265.00,
+    }
+    offer_detail = models.Offer(**offer_config)
+    res: List[types.ChangeSetType] = changesets.get_ami_listing_update_instance_type_changesets(
+        "test-id", "test-offer_id", offer_detail, "Hrs", ["c4.large"]
+    )
+    details_document = [cast(Dict[str, Any], item["DetailsDocument"]) for item in res[1:]]
+    assert details_document[1]["Terms"][0]["RateCards"][0]["RateCard"][1] == {
+        "DimensionKey": "c4.large",
+        "Price": "0.55",
+    } and details_document[1]["Terms"][1] == {
+        "Type": "RecurringPaymentTerm",
+        "CurrencyCode": "USD",
+        "BillingPeriod": "Monthly",
+        "Price": "265.0",
+    }

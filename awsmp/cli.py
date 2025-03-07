@@ -262,16 +262,15 @@ def ami_product_update_description(product_id, config):
 
 @public_offer.command("update-instance-type")
 @click.option("--product-id", required=True, prompt=True)
-@click.option("--instance-type-file", type=click.File("r"), required=True, prompt=True)
+@click.option("--config", type=click.File("r"), required=True, prompt=True)
 @click.option("--dimension-unit", required=True, prompt=True, type=click.Choice(["Hrs", "Units"]))
-@click.option("--free", required=True, prompt=True, type=click.Choice(["Y", "N"]))
-def ami_product_update_instance_type(product_id, instance_type_file, dimension_unit, free):
+def ami_product_update_instance_type(product_id, config, dimension_unit):
     """
     Update AMI product instance type
     """
-    free = True if free == "Y" else False
     product = _driver.AmiProduct(product_id=product_id)
-    response = product.update_instance_types(instance_type_file, dimension_unit, free)
+    offer_config = _load_configuration(config, ["offer"])["offer"]
+    response = product.update_instance_types(offer_config, dimension_unit)
     print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
     print(f'https://aws.amazon.com/marketplace/management/requests/{response["ChangeSetId"]}')
 
@@ -350,7 +349,7 @@ def ami_product_update_legal_terms(product_id, config):
     Update AMI product legal terms
     """
     # Load yaml file
-    eula_url = _load_configuration(config, ["eula_url"])["eula_url"]
+    eula_url = _load_configuration(config, ["offer:eula_document"])["offer"]["eula_document"]
 
     product = _driver.AmiProduct(product_id=product_id)
     response = product.update_legal_terms(eula_url)
@@ -366,7 +365,7 @@ def ami_product_update_support_terms(product_id, config):
     Update AMI product support terms
     """
     # Load yaml file
-    refund_policy = _load_configuration(config, ["refund_policy"])["refund_policy"]
+    refund_policy = _load_configuration(config, ["offer:refund_policy"])["offer"]["refund_policy"]
 
     product = _driver.AmiProduct(product_id=product_id)
     response = product.update_support_terms(refund_policy)
