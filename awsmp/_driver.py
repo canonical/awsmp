@@ -239,7 +239,7 @@ def offer_create(
     eula_url: Optional[str],
     pricing: IO,
 ) -> ChangeSetReturnType:
-    csvreader = csv.DictReader(pricing, fieldnames=["name", "price_hourly", "price_annual"])
+    csvreader = csv.DictReader(pricing, fieldnames=["name", "hourly", "yearly"])
     instance_type_pricing = [models.InstanceTypePricing(**line) for line in csvreader]  # type:ignore
 
     changeset_list = changesets.get_changesets(

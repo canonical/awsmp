@@ -60,6 +60,14 @@ def _changeset_update_pricing_terms(
     offer_id: Optional[str] = None,
     free: bool = False,
 ) -> ChangeSetType:
+    """
+    Construct the changeset for update pricing term API reqeust
+
+    :param List[models.InstanceTypePricing] instance_type_pricing: List of InstanceTypePricing objects
+    :param Optional[str] offer_id: Offer Id to request API
+    :return: Changeset of updating pricing term
+    :rtype: ChangeSetReturnType
+    """
     rate_cards_hourly: List[Dict[str, str]] = []
     rate_cards_annual: List[Dict[str, str]] = []
 
@@ -69,8 +77,7 @@ def _changeset_update_pricing_terms(
 
     # generate the rate cards
     for instance_type_price in instance_type_pricing:
-        # Free public listing is 0.00 which is false
-        if instance_type_price.price_hourly or free:
+        if instance_type_price.price_hourly is not None:
             rate_cards_hourly.append(
                 {
                     "DimensionKey": instance_type_price.name,
@@ -78,7 +85,7 @@ def _changeset_update_pricing_terms(
                 }
             )
 
-        if instance_type_price.price_annual:
+        if instance_type_price.price_annual is not None:
             rate_cards_annual.append(
                 {
                     "DimensionKey": instance_type_price.name,
