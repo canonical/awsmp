@@ -52,6 +52,30 @@ class InstanceTypePricing(BaseModel):
         return values
 
 
+class EulaDocumentItem(BaseModel):
+    """
+    DocumentItem model
+    """
+
+    type: Literal["CustomEula", "StandardEula"]
+    version: Optional[StrictStr] = Field(default=None)
+    url: Optional[StrictStr] = Field(default=None)
+
+    @model_validator(mode="after")
+    def required_field_check_by_type(cls, values):
+        if values.type == "CustomEula":
+            if values.version is not None:
+                raise ValueError("CustomEula can't pass version of standard document.")
+            elif values.url is None:
+                raise ValueError("CustomEula needs Url.")
+        elif values.type == "StandardEula":
+            if values.url is not None:
+                raise ValueError("StandardEula cannot have a custom document Url.")
+            elif values.version is None:
+                raise ValueError("Specify version of StandardEula")
+        return values
+
+
 class Region(BaseModel):
     commercial_regions: conlist(str)  # type:ignore
     future_region_support: bool
