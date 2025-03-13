@@ -90,7 +90,7 @@ class AmiProduct:
         Update AMI product details (Description, Region)
         """
         changeset = changesets.get_ami_listing_update_changesets(
-            self.product_id, configs["description"], configs["region"]
+            self.product_id, configs["product"]["description"], configs["product"]["region"]
         )
         changeset_name = f"Product {self.product_id} update product details"
 

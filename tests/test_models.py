@@ -9,6 +9,17 @@ from pydantic import HttpUrl, ValidationError
 from awsmp import _driver, models
 
 
+@pytest.fixture
+def mock_boto3():
+    with patch("awsmp.models.boto3") as mock_boto3:
+        mock_boto3.client.return_value.describe_regions.return_value = {
+            "Regions": [
+                {"Endpoint": "ec2.us-east-1.amazonaws.com", "RegionName": "us-east-1", "OptInStatus": "opted-in"},
+                {"Endpoint": "ec2.us-east-2.amazonaws.com", "RegionName": "us-east-2", "OptInStatus": "opted-in"},
+            ]
+        }
+        yield mock_boto3
+
 
 class TestAmiDescriptionSuite:
     def _build_ami_description(self, **kwargs):
@@ -36,21 +47,107 @@ class TestAmiDescriptionSuite:
         ],
     )
     def test_should_convert_additional_resources_to_api_format(self, provided_keys, expected):
-        product = build_ami_product(additional_resources=provided_keys)
+        product = self._build_ami_description(additional_resources=provided_keys)
         assert product.additional_resources == expected
 
     @pytest.mark.parametrize("ami_product_field", ["support_description", "long_description"])
     def test_should_strip_new_lines_from_relevent_fields(self, ami_product_field):
         valid_description = "my description\n\nafter separator"
-        product = build_ami_product(**{ami_product_field: f"\n\n\n{valid_description}\n\n"})
+        product = self._build_ami_description(**{ami_product_field: f"\n\n\n{valid_description}\n\n"})
         assert getattr(product, ami_product_field) == valid_description
 
     def test_search_keywords_should_not_accept_large_input(self):
         keywords = ["a" * 150, "b" * 105, "c", "d", "e"]
         with pytest.raises(ValueError) as e:
-            build_ami_product(search_keywords=keywords)
+            self._build_ami_description(search_keywords=keywords)
         err = "Combined character count of keywords can be at most 250 characters"
         assert err in str(e.value)
+
+
+class TestRegion:
+    def test_region_availability(self, mock_boto3):
+        region = models.Region(commercial_regions=["us-east-1", "us-east-2"], future_region_support=True)
+        assert region.future_region_support == True
+
+    def test_region_availability_invalid_regions(self, mock_boto3):
+        with pytest.raises(ValidationError):
+            models.Region(commercial_regions=["us-east-1", "us-west-1"], future_region_support=True)
+
+    def test_region_availability_future_region_supported(self, mock_boto3):
+        region = models.Region(commercial_regions=["us-east-1", "us-east-2"], future_region_support=False)
+        assert region.future_region_supported() == ["None"]
+
+
+class TestAmiVersion:
+    def _get_version_details(self):
+        return {
+            "version_title": "test_version_title",
+            "release_notes": "test_release_notes\n",
+            "ami_id": "ami-test",
+            "access_role_arn": "arn:aws:iam::test",
+            "os_user_name": "test_os_user_name",
+            "os_system_version": "test_os_system_version",
+            "os_system_name": "test_os",
+            "scanning_port": 22,
+            "usage_instructions": "test_usage_instructions",
+            "recommended_instance_type": "m5.large",
+            "ip_protocol": "tcp",
+            "ip_ranges": ["0.0.0.0/0"],
+            "from_port": 22,
+            "to_port": 22,
+        }
+
+    def test_version_ami_id(self):
+        model = models.AmiVersion(**self._get_version_details())
+        assert model.ami_id == "ami-test"
+
+    def test_version_ip_ranges(self):
+        model = models.AmiVersion(**self._get_version_details())
+        assert model.ip_ranges == ["0.0.0.0/0"]
+
+    def test_invalid_access_role_arn(self):
+        version = self._get_version_details()
+        version["access_role_arn"] = "arn:iam::test"
+        with pytest.raises(ValidationError):
+            models.AmiVersion(**version)
+
+    def test_invalid_ami_id(self):
+        version = self._get_version_details()
+        version["ami_id"] = "1234567"
+        with pytest.raises(ValidationError):
+            models.AmiVersion(**version)
+
+
+class TestAmiProduct:
+    @pytest.fixture
+    def local_config(self):
+        with open("./tests/test_config.yaml", "r") as f:
+            return yaml.safe_load(f)
+
+    def test_ami_product_short_description(self, mock_boto3, local_config):
+        ami_product = models.AmiProduct(**local_config["product"])
+        assert (
+            ami_product.description.short_description == "test_short_description"
+            and ami_product.description.product_title == "test"
+        )
+
+    def test_ami_product_region_availability(self, mock_boto3, local_config):
+        ami_product = models.AmiProduct(**local_config["product"])
+        assert ami_product.region.commercial_regions == ["us-east-1", "us-east-2"]
+
+    def test_ami_product_version(self, mock_boto3, local_config):
+        ami_product = models.AmiProduct(**local_config["product"])
+        assert ami_product.version.ami_id == "ami-test"
+
+    def test_ami_product_invalid_description(self, mock_boto3, local_config):
+        local_config["product"]["description"]["categories"] = ["test"]
+        with pytest.raises(ValidationError):
+            ami_product = models.AmiProduct(**local_config["product"])
+
+    def test_ami_product_invalid_region(self, mock_boto3, local_config):
+        local_config["product"]["region"]["commercial_regions"].append("eu-west-3")
+        with pytest.raises(ValidationError):
+            ami_product = models.AmiProduct(**local_config["product"])
 
 
 class TestEntity:
@@ -68,17 +165,6 @@ class TestEntity:
         entity2 = models.EntityModel.get_entity_from_yaml(local_config)
 
         return entity1, entity2
-
-    @pytest.fixture
-    def mock_boto3(self):
-        with patch("awsmp.models.boto3") as mock_boto3:
-            mock_boto3.client.return_value.describe_regions.return_value = {
-                "Regions": [
-                    {"Endpoint": "ec2.us-east-1.amazonaws.com", "RegionName": "us-east-1", "OptInStatus": "opted-in"},
-                    {"Endpoint": "ec2.us-east-2.amazonaws.com", "RegionName": "us-east-2", "OptInStatus": "opted-in"},
-                ]
-            }
-            yield mock_boto3
 
     def test_valid_response(self):
         with open("./tests/test_config.json", "r") as f:

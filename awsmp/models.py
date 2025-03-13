@@ -143,6 +143,16 @@ class AmiVersion(BaseModel):
         return value
 
 
+class AmiProduct(BaseModel):
+    """
+    Ami Product model
+    """
+
+    description: Description
+    region: Region
+    version: AmiVersion
+
+
 class DescriptionModel(BaseModel):
     """
     Model for description details from entity details
@@ -264,32 +274,30 @@ class EntityModel(BaseModel):
         :return: An instance of `EntityModel` create from the yaml_config
         :rtype: EntityModel
         """
-        desc = AmiProduct(**yaml_config["description"])
-        region = Region(**yaml_config["region"])
-        refund_policy = yaml_config["refund_policy"]
+        ami_product = AmiProduct(**yaml_config["product"])
 
         yaml_to_api_response: dict[str, Any] = {
             "Description": {
-                "ProductTitle": desc.product_title,
-                "ShortDescription": desc.short_description,
-                "LongDescription": desc.long_description,
-                "Sku": desc.sku,
-                "Highlights": desc.highlights,
-                "SearchKeywords": desc.search_keywords,
-                "Categories": desc.categories,
+                "ProductTitle": ami_product.description.product_title,
+                "ShortDescription": ami_product.description.short_description,
+                "LongDescription": ami_product.description.long_description,
+                "Sku": ami_product.description.sku,
+                "Highlights": ami_product.description.highlights,
+                "SearchKeywords": ami_product.description.search_keywords,
+                "Categories": ami_product.description.categories,
             },
             "PromotionalResources": {
-                "LogoUrl": desc.logourl,
-                "Videos": desc.video_urls,
-                "AdditionalResources": desc.additional_resources,
+                "LogoUrl": ami_product.description.logourl,
+                "Videos": ami_product.description.video_urls,
+                "AdditionalResources": ami_product.description.additional_resources,
             },
             "SupportInformation": {
-                "Description": desc.support_description,
-                "Resources": desc.support_resources,
+                "Description": ami_product.description.support_description,
+                "Resources": ami_product.description.support_resources,
             },
             "RegionAvailability": {
-                "Regions": region.commercial_regions,
-                "FutureRegionSupport": region.future_region_supported()[-1],
+                "Regions": ami_product.region.commercial_regions,
+                "FutureRegionSupport": ami_product.region.future_region_supported()[-1],
             },
         }
 

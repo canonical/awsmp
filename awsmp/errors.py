@@ -60,11 +60,15 @@ Please check schema regex and request with fixed value.
 
 
 class YamlMissingKeyException(Exception):
-    def __init__(self, missing_keys: List[str]):
+    def __init__(self, missing_keys: List[List[str]]):
+        formatted_keys = "\n".join("->".join(keys) for keys in missing_keys)
         message = f"""
 
 
-Config file does not have key {*missing_keys,}. Please check the file and request again.
+Config file does not have the following missing keys:
+{formatted_keys}.
+
+Please check the file and request again.
 """
         super().__init__(message)
 

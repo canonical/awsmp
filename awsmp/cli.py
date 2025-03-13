@@ -4,7 +4,7 @@ import csv
 import json
 import logging
 import time
-from typing import Dict, List, TextIO
+from typing import Dict, List, Optional, TextIO
 
 import click
 import prettytable
@@ -254,7 +254,7 @@ def ami_product_update_description(product_id, config):
     Update AMI product description
     """
     # Load yaml file
-    desc = _load_configuration(config, ["description"])["description"]
+    desc = _load_configuration(config, [["product", "description"]])["product"]["description"]
     response = _driver.AmiProduct(product_id=product_id).update_description(desc)
     print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
     print(f'https://aws.amazon.com/marketplace/management/requests/{response["ChangeSetId"]}')
@@ -318,7 +318,7 @@ def ami_product_update_regions(product_id, config):
     Update AMI product region
     """
     # Load yaml file
-    region_config = _load_configuration(config, ["region"])["region"]
+    region_config = _load_configuration(config, [["product", "region"]])["product"]["region"]
 
     product = _driver.AmiProduct(product_id=product_id)
     response = product.update_regions(region_config)
@@ -334,7 +334,7 @@ def ami_product_update_version(product_id, config):
     Update AMI product version
     """
     # Load yaml file
-    version_config = _load_configuration(config, ["version"])["version"]
+    version_config = _load_configuration(config, [["product", "version"]])["product"]["version"]
 
     product = _driver.AmiProduct(product_id=product_id)
     response = product.update_version(version_config)
@@ -350,7 +350,7 @@ def ami_product_update_legal_terms(product_id, config):
     Update AMI product legal terms
     """
     # Load yaml file
-    eula_url = _load_configuration(config, ["eula_url"])["eula_url"]
+    eula_url = _load_configuration(config, [["eula_url"]])["eula_url"]
 
     product = _driver.AmiProduct(product_id=product_id)
     response = product.update_legal_terms(eula_url)
@@ -366,7 +366,7 @@ def ami_product_update_support_terms(product_id, config):
     Update AMI product support terms
     """
     # Load yaml file
-    refund_policy = _load_configuration(config, ["refund_policy"])["refund_policy"]
+    refund_policy = _load_configuration(config, [["refund_policy"]])["refund_policy"]
 
     product = _driver.AmiProduct(product_id=product_id)
     response = product.update_support_terms(refund_policy)
@@ -396,30 +396,43 @@ def ami_product_update(product_id, config):
     """
 
     # Load yaml file
-    configs = _load_configuration(config, ["description", "region"])
-
+    configs = _load_configuration(config, [["product", "description"], ["product", "region"]])
     product = _driver.AmiProduct(product_id=product_id)
     response = product.update(configs)
     print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
     print(f'https://aws.amazon.com/marketplace/management/requests/{response["ChangeSetId"]}')
 
 
-def _load_configuration(config_path: TextIO, required_fields: List[str]) -> Dict:
+def _load_configuration(config_path: TextIO, required_fields: List[List[str]]) -> Dict:
     """
     Check if keys exist in config file before creating changeset and return config dict
 
     :param TextIO config_path: File path for configuration yaml file
-    :param: List of :str: required_fields: List of required keys to request
+    :param: List of :str: required_fields: List of required keys to request (e.g. [["product", "description"]] or [["product"]])
     :return: dictionary of configuration
     :rtype: Dict
     """
+
     with open(config_path.name, "r") as f:
         config = yaml.safe_load(f)
-        missing_keys = [key for key in required_fields if key not in config]
-        if missing_keys:
-            logger.exception(f"{missing_keys} are missed in config file.")
-            raise YamlMissingKeyException(missing_keys=missing_keys)
+        list_of_missing_keys: List[List[str]] = []
 
+    for keys in required_fields:
+        missing_keys = []
+        temp_config = config
+        for key in keys:
+            if key not in temp_config:
+                idx = keys.index(key)
+                missing_keys = keys[idx:]
+                break
+            else:
+                if isinstance(temp_config[key], dict):
+                    temp_config = temp_config[key]
+        if missing_keys:
+            list_of_missing_keys.append(missing_keys)
+    if list_of_missing_keys:
+        logger.exception(f"Configuration file is missing: {missing_keys}" for missing_keys in list_of_missing_keys)
+        raise YamlMissingKeyException(missing_keys=list_of_missing_keys)
     return config
 
 
