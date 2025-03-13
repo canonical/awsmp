@@ -214,6 +214,63 @@ class TestEulaDocumentItem:
         assert expected_error_msg in str(e.value)
 
 
+class TestOffer:
+    def _get_offer_details(self):
+        return {
+            "eula_document": [{"type": "CustomEula", "url": "https://eula.com"}],
+            "instance_types": [
+                {"name": "c3.medium", "hourly": 0.012, "yearly": 57.528},
+                {"name": "c4.large", "hourly": 0.078, "yearly": 123.456},
+            ],
+            "refund_policy": "This is refund policy",
+        }
+
+    def test_refund_policy_from_offer(self):
+        model = models.Offer(**self._get_offer_details())
+        assert model.refund_policy == "This is refund policy"
+
+    def test_invalid_refund_policy_from_offer_too_long(self):
+        offer_detail = self._get_offer_details()
+        offer_detail["refund_policy"] = "refund policy" * 50
+        with pytest.raises(ValidationError):
+            models.Offer(**offer_detail)
+
+    def test_eula_document_from_offer(self):
+        model = models.Offer(**self._get_offer_details())
+        assert model.eula_document[0].url == "https://eula.com"
+
+    def test_invalid_eula_document_from_offer_with_version(self):
+        offer_detail = self._get_offer_details()
+        offer_detail["eula_document"][0]["version"] = "2025-02-04"
+        with pytest.raises(ValidationError):
+            models.Offer(**offer_detail)
+
+    def test_instance_type_and_pricing_from_offer(self):
+        model = models.Offer(**self._get_offer_details())
+        assert model.instance_types[1].name == "c4.large" and str(model.instance_types[1].price_annual) == "123.456"
+
+    def test_invalid_instance_type_and_pricing_without_pricing(self):
+        offer_detail = self._get_offer_details()
+        offer_detail["instance_types"][1] = {"name": "c4.large"}
+        with pytest.raises(ValidationError):
+            models.Offer(**offer_detail)
+
+    def test_monthly_subscription_fee(self):
+        offer_detail = self._get_offer_details()
+        offer_detail["monthly_subscription_fee"] = 50.04
+
+        model = models.Offer(**offer_detail)
+        assert str(model.monthly_subscription_fee) == "50.04"
+
+    def test_invalid_monthly_subscription_fee(self):
+        offer_detail = self._get_offer_details()
+        offer_detail["monthly_subscription_fee"] = 50.01234
+        with pytest.raises(ValidationError) as e:
+            models.Offer(**offer_detail)
+
+        assert "must have at most 3 decimal places" in str(e.value)
+
+
 class TestEntity:
     @pytest.fixture
     def get_entity(self):

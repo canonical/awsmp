@@ -76,6 +76,25 @@ class EulaDocumentItem(BaseModel):
         return values
 
 
+class Offer(BaseModel):
+    """
+    Offer model
+    """
+
+    eula_document: List[EulaDocumentItem] = Field(min_length=1)
+    instance_types: List[InstanceTypePricing] = Field(min_length=1)
+    monthly_subscription_fee: Annotated[Optional[Decimal], Field(default=None, ge=0.00)]
+    refund_policy: str = Field(max_length=500)
+
+    @field_validator("monthly_subscription_fee", mode="after")
+    def check_decimal_precision(cls, value):
+        if value is not None:
+            if len(str(value).split(".")[-1]) > 3:
+                raise ValueError(f"price must have at most 3 decimal places, got {value}")
+
+        return value
+
+
 class Region(BaseModel):
     commercial_regions: conlist(str)  # type:ignore
     future_region_support: bool
