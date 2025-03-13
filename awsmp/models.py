@@ -2,18 +2,54 @@ from __future__ import annotations
 
 import json
 from decimal import Decimal
-from typing import Any, Dict, List, Literal, Optional, Tuple, TypedDict, Union
+from typing import (
+    Annotated,
+    Any,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    TypedDict,
+    Union,
+)
 
 import boto3
-from pydantic import BaseModel, Field, HttpUrl, conlist, constr, field_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    HttpUrl,
+    StrictStr,
+    conlist,
+    constr,
+    field_validator,
+    model_validator,
+)
 
 from .constants import CATEGORIES
 
 
 class InstanceTypePricing(BaseModel):
     name: str
-    price_hourly: Decimal = Field(ge=0.0, decimal_places=4)
-    price_annual: Decimal = Field(ge=0.0, decimal_places=4)
+    price_hourly: Annotated[Decimal, Field(alias="hourly", ge=0.00)]
+    price_annual: Annotated[Optional[Decimal], Field(alias="yearly", default=None, ge=0.00)]
+
+    class Config:
+        populate_by_name = True
+
+    @model_validator(mode="after")
+    def check_decimal_precision(cls, values):
+        # Check price_hourly
+        if values.price_hourly is not None:
+            if len(str(values.price_hourly).split(".")[-1]) > 3:
+                raise ValueError(f"price_hourly must have at most 3 decimal places, got {values.price_hourly}")
+
+        # Check price_annual
+        if values.price_annual is not None:
+            if len(str(values.price_annual).split(".")[-1]) > 3:
+                raise ValueError(f"price_annual must have at most 3 decimal places, got {values.price_annual}")
+
+        return values
 
 
 class Region(BaseModel):

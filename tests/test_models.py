@@ -150,6 +150,40 @@ class TestAmiProduct:
             ami_product = models.AmiProduct(**local_config["product"])
 
 
+class TestInstanceTypePricing:
+    @pytest.mark.parametrize(
+        "instance_type_and_pricing,expected_hourly,expected_yearly",
+        [
+            ({"name": "c1.medium", "hourly": 0.004, "yearly": 24.528}, "0.004", "24.528"),
+            ({"name": "c3.medium", "hourly": 0.012}, "0.012", "None"),
+            ({"name": "c1.metal", "hourly": 0, "yearly": 0}, "0", "0"),
+        ],
+    )
+    def test_instance_type_pricing(self, instance_type_and_pricing, expected_hourly, expected_yearly):
+        model = models.InstanceTypePricing(**instance_type_and_pricing)
+        assert str(model.price_hourly) == expected_hourly and str(model.price_annual) == expected_yearly
+
+    def test_instance_type_without_hourly_pricing(self):
+        instance_type_and_pricing: dict[str, Any] = {
+            "name": "c1.medium",
+        }
+
+        with pytest.raises(ValidationError):
+            models.InstanceTypePricing(**instance_type_and_pricing)
+
+    def test_instance_type_with_four_digits(self):
+        instance_type_and_pricing: dict[str, Any] = {
+            "name": "c1.medium",
+            "hourly": 0.0045,
+            "yearly": 24.528,
+        }
+
+        with pytest.raises(ValidationError) as e:
+            models.InstanceTypePricing(**instance_type_and_pricing)
+
+        assert "must have at most 3 decimal places" in str(e.value)
+
+
 class TestEntity:
     @pytest.fixture
     def get_entity(self):
