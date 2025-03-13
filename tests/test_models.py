@@ -9,21 +9,21 @@ from pydantic import HttpUrl, ValidationError
 from awsmp import _driver, models
 
 
-def build_ami_product(**kwargs):
-    defaults = dict(
-        product_title="p" * 72,
-        short_description="short_description",
-        long_description="long_descrption",
-        logourl="https://some-url",
-        highlights=["highlight1"],
-        categories=["Storage"],
-        search_keywords=["one_term"],
-        support_description="supported!",
-    )
-    return models.AmiProduct(**(defaults | kwargs))
 
+class TestAmiDescriptionSuite:
+    def _build_ami_description(self, **kwargs):
+        defaults = dict(
+            product_title="p" * 72,
+            short_description="short_description",
+            long_description="long_descrption",
+            logourl="https://some-url",
+            highlights=["highlight1"],
+            categories=["Storage"],
+            search_keywords=["one_term"],
+            support_description="supported!",
+        )
+        return models.Description(**(defaults | kwargs))
 
-class TestAmiProductSuite:
     @pytest.mark.parametrize(
         "provided_keys,expected",
         [

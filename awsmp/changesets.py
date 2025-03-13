@@ -201,7 +201,7 @@ def _changeset_update_support_terms(refund_policy: str, offer_id: Optional[str] 
 
 def _changeset_update_ami_product_description(product_id: str, desc: Dict) -> ChangeSetType:
     # description data format checking
-    m = models.AmiProduct(**desc)
+    m = models.Description(**desc)
 
     # return changeset
     return {

@@ -50,7 +50,7 @@ def strip_string(field: str) -> str:
     return field.strip()
 
 
-class AmiProduct(BaseModel):
+class Description(BaseModel):
     class Config:
         validate_assignment = True
 
