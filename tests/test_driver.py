@@ -165,21 +165,36 @@ def test_ami_product_update_instance_type(mock_get_details, mock_get_client):
     mock_get_details.return_value = {
         "Dimensions": [{"Name": "c3.2xlarge"}, {"Name": "c3.4xlarge"}, {"Name": "c3.8xlarge"}]
     }
-    with open("./tests/prices.csv") as prices:
-        ap.update_instance_types(prices, "Hrs")
+    offer_config = {
+        "instance_types": [
+            {"name": "c3.2xlarge", "hourly": 0.00, "yearly": 0.00},
+            {"name": "c3.4xlarge", "hourly": 0.00, "yearly": 0.00},
+            {"name": "c3.8xlarge", "hourly": 0.00, "yearly": 0.00},
+            {"name": "c3.16xlarge", "hourly": 0.00, "yearly": 0.00},
+        ],
+        "refund_policy": "refund_policy",
+        "eula_document": [{"type": "StandardEula", "version": "2025-04-05"}],
+    }
+    res = ap.update_instance_types(offer_config, "Hrs")
+
+    print(
+        mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][2]["DetailsDocument"][
+            "Terms"
+        ][0]["RateCards"][0]["RateCard"][-1]["DimensionKey"]
+    )
     assert mock_get_client.return_value.start_change_set.call_count == 1
     assert mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][1][
         "DetailsDocument"
-    ] == {"InstanceTypes": ["c4.large"]}
+    ] == {"InstanceTypes": ["c3.16xlarge"]}
     assert (
         mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][2]["DetailsDocument"][
             "Terms"
         ][0]["RateCards"][0]["RateCard"][-1]["DimensionKey"]
-        == "c4.large"
+        == "c3.16xlarge"
         and mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][2]["DetailsDocument"][
             "Terms"
         ][0]["RateCards"][0]["RateCard"][-1]["Price"]
-        == "0.00"
+        == "0.0"
     )
 
 

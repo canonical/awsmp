@@ -48,18 +48,24 @@ class AmiProduct:
 
         return get_response(changeset, changeset_name)
 
-    def update_instance_types(self, instance_types: IO, dimension_unit: Literal["Hrs", "Units"]) -> ChangeSetReturnType:
-        csvreader = csv.DictReader(instance_types, fieldnames=["name", "price_hourly", "price_annual"])
-        instance_type_pricing = [models.InstanceTypePricing(**line) for line in csvreader]  # type:ignore
+    def update_instance_types(
+        self, offer_config: Dict[str, Any], dimension_unit: Literal["Hrs", "Units"]
+    ) -> ChangeSetReturnType:
+        """
+        Update instance types and pricing term based on the offer config
+        :param Dict[str, Any] offer_config: offer configuration loaded from yaml file
+        :param Literal["Hrs", "Units"] dimension_unit: Either hourly or units
+        :return: Changeset for updating instance API request
+        :rtype: ChangeSetReturnType
+        """
+        offer_detail = models.Offer(**offer_config)
 
-        # AddInstanceTypes and AddDimensions does not need existing instance types information
-        # Provide only new instance types which user wants to add
-        all_instance_types = {instance_type.name for instance_type in instance_type_pricing}
+        all_instance_types = {instance_type.name for instance_type in offer_detail.instance_types}
         existing_instance_types = _get_existing_instance_types(self.product_id)
         new_instance_types = list(all_instance_types - existing_instance_types)
 
         changeset = changesets.get_ami_listing_update_instance_type_changesets(
-            self.product_id, self.offer_id, instance_type_pricing, dimension_unit, new_instance_types
+            self.product_id, self.offer_id, offer_detail, dimension_unit, new_instance_types
         )
         changeset_name = f"Product {self.product_id} instance type update"
 

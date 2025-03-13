@@ -1,6 +1,3 @@
-refund_policy: |
-  test_refund_policy_term
-eula_url: "test_eula_url"
 product:
   description:
     product_title: "test_prod_id"
@@ -59,3 +56,16 @@ product:
       - "0.0.0.0/0"
     from_port: 22
     to_port: 22
+offer:
+  refund_policy: |
+    test_refund_policy_term
+  eula_document:
+    - type: "CustomEula"
+      url: "test_eula_url"
+  instance_types:
+    - name: "a1.large"
+      hourly: 0.004
+      yearly: 24.528
+    - name: "a1.xlarge"
+      hourly: 0.007
+      yearly: 49.056

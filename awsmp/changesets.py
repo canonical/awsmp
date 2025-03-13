@@ -57,8 +57,18 @@ def _changeset_update_targeting(buyer_accounts: List[str]) -> ChangeSetType:
 
 def _changeset_update_pricing_terms(
     instance_type_pricing: List[models.InstanceTypePricing],
+    monthly_subscription_fee: Optional[Decimal] = None,
     offer_id: Optional[str] = None,
 ) -> ChangeSetType:
+    """
+    Construct the changeset for update pricing term API reqeust
+
+    :param List[models.InstanceTypePricing] instance_type_pricing: List of InstanceTypePricing objects
+    :param Optional[Decimal] monthly_subscription_fee: Monthly subscription price for monthly recurring charge
+    :param Optional[str] offer_id: Offer Id to request API
+    :return: Changeset of updating pricing term
+    :rtype: ChangeSetReturnType
+    """
     rate_cards_hourly: List[Dict[str, str]] = []
     rate_cards_annual: List[Dict[str, str]] = []
 
@@ -94,7 +104,17 @@ def _changeset_update_pricing_terms(
         },
     ]
 
-    if rate_cards_annual:
+    if monthly_subscription_fee:
+        terms.append(
+            {
+                "Type": "RecurringPaymentTerm",
+                "CurrencyCode": "USD",
+                "BillingPeriod": "Monthly",
+                "Price": str(monthly_subscription_fee),
+            }
+        )
+    # annual pricing can only be added with hourly
+    elif rate_cards_annual:
         terms.append(
             {
                 "Type": "ConfigurableUpfrontPricingTerm",
@@ -384,14 +404,18 @@ def get_ami_listing_update_description_changesets(product_id: str, description: 
 def get_ami_listing_update_instance_type_changesets(
     product_id: str,
     offer_id: str,
-    instance_type_pricing: List[models.InstanceTypePricing],
+    offer_detail: models.Offer,
     dimension_unit: Literal["Hrs", "Units"],
     new_instance_types: List[str],
 ) -> List[ChangeSetType]:
     return [
         _changeset_update_ami_product_dimension(product_id, dimension_unit, new_instance_types),
         _changeset_update_ami_product_instance_type(product_id, new_instance_types),
-        _changeset_update_pricing_terms(instance_type_pricing, offer_id=offer_id),
+        _changeset_update_pricing_terms(
+            offer_detail.instance_types,
+            monthly_subscription_fee=offer_detail.monthly_subscription_fee,
+            offer_id=offer_id,
+        ),
     ]
 
 
