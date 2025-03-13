@@ -48,9 +48,7 @@ class AmiProduct:
 
         return get_response(changeset, changeset_name)
 
-    def update_instance_types(
-        self, instance_types: IO, dimension_unit: Literal["Hrs", "Units"], free: bool
-    ) -> ChangeSetReturnType:
+    def update_instance_types(self, instance_types: IO, dimension_unit: Literal["Hrs", "Units"]) -> ChangeSetReturnType:
         csvreader = csv.DictReader(instance_types, fieldnames=["name", "price_hourly", "price_annual"])
         instance_type_pricing = [models.InstanceTypePricing(**line) for line in csvreader]  # type:ignore
 
@@ -61,7 +59,7 @@ class AmiProduct:
         new_instance_types = list(all_instance_types - existing_instance_types)
 
         changeset = changesets.get_ami_listing_update_instance_type_changesets(
-            self.product_id, self.offer_id, instance_type_pricing, dimension_unit, new_instance_types, free
+            self.product_id, self.offer_id, instance_type_pricing, dimension_unit, new_instance_types
         )
         changeset_name = f"Product {self.product_id} instance type update"
 

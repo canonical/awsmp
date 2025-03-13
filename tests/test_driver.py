@@ -166,7 +166,7 @@ def test_ami_product_update_instance_type(mock_get_details, mock_get_client):
         "Dimensions": [{"Name": "c3.2xlarge"}, {"Name": "c3.4xlarge"}, {"Name": "c3.8xlarge"}]
     }
     with open("./tests/prices.csv") as prices:
-        ap.update_instance_types(prices, "Hrs", True)
+        ap.update_instance_types(prices, "Hrs")
     assert mock_get_client.return_value.start_change_set.call_count == 1
     assert mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][1][
         "DetailsDocument"
