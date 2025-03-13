@@ -173,7 +173,6 @@ def offer_create(
     The --eula-url option can be left blank if the default aws EULA is acceptable.
         The value can also be set via the `AWSMP_EULA_URL` environment variable
     """
-    eula_url = None if eula_url == "" else eula_url
     if not buyer_accounts:
         buyers = click.prompt("Please enter all buyer accounts separated by a comma")
         buyer_accounts = [b.strip() for b in buyers.split(",")]

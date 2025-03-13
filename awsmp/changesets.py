@@ -136,25 +136,22 @@ def _changeset_update_availability(days_from_today: int) -> ChangeSetType:
     }
 
 
-def _changeset_update_legal_terms(offer_id: Optional[str] = None, eula_url: Optional[str] = None) -> ChangeSetType:
-    if eula_url:
-        eula_document = {"Type": "CustomEula", "Url": eula_url}
-    else:
-        eula_document = {"Type": "StandardEula", "Version": "2022-07-14"}
+def _changeset_update_legal_terms(eula_document: Dict[str, str], offer_id: Optional[str] = None) -> ChangeSetType:
+    eula = models.EulaDocumentItem(**eula_document)  # type: ignore
+
+    eula_changeset: dict[str, str] = {"Type": eula.type}
+    if eula.url is not None:
+        eula_changeset["Url"] = eula.url
+    elif eula.version is not None:
+        eula_changeset["Version"] = eula.version
+
     if not offer_id:
         offer_id = "$CreateOfferChange.Entity.Identifier"
 
     return {
         "ChangeType": "UpdateLegalTerms",
         "Entity": {"Type": "Offer@1.0", "Identifier": offer_id},
-        "DetailsDocument": {
-            "Terms": [
-                {
-                    "Type": "LegalTerm",
-                    "Documents": [eula_document],
-                }
-            ]
-        },
+        "DetailsDocument": {"Terms": [{"Type": "LegalTerm", "Documents": [eula_changeset]}]},
     }
 
 
@@ -358,7 +355,7 @@ def get_changesets(
     instance_type_pricing: List[models.InstanceTypePricing],
     available_for_days: int,
     valid_for_days: int,
-    eula_url: Optional[str],
+    eula_document: Dict[str, str],
 ) -> List[ChangeSetType]:
     return [
         _changeset_create_offer(product_id, offer_name),
@@ -366,7 +363,7 @@ def get_changesets(
         _changeset_update_targeting(buyer_accounts),
         _changeset_update_pricing_terms(instance_type_pricing),
         _changeset_update_availability(available_for_days),
-        _changeset_update_legal_terms(eula_url=eula_url),
+        _changeset_update_legal_terms(eula_document),
         _changeset_update_validity_terms(valid_for_days),
         _changeset_release_offer(),
     ]
@@ -413,9 +410,9 @@ def get_ami_listing_update_version_changesets(product_id: str, version_config: D
     ]
 
 
-def get_ami_listing_update_legal_terms_changesets(offer_id: str, eula_url: str) -> List[ChangeSetType]:
+def get_ami_listing_update_legal_terms_changesets(eula_document: Dict[str, str], offer_id: str) -> List[ChangeSetType]:
     return [
-        _changeset_update_legal_terms(offer_id=offer_id, eula_url=eula_url),
+        _changeset_update_legal_terms(eula_document, offer_id=offer_id),
     ]
 
 

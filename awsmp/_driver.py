@@ -30,8 +30,8 @@ class AmiProduct:
 
         return get_response(changeset, changeset_name)
 
-    def update_legal_terms(self, eula_url: str) -> ChangeSetReturnType:
-        changeset = changesets.get_ami_listing_update_legal_terms_changesets(self.offer_id, eula_url)
+    def update_legal_terms(self, eula_document: Dict[str, str]) -> ChangeSetReturnType:
+        changeset = changesets.get_ami_listing_update_legal_terms_changesets(eula_document, self.offer_id)
         changeset_name = f"Product {self.product_id} legal terms update"
 
         return get_response(changeset, changeset_name)
@@ -242,6 +242,11 @@ def offer_create(
     csvreader = csv.DictReader(pricing, fieldnames=["name", "price_hourly", "price_annual"])
     instance_type_pricing = [models.InstanceTypePricing(**line) for line in csvreader]  # type:ignore
 
+    if eula_url:
+        eula_document = {"type": "CustomEula", "url": eula_url}
+    else:
+        eula_document = {"type": "StandardEula", "version": "2022-07-14"}
+
     changeset_list = changesets.get_changesets(
         product_id,
         offer_name,
@@ -249,7 +254,7 @@ def offer_create(
         instance_type_pricing,
         available_for_days,
         valid_for_days + available_for_days + 1,
-        eula_url,
+        eula_document,
     )
 
     changeset_list = _filter_instance_types(product_id, changeset_list)

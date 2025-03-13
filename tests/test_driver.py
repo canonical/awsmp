@@ -321,11 +321,10 @@ def test_ami_product_update_version(mock_get_client):
 
 @patch("awsmp._driver.get_client")
 def test_ami_product_update_legal_terms(mock_get_client):
-    mock_eula = "https://testing-eula"
+    mock_eula = {"type": "CustomEula", "url": "https://testing-eula"}
 
     ap = _driver.AmiProduct(product_id="testing")
-    ap.update_legal_terms(eula_url=mock_eula)
-
+    ap.update_legal_terms(eula_document=mock_eula)
     assert {
         "Type": "CustomEula",
         "Url": "https://testing-eula",
@@ -338,6 +337,15 @@ def test_ami_product_update_legal_terms(mock_get_client):
     ][
         0
     ]
+
+
+@patch("awsmp._driver.get_client")
+def test_ami_product_update_invalid_legal_terms(mock_get_client):
+    mock_eula = {"type": "CustomEula", "version": "2022-05-06"}
+    ap = _driver.AmiProduct(product_id="testing")
+    with pytest.raises(ValidationError) as e:
+        ap.update_legal_terms(eula_document=mock_eula)
+    assert "can't pass version of standard document" in str(e.value)
 
 
 @patch("awsmp._driver.get_client")

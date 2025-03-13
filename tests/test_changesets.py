@@ -9,12 +9,29 @@ from awsmp import changesets, types
 
 
 @pytest.mark.parametrize(
-    "eula_url,expected",
-    [(None, {"Type": "StandardEula", "Version": "2022-07-14"}), ("foobar", {"Type": "CustomEula", "Url": "foobar"})],
+    "eula_document,expected",
+    [
+        ({"type": "StandardEula", "version": "2022-07-14"}, {"Type": "StandardEula", "Version": "2022-07-14"}),
+        ({"type": "CustomEula", "url": "foobar"}, {"Type": "CustomEula", "Url": "foobar"}),
+    ],
 )
-def test_changeset_update_legal_terms_eula_options(eula_url, expected):
-    result = changesets._changeset_update_legal_terms(eula_url=eula_url)
+def test_changeset_update_legal_terms_eula_options(eula_document, expected):
+    result = changesets._changeset_update_legal_terms(eula_document=eula_document)
     result["DetailsDocument"]["Terms"][0] == expected  # type: ignore
+
+
+@pytest.mark.parametrize(
+    "eula_document, expected_msg",
+    [
+        ({"type": "StandardEula"}, "Specify version of StandardEula"),
+        ({"type": "CustomEula", "version": "foobar"}, "can't pass version of standard document"),
+    ],
+)
+def test_changeset_update_legal_terms_invalid_eula_options(eula_document, expected_msg):
+    with pytest.raises(ValidationError) as e:
+        changesets._changeset_update_legal_terms(eula_document)
+
+    assert expected_msg in str(e.value)
 
 
 @pytest.mark.parametrize(
