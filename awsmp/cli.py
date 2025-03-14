@@ -348,7 +348,7 @@ def ami_product_update_legal_terms(product_id, config):
     Update AMI product legal terms
     """
     # Load yaml file
-    eula_url = _load_configuration(config, [["eula_url"]])["eula_url"]
+    eula_url = _load_configuration(config, [["offer", "eula_document"]])["offer"]["eula_document"][0]
 
     product = _driver.AmiProduct(product_id=product_id)
     response = product.update_legal_terms(eula_url)
@@ -364,7 +364,7 @@ def ami_product_update_support_terms(product_id, config):
     Update AMI product support terms
     """
     # Load yaml file
-    refund_policy = _load_configuration(config, [["refund_policy"]])["refund_policy"]
+    refund_policy = _load_configuration(config, [["offer", "refund_policy"]])["offer"]["refund_policy"]
 
     product = _driver.AmiProduct(product_id=product_id)
     response = product.update_support_terms(refund_policy)
