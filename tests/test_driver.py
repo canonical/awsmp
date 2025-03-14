@@ -1,3 +1,4 @@
+import io
 from unittest.mock import patch
 
 import pytest
@@ -438,3 +439,51 @@ def test_ami_product_update(mock_boto3, mock_get_client):
     assert {"Regions": ["us-east-1", "us-east-2"]} == mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][1][
         "DetailsDocument"
     ]
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_entity_details")
+@patch("awsmp._driver.changesets.models.boto3")
+def test_offer_create_pricing(mock_boto3, mock_get_details, mock_get_client):
+    mock_get_details.return_value = {"Dimensions": [{"Name": "t2.micro"}, {"Name": "t2.large"}]}
+    pricing_config = """
+t2.micro,0.012,100
+t2.large,0.034,800
+"""
+    offer_creation = _driver.offer_create(
+        product_id="temp",
+        buyer_accounts=["buyer1", "buyer2"],
+        available_for_days=5,
+        valid_for_days=2,
+        offer_name="test_offer",
+        eula_url="",
+        pricing=io.StringIO(pricing_config),
+    )
+    mock_start_change_set = mock_get_client.return_value.start_change_set
+    assert mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][3]["DetailsDocument"]["Terms"][0]["RateCards"][
+        0
+    ]["RateCard"][0] == {"DimensionKey": "t2.micro", "Price": "0.012"}
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_entity_details")
+@patch("awsmp._driver.changesets.models.boto3")
+def test_offer_create_eula_document(mock_boto3, mock_get_details, mock_get_client):
+    mock_get_details.return_value = {"Dimensions": [{"Name": "t2.micro"}, {"Name": "t2.large"}]}
+    pricing_config = """
+t2.micro,0.012,100
+t2.large,0.034,800
+"""
+    offer_creation = _driver.offer_create(
+        product_id="temp",
+        buyer_accounts=["buyer1", "buyer2"],
+        available_for_days=5,
+        valid_for_days=2,
+        offer_name="test_offer",
+        eula_url="https://test",
+        pricing=io.StringIO(pricing_config),
+    )
+    mock_start_change_set = mock_get_client.return_value.start_change_set
+    assert mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][5]["DetailsDocument"]["Terms"][0]["Documents"][
+        0
+    ] == {"Type": "CustomEula", "Url": "https://test"}

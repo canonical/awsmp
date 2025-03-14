@@ -371,6 +371,52 @@ def test_get_ami_product_update_non_valid_changeset(mock_boto3):
         changesets.get_ami_listing_update_changesets("test-id", {}, {})
 
 
+def test_get_ami_listing_update_version_changesets():
+    with open("./tests/test_config.yaml", "r") as f:
+        config = yaml.safe_load(f)
+    res: List[types.ChangeSetType] = changesets.get_ami_listing_update_version_changesets(
+        "test-id", config["product"]["version"]
+    )
+    details_document = cast(Dict[str, Any], res[0]["DetailsDocument"])
+    assert (
+        details_document["Version"]["VersionTitle"] == "test_version_title"
+        and details_document["DeliveryOptions"][0]["Details"]["AmiDeliveryOptionDetails"]["AmiSource"]["AmiId"]
+        == "ami-test"
+    )
+
+
+def test_get_ami_listing_update_version_non_valid_changesets():
+    with open("./tests/test_config.yaml", "r") as f:
+        config = yaml.safe_load(f)
+    config["product"]["version"]["access_role_arn"] = "iam::test"
+
+    with pytest.raises(ValidationError):
+        changesets.get_ami_listing_update_version_changesets("test-id", config["product"]["version"])
+
+
+def test_get_ami_listing_update_instance_type_changesets_add_new_instance_type():
+    offer_config: Dict[str, Any] = {
+        "instance_types": [
+            {"name": "c3.xlarge", "yearly": 123.44, "hourly": 0.12},
+            {"name": "c4.large", "yearly": 78.56, "hourly": 0.55},
+        ],
+        "eula_document": [{"type": "StandardEula", "version": "2025-05-05"}],
+        "refund_policy": "refund_policy",
+    }
+    offer_detail = models.Offer(**offer_config)
+    res: List[types.ChangeSetType] = changesets.get_ami_listing_update_instance_type_changesets(
+        "test-id", "test-offer_id", offer_detail, "Hrs", ["c4.large"]
+    )
+    details_document = [cast(Dict[str, Any], item["DetailsDocument"]) for item in res[1:]]
+    assert (
+        details_document[0]["InstanceTypes"] == ["c4.large"]
+        and details_document[1]["Terms"][0]["RateCards"][0]["RateCard"][1]
+        == {"DimensionKey": "c4.large", "Price": "0.55"}
+        and details_document[1]["Terms"][1]["RateCards"][0]["RateCard"][1]
+        == {"DimensionKey": "c4.large", "Price": "78.56"}
+    )
+
+
 def test_get_ami_listing_update_instance_type_changesets_add_new_instance_type_with_monthly_subscription():
     offer_config: Dict[str, Any] = {
         "instance_types": [
