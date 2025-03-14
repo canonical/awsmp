@@ -1,3 +1,4 @@
+import io
 from unittest.mock import patch
 
 import pytest
@@ -122,7 +123,7 @@ def test_ami_product_update_description_validation_failure(mock_get_client, inva
 def test_ami_product_update_description(mock_get_client):
     with open("./tests/description.yaml", "r") as f:
         config = yaml.safe_load(f)
-    desc = config["description"]
+    desc = config["product"]["description"]
 
     ap = _driver.AmiProduct(product_id="testing")
     ap.update_description(desc)
@@ -165,21 +166,36 @@ def test_ami_product_update_instance_type(mock_get_details, mock_get_client):
     mock_get_details.return_value = {
         "Dimensions": [{"Name": "c3.2xlarge"}, {"Name": "c3.4xlarge"}, {"Name": "c3.8xlarge"}]
     }
-    with open("./tests/prices.csv") as prices:
-        ap.update_instance_types(prices, "Hrs", True)
+    offer_config = {
+        "instance_types": [
+            {"name": "c3.2xlarge", "hourly": 0.00, "yearly": 0.00},
+            {"name": "c3.4xlarge", "hourly": 0.00, "yearly": 0.00},
+            {"name": "c3.8xlarge", "hourly": 0.00, "yearly": 0.00},
+            {"name": "c3.16xlarge", "hourly": 0.00, "yearly": 0.00},
+        ],
+        "refund_policy": "refund_policy",
+        "eula_document": [{"type": "StandardEula", "version": "2025-04-05"}],
+    }
+    res = ap.update_instance_types(offer_config, "Hrs")
+
+    print(
+        mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][2]["DetailsDocument"][
+            "Terms"
+        ][0]["RateCards"][0]["RateCard"][-1]["DimensionKey"]
+    )
     assert mock_get_client.return_value.start_change_set.call_count == 1
     assert mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][1][
         "DetailsDocument"
-    ] == {"InstanceTypes": ["c4.large"]}
+    ] == {"InstanceTypes": ["c3.16xlarge"]}
     assert (
         mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][2]["DetailsDocument"][
             "Terms"
         ][0]["RateCards"][0]["RateCard"][-1]["DimensionKey"]
-        == "c4.large"
+        == "c3.16xlarge"
         and mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][2]["DetailsDocument"][
             "Terms"
         ][0]["RateCards"][0]["RateCard"][-1]["Price"]
-        == "0.00"
+        == "0.0"
     )
 
 
@@ -321,11 +337,10 @@ def test_ami_product_update_version(mock_get_client):
 
 @patch("awsmp._driver.get_client")
 def test_ami_product_update_legal_terms(mock_get_client):
-    mock_eula = "https://testing-eula"
+    mock_eula = {"type": "CustomEula", "url": "https://testing-eula"}
 
     ap = _driver.AmiProduct(product_id="testing")
-    ap.update_legal_terms(eula_url=mock_eula)
-
+    ap.update_legal_terms(eula_document=mock_eula)
     assert {
         "Type": "CustomEula",
         "Url": "https://testing-eula",
@@ -338,6 +353,15 @@ def test_ami_product_update_legal_terms(mock_get_client):
     ][
         0
     ]
+
+
+@patch("awsmp._driver.get_client")
+def test_ami_product_update_invalid_legal_terms(mock_get_client):
+    mock_eula = {"type": "CustomEula", "version": "2022-05-06"}
+    ap = _driver.AmiProduct(product_id="testing")
+    with pytest.raises(ValidationError) as e:
+        ap.update_legal_terms(eula_document=mock_eula)
+    assert "can't pass version of standard document" in str(e.value)
 
 
 @patch("awsmp._driver.get_client")
@@ -415,3 +439,51 @@ def test_ami_product_update(mock_boto3, mock_get_client):
     assert {"Regions": ["us-east-1", "us-east-2"]} == mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][1][
         "DetailsDocument"
     ]
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_entity_details")
+@patch("awsmp._driver.changesets.models.boto3")
+def test_offer_create_pricing(mock_boto3, mock_get_details, mock_get_client):
+    mock_get_details.return_value = {"Dimensions": [{"Name": "t2.micro"}, {"Name": "t2.large"}]}
+    pricing_config = """
+t2.micro,0.012,100
+t2.large,0.034,800
+"""
+    offer_creation = _driver.offer_create(
+        product_id="temp",
+        buyer_accounts=["buyer1", "buyer2"],
+        available_for_days=5,
+        valid_for_days=2,
+        offer_name="test_offer",
+        eula_url="",
+        pricing=io.StringIO(pricing_config),
+    )
+    mock_start_change_set = mock_get_client.return_value.start_change_set
+    assert mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][3]["DetailsDocument"]["Terms"][0]["RateCards"][
+        0
+    ]["RateCard"][0] == {"DimensionKey": "t2.micro", "Price": "0.012"}
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_entity_details")
+@patch("awsmp._driver.changesets.models.boto3")
+def test_offer_create_eula_document(mock_boto3, mock_get_details, mock_get_client):
+    mock_get_details.return_value = {"Dimensions": [{"Name": "t2.micro"}, {"Name": "t2.large"}]}
+    pricing_config = """
+t2.micro,0.012,100
+t2.large,0.034,800
+"""
+    offer_creation = _driver.offer_create(
+        product_id="temp",
+        buyer_accounts=["buyer1", "buyer2"],
+        available_for_days=5,
+        valid_for_days=2,
+        offer_name="test_offer",
+        eula_url="https://test",
+        pricing=io.StringIO(pricing_config),
+    )
+    mock_start_change_set = mock_get_client.return_value.start_change_set
+    assert mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][5]["DetailsDocument"]["Terms"][0]["Documents"][
+        0
+    ] == {"Type": "CustomEula", "Url": "https://test"}

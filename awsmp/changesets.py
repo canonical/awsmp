@@ -57,9 +57,18 @@ def _changeset_update_targeting(buyer_accounts: List[str]) -> ChangeSetType:
 
 def _changeset_update_pricing_terms(
     instance_type_pricing: List[models.InstanceTypePricing],
+    monthly_subscription_fee: Optional[Decimal] = None,
     offer_id: Optional[str] = None,
-    free: bool = False,
 ) -> ChangeSetType:
+    """
+    Construct the changeset for update pricing term API reqeust
+
+    :param List[models.InstanceTypePricing] instance_type_pricing: List of InstanceTypePricing objects
+    :param Optional[Decimal] monthly_subscription_fee: Monthly subscription price for monthly recurring charge
+    :param Optional[str] offer_id: Offer Id to request API
+    :return: Changeset of updating pricing term
+    :rtype: ChangeSetReturnType
+    """
     rate_cards_hourly: List[Dict[str, str]] = []
     rate_cards_annual: List[Dict[str, str]] = []
 
@@ -70,7 +79,7 @@ def _changeset_update_pricing_terms(
     # generate the rate cards
     for instance_type_price in instance_type_pricing:
         # Free public listing is 0.00 which is false
-        if instance_type_price.price_hourly or free:
+        if instance_type_price.price_hourly is not None:
             rate_cards_hourly.append(
                 {
                     "DimensionKey": instance_type_price.name,
@@ -78,7 +87,7 @@ def _changeset_update_pricing_terms(
                 }
             )
 
-        if instance_type_price.price_annual:
+        if instance_type_price.price_annual is not None:
             rate_cards_annual.append(
                 {
                     "DimensionKey": instance_type_price.name,
@@ -94,8 +103,18 @@ def _changeset_update_pricing_terms(
             "RateCards": [{"RateCard": rate_cards_hourly}],
         },
     ]
-    # annual pricing rate card for paid listing
-    if not free:
+
+    if monthly_subscription_fee:
+        terms.append(
+            {
+                "Type": "RecurringPaymentTerm",
+                "CurrencyCode": "USD",
+                "BillingPeriod": "Monthly",
+                "Price": str(monthly_subscription_fee),
+            }
+        )
+    # annual pricing can only be added with hourly
+    elif rate_cards_annual:
         terms.append(
             {
                 "Type": "ConfigurableUpfrontPricingTerm",
@@ -136,25 +155,22 @@ def _changeset_update_availability(days_from_today: int) -> ChangeSetType:
     }
 
 
-def _changeset_update_legal_terms(offer_id: Optional[str] = None, eula_url: Optional[str] = None) -> ChangeSetType:
-    if eula_url:
-        eula_document = {"Type": "CustomEula", "Url": eula_url}
-    else:
-        eula_document = {"Type": "StandardEula", "Version": "2022-07-14"}
+def _changeset_update_legal_terms(eula_document: Dict[str, str], offer_id: Optional[str] = None) -> ChangeSetType:
+    eula = models.EulaDocumentItem(**eula_document)  # type: ignore
+
+    eula_changeset: dict[str, str] = {"Type": eula.type}
+    if eula.url is not None:
+        eula_changeset["Url"] = eula.url
+    elif eula.version is not None:
+        eula_changeset["Version"] = eula.version
+
     if not offer_id:
         offer_id = "$CreateOfferChange.Entity.Identifier"
 
     return {
         "ChangeType": "UpdateLegalTerms",
         "Entity": {"Type": "Offer@1.0", "Identifier": offer_id},
-        "DetailsDocument": {
-            "Terms": [
-                {
-                    "Type": "LegalTerm",
-                    "Documents": [eula_document],
-                }
-            ]
-        },
+        "DetailsDocument": {"Terms": [{"Type": "LegalTerm", "Documents": [eula_changeset]}]},
     }
 
 
@@ -201,7 +217,7 @@ def _changeset_update_support_terms(refund_policy: str, offer_id: Optional[str] 
 
 def _changeset_update_ami_product_description(product_id: str, desc: Dict) -> ChangeSetType:
     # description data format checking
-    m = models.AmiProduct(**desc)
+    m = models.Description(**desc)
 
     # return changeset
     return {
@@ -358,7 +374,7 @@ def get_changesets(
     instance_type_pricing: List[models.InstanceTypePricing],
     available_for_days: int,
     valid_for_days: int,
-    eula_url: Optional[str],
+    eula_document: Dict[str, str],
 ) -> List[ChangeSetType]:
     return [
         _changeset_create_offer(product_id, offer_name),
@@ -366,7 +382,7 @@ def get_changesets(
         _changeset_update_targeting(buyer_accounts),
         _changeset_update_pricing_terms(instance_type_pricing),
         _changeset_update_availability(available_for_days),
-        _changeset_update_legal_terms(eula_url=eula_url),
+        _changeset_update_legal_terms(eula_document),
         _changeset_update_validity_terms(valid_for_days),
         _changeset_release_offer(),
     ]
@@ -388,15 +404,18 @@ def get_ami_listing_update_description_changesets(product_id: str, description: 
 def get_ami_listing_update_instance_type_changesets(
     product_id: str,
     offer_id: str,
-    instance_type_pricing: List[models.InstanceTypePricing],
+    offer_detail: models.Offer,
     dimension_unit: Literal["Hrs", "Units"],
     new_instance_types: List[str],
-    free: bool,
 ) -> List[ChangeSetType]:
     return [
         _changeset_update_ami_product_dimension(product_id, dimension_unit, new_instance_types),
         _changeset_update_ami_product_instance_type(product_id, new_instance_types),
-        _changeset_update_pricing_terms(instance_type_pricing, offer_id=offer_id, free=free),
+        _changeset_update_pricing_terms(
+            offer_detail.instance_types,
+            monthly_subscription_fee=offer_detail.monthly_subscription_fee,
+            offer_id=offer_id,
+        ),
     ]
 
 
@@ -413,9 +432,9 @@ def get_ami_listing_update_version_changesets(product_id: str, version_config: D
     ]
 
 
-def get_ami_listing_update_legal_terms_changesets(offer_id: str, eula_url: str) -> List[ChangeSetType]:
+def get_ami_listing_update_legal_terms_changesets(eula_document: Dict[str, str], offer_id: str) -> List[ChangeSetType]:
     return [
-        _changeset_update_legal_terms(offer_id=offer_id, eula_url=eula_url),
+        _changeset_update_legal_terms(eula_document, offer_id=offer_id),
     ]
 
 

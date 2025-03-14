@@ -32,19 +32,20 @@ below or you can also refer to the sample config file (listing_configuration.yam
 .. code-block:: yaml
    :caption: listing_configuration.yaml
 
-   description:
-      product_title: str
-      logourl: str
-      video_urls: Optional[List[str]], can only have 1 url
-      short_description: str
-      long_description: str
-      highlights: List[str]
-      search_keywords: List[str]
-      categories: List[str]
-      support_description: str # Don't include space character at the beginning/end
-      support_resources: str
-      additional_resources: Optional[List[Dict[str, str]]]
-      sku: Optional[str]
+    product:
+        description:
+            product_title: str
+            logourl: str
+            video_urls: Optional[List[str]], can only have 1 url
+            short_description: str
+            long_description: str
+            highlights: List[str]
+            search_keywords: List[str]
+            categories: List[str]
+            support_description: str # Don't include space character at the beginning/end
+            support_resources: str
+            additional_resources: Optional[List[Dict[str, str]]]
+            sku: Optional[str]
 
 For empty values, use ``~`` for str type and ``[]`` for List type
 
@@ -62,74 +63,61 @@ If a field value does not match the required format, it will show up as an error
 Update/Add instance type
 ------------------------
 
-To update/add an instance type, you need to generate an instance type file and provide it as input while updating the listing.
+To update/add an instance type, you need to add offer field containing offer information of the listing. The sample config is described below.
 
-#. Generate an instance type file (.csv) and provide as input file when updating listing.
+#. For hourly pricing AMI Product:
 
-   *example instance_type.csv*
+.. code-block:: yaml
+   :caption: listing_configuration.yaml
 
-   .. code-block::
+    offer:
+        instance_types:
+            - name: c3.large
+              hourly: 0.12
+            - name: c4.medium
+              hourly: 0.08
 
-      m7a.8xlarge,0.00,0.00
-      m7a.large,0.00,0.00
-      m7a.medium,0.00,0.00
-      m7a.xlarge,0.00,0.00
-      m7i-flex.8xlarge,0.00,0.00
-      m7i-flex.large,0.00,0.00
-      m7i-flex.xlarge,0.00,0.00
+#. For hourly and annual pricing AMI product:            
 
-   You can generate an instance type file in two ways:
+.. code-block:: yaml
+   :caption: listing_configuration.yaml
 
-   #. Using the public-offer command
+    offer:
+        instance_types:
+            - name: c3.large
+              yearly: 123.45
+              hourly: 0.12
+            - name: c4.medium
+              yearly: 45.12
+              hourly: 0.08
 
-      If you've created new listing, you can use it's architecture and virtual type to run:
+#. For hourly and monthly pricing AMI product:
 
-      .. code-block:: sh
+.. code-block:: yaml
+   :caption: listing_configuration.yaml
 
-            awsmp public-offer instance-type-template \
-               --arch x86_64 \
-               --virt hvm
-
-      This command will create an ``instance_type.csv`` file. You can add/remove instance types in it as required.
-
-   #. Using :guilabel:`pricing-template` command
-
-      To get the existing instance type details, you can also run the following command. It required an offer ID as input (obtained while creating the product ID)
-      and generates a prices.csv file. You can append additional instance types at the end of this file and use it as the instance type file while updating the instance type in the next step.
-
-      .. code-block:: sh
-
-         awsmp pricing-template \
-            --offer-id offer-rsf4l7ilje2ze \
-            --pricing prices.csv \
-            --free
+    offer:
+        instance_types:
+            - name: c3.large
+              yearly: 123.45
+              hourly: 0.12
+            - name: c4.medium
+              yearly: 45.12
+              hourly: 0.08
+        monthly_subscription_fee: 50.00
 
 
-#. Using the generated instance type file, update the listing with one of the commands below.
+Once offer field is ready, run the command:
 
-   #. Free listing update
-
-      .. code-block:: sh
-
-         awsmp public-offer update-instance-type \
-            --product-id prod-xwpv7txqxg55e \
-            --instance-type-file instance_type.csv \
-            --dimension-unit Hrs \
-            --free Y
-         
-   #. Paid listing update
-
-      .. code-block:: sh
+.. code-block:: sh
 
          awsmp public-offer update-instance-type \
             --product-id prod-xwpv7txqxg55e \
-            --instance-type-file instance_type.csv \
-            --dimension-unit Hrs \
-            --free N
+            --instance-type-file listing_configuration.yaml \
+            --dimension-unit Hrs
 
-Here, ``dimension-unit`` is the billing unit type for the product. For free listing, use ``Hrs``.
 
-Different types are possible, but the currently available types are ``Hrs`` and ``Units``.
+Different billing unit types are possible, but the currently supported types are ``Hrs`` and ``Units``.
 
 
 Update/Add region
@@ -141,9 +129,10 @@ To add or update region information of an AMI product listing, use a configurati
    :caption: example listing_configuration.yaml
 
    ...
-   region:
-      commercial_regions: List[str]
-      future_region_support_region: bool
+   product:
+        region:
+            commercial_regions: List[str]
+            future_region_support_region: bool
    ...
 
 Update the region using:
@@ -165,21 +154,22 @@ To add new AMI version to an existing AMI listing, create a version configuratio
    :caption: example listing_configuration.yaml
 
    ...
-   version:
-      version_title: str
-      release_notes: str
-      ami_id: str # Format should be starting with `ami-`
-      access_role_arn: str # Format should be starting with 'arn:aws:iam::'
-      os_user_name: str
-      os_system_version: str
-      os_system_name: str # This will be converted to Uppercase
-      scanning_port: int # 1-65535
-      usage_instructions: str
-      recommended_instance_type: str # Please select among instance types you added in Step 2
-      ip_protocol: Literal['tcp', 'udp']
-      ip_ranges: List[str] # Upto 5 ranges can be added
-      from_port: int # 1-65535
-      to_port: int # 1-65535
+   product:
+        version:
+            version_title: str
+            release_notes: str
+            ami_id: str # Format should be starting with `ami-`
+            access_role_arn: str # Format should be starting with 'arn:aws:iam::'
+            os_user_name: str
+            os_system_version: str
+            os_system_name: str # This will be converted to Uppercase
+            scanning_port: int # 1-65535
+            usage_instructions: str
+            recommended_instance_type: str # Please select among instance types you added in Step 2
+            ip_protocol: Literal['tcp', 'udp']
+            ip_ranges: List[str] # Upto 5 ranges can be added
+            from_port: int # 1-65535
+            to_port: int # 1-65535
    ...
 
 Add the new version using:
@@ -193,16 +183,21 @@ Add the new version using:
 Update legal/support terms
 --------------------------
 
-To update the legal/support terms of the AMI product listing, you'll need an offer ID and a yaml file with the required terms specified in it.
+To update the legal/support terms of the AMI product listing, you'll need a yaml file with the required terms specified in the `offer` field.
 
 .. code-block:: yaml
    :caption: example listing_configuration.yaml
 
    ...
-   eula_url: "https://eula-example"
-   refund_policy: |
-      Absolutely no refund!
+   offer:
+        eula_document:
+            - type: "CustomEula"
+              url: "https://eula-example"
+        refund_policy: |
+            Absolutely no refund!
    ...
+
+A ``eula_document`` can contain only one item. To check the type and conditionally required field (either ``url`` or ``version``), refer to `AWS Marketplace update legal resources API reference`_.
 
 Here, ``refund_policy`` contains free form of text.
 
@@ -247,3 +242,4 @@ To update AMI product listing with multiple requests for product details (Descri
 
 
 .. _`AWS marketplace management portal`: https://aws.amazon.com/marketplace/management/
+.. _`AWS Marketplace update legal resources API reference`: https://docs.aws.amazon.com/marketplace/latest/APIReference/work-with-private-offers.html#update-legal-terms

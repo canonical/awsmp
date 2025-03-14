@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Literal, TypedDict
+from typing import Any, Dict, List, Literal, TypedDict, Union
 
 from typing_extensions import NotRequired
 
@@ -15,7 +15,7 @@ class ChangeSetType(TypedDict):
     ChangeType: str
     ChangeName: NotRequired[str]
     Entity: Dict[str, str]
-    DetailsDocument: Dict[str, Any]
+    DetailsDocument: Union[List[Dict[str, Any]], Dict[str, Any]]
     ChangeSetId: NotRequired[str]
 
 

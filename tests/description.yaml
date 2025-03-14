@@ -1,31 +1,32 @@
-description:
-  product_title: "temp-listing"
-  logourl: "https://awsmp-logos.s3.amazonaws.com/8350ae04bad5625623cc02c64eb8b0b5"
-  video_urls: []
-  short_description: |
-    Run Amazon Elastic Kubernetes Service (EKS) clusters on Ubuntu and get the advantage of a managed Kubernetes cluster and the Ubuntu ecosystem.
-  long_description: |
-    Canonical and AWS work together to make Ubuntu worker nodes available for Amazon's Elastic Kubernetes Services (EKS). This fully-managed service makes it easy to use Kubernetes on AWS, without being an expert in managing Kubernetes clusters.
-
-    These images are based on the official Ubuntu Minimal LTS and include the custom Ubuntu-aws optimized kernel. They have been built specifically for the EKS service, therefore are not intended as general OS images.
-
-    You can also upgrade to Ubuntu Pro and activate additional security features such as FIPS mode, Expanded Security Maintenance (ESM), CIS or Disa STIG hardening and Kernel Livepatch.
-
-    To deploy Ubuntu worker nodes on EKS, you can use eksctl, EC2 Launch templates when creating the Node Groups on EKS console, Cloudformation templates and other mechanisms.
-
-    You can upgrade to Ubuntu Pro if you need to run your worker nodes on FIPS mode, with Kernel Livepach or with ESM content. © Visit https://aws.amazon.com/marketplace/pp/prodview-negkygylqkp44?sr=0-1&ref_=beagle&applicationId=AWSMPContessa to learn more.
-  highlights:
-    - AWS managed Kubernetes on Ubuntu AWS-optimized worker nodes
-    - Based on minimal Ubuntu for best performance and security
-    - Upgrade to Pro to get access to ESM, FIPS, kernel livepatch and hardening tools
-  search_keywords: 
-    - EKS
-    - Kubernetes
-    - Ubuntu
-  categories:
-    - Operating Systems
-    - Application Servers
-  support_description: Ubuntu Advantage covers two support level SLAs for 24-hour support for business days or 24x7 support coverage. Learn more at.
-  support_resources: ~
-  additional_resources: []
-  sku: ~
+product:
+  description:
+    product_title: "temp-listing"
+    logourl: "https://awsmp-logos.s3.amazonaws.com/8350ae04bad5625623cc02c64eb8b0b5"
+    video_urls: []
+    short_description: |
+      Run Amazon Elastic Kubernetes Service (EKS) clusters on Ubuntu and get the advantage of a managed Kubernetes cluster and the Ubuntu ecosystem.
+    long_description: |
+      Canonical and AWS work together to make Ubuntu worker nodes available for Amazon's Elastic Kubernetes Services (EKS). This fully-managed service makes it easy to use Kubernetes on AWS, without being an expert in managing Kubernetes clusters.
+  
+      These images are based on the official Ubuntu Minimal LTS and include the custom Ubuntu-aws optimized kernel. They have been built specifically for the EKS service, therefore are not intended as general OS images.
+  
+      You can also upgrade to Ubuntu Pro and activate additional security features such as FIPS mode, Expanded Security Maintenance (ESM), CIS or Disa STIG hardening and Kernel Livepatch.
+  
+      To deploy Ubuntu worker nodes on EKS, you can use eksctl, EC2 Launch templates when creating the Node Groups on EKS console, Cloudformation templates and other mechanisms.
+  
+      You can upgrade to Ubuntu Pro if you need to run your worker nodes on FIPS mode, with Kernel Livepach or with ESM content. © Visit https://aws.amazon.com/marketplace/pp/prodview-negkygylqkp44?sr=0-1&ref_=beagle&applicationId=AWSMPContessa to learn more.
+    highlights:
+      - AWS managed Kubernetes on Ubuntu AWS-optimized worker nodes
+      - Based on minimal Ubuntu for best performance and security
+      - Upgrade to Pro to get access to ESM, FIPS, kernel livepatch and hardening tools
+    search_keywords: 
+      - EKS
+      - Kubernetes
+      - Ubuntu
+    categories:
+      - Operating Systems
+      - Application Servers
+    support_description: Ubuntu Advantage covers two support level SLAs for 24-hour support for business days or 24x7 support coverage. Learn more at.
+    support_resources: ~
+    additional_resources: []
+    sku: ~

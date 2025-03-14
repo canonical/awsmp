@@ -97,8 +97,16 @@ def test_ami_product_instance_type_template():
 @pytest.mark.parametrize(
     "missing_key, expected_exception, expected_message",
     [
-        (["test_description"], errors.YamlMissingKeyException, "does not have key ('test_description',)"),
-        (["test_eula"], errors.YamlMissingKeyException, "does not have key ('test_eula',)"),
+        (
+            [["product", "test_description"]],
+            errors.YamlMissingKeyException,
+            "does not have the following missing keys:\ntest_description",
+        ),
+        (
+            [["offer", "test_eula"]],
+            errors.YamlMissingKeyException,
+            "does not have the following missing keys:\noffer->test_eula",
+        ),
     ],
 )
 def test_missing_keys_in_configuration(missing_key, expected_exception, expected_message):
