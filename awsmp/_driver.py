@@ -263,8 +263,6 @@ def offer_create(
 
     changeset_list = _filter_instance_types(product_id, changeset_list)
 
-    client = get_client()
-
     changeset_name = f'{f"create private offer for {product_id}: {offer_name}"[:95]}...'.replace(",", "_")
 
     return get_response(changeset_list, changeset_name)
