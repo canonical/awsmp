@@ -117,6 +117,7 @@ def get_response(changeset: List[ChangeSetType], changeset_name: str) -> ChangeS
     :return: changeset with type, entity, details etc.
     :rtype: ChangeSetReturnType
     """
+    changeset_name = changeset_name.replace(",", "_").replace("(", "").replace(")", "")
     try:
         response = get_client().start_change_set(
             Catalog="AWSMarketplace",
@@ -263,9 +264,7 @@ def offer_create(
 
     changeset_list = _filter_instance_types(product_id, changeset_list)
 
-    client = get_client()
-
-    changeset_name = f'{f"create private offer for {product_id}: {offer_name}"[:95]}...'.replace(",", "_")
+    changeset_name = f'{f"create private offer for {product_id}: {offer_name}"[:95]}...'
 
     return get_response(changeset_list, changeset_name)
 
