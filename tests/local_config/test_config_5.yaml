@@ -1,16 +1,3 @@
-offer:
-  refund_policy: |
-    test_refund_policy_term
-  eula_document:
-    - type: "CustomEula"
-      url: "test_eula_url"
-  instance_types:
-    - name: "a1.large"
-      hourly: 0.004
-      yearly: 24.528
-    - name: "a1.xlarge"
-      hourly: 0.007
-      yearly: 49.056
 product:
   description:
     product_title: "test"
@@ -38,10 +25,10 @@ product:
       - us-east-2
     future_region_support: true
   version:
-    version_title: "test_version_title"
+    version_title: "test_version_title_1"
     release_notes: |
       test_release_notes
-    ami_id: ami-test
+    ami_id: ami-test1
     access_role_arn: arn:aws:iam::test
     os_user_name: test_os_user_name
     os_system_version: test_os_system_version
@@ -55,3 +42,16 @@ product:
       - "0.0.0.0/0"
     from_port: 22
     to_port: 22
+offer:
+  refund_policy: |
+    100% refund
+  eula_document:
+    - type: "CustomEula"
+      url: "test_eula_url"
+  instance_types:
+    - name: "a1.large"
+      hourly: 0.004
+      yearly: 24.528
+    - name: "a1.xlarge"
+      hourly: 0.007
+      yearly: 49.056

@@ -120,14 +120,22 @@ def test_missing_keys_in_configuration(missing_key, expected_exception, expected
     assert expected_message in str(e.value)
 
 
+@patch("awsmp._driver.get_public_offer_id")
 @patch("awsmp._driver.get_entity_details")
 @patch("awsmp.models.boto3")
-def test_entity_get_diff_no_diff(mock_boto3, mock_get_entity_details):
+def test_entity_get_diff_no_diff(mock_boto3, mock_get_entity_details, mock_get_public_offer_id):
     """
     Test get_diff call
     """
     with open("./tests/test_config.json") as f:
-        mock_get_entity_details.return_value = json.load(f)
+        mock_prod_resp = json.load(f)
+        mock_prod_resp.pop("Terms")
+
+    with open("./tests/test_config.json") as f:
+        mock_offer_resp = {"Terms": json.load(f)["Terms"]}
+
+    mock_get_public_offer_id.return_value = "test-offer-id"
+    mock_get_entity_details.side_effect = [mock_prod_resp, mock_offer_resp]
 
     mock_boto3.client.return_value.describe_regions.return_value = {
         "Regions": [
@@ -143,11 +151,19 @@ def test_entity_get_diff_no_diff(mock_boto3, mock_get_entity_details):
     assert result.output.strip() == json.dumps(expected_diff, indent=2).strip()
 
 
+@patch("awsmp._driver.get_public_offer_id")
 @patch("awsmp._driver.get_entity_details")
 @patch("awsmp.models.boto3")
-def test_entity_get_diff(mock_boto3, mock_get_entity_details):
+def test_entity_get_diff(mock_boto3, mock_get_entity_details, mock_get_public_offer_id):
     with open("./tests/test_config.json") as f:
-        mock_get_entity_details.return_value = json.load(f)
+        mock_prod_resp = json.load(f)
+        mock_prod_resp.pop("Terms")
+
+    with open("./tests/test_config.json") as f:
+        mock_offer_resp = {"Terms": json.load(f)["Terms"]}
+
+    mock_get_public_offer_id.return_value = "test-offer-id"
+    mock_get_entity_details.side_effect = [mock_prod_resp, mock_offer_resp]
 
     mock_boto3.client.return_value.describe_regions.return_value = {
         "Regions": [
@@ -171,6 +187,46 @@ def test_entity_get_diff(mock_boto3, mock_get_entity_details):
                 "name": "Regions",
                 "old_value": ["us-east-1", "us-east-2"],
                 "new_value": ["us-east-1", "us-east-2", "eu-west-1"],
+            },
+        ],
+    }
+
+    runner = CliRunner()
+    result = runner.invoke(cli.entity_get_diff, ["temp-list", local_config_file])
+
+    assert result.output.strip() == json.dumps(expected_diff, indent=2).strip()
+
+
+@patch("awsmp._driver.get_public_offer_id")
+@patch("awsmp._driver.get_entity_details")
+@patch("awsmp.models.boto3")
+def test_entity_get_diff_terms(mock_boto3, mock_get_entity_details, mock_get_public_offer_id):
+    with open("./tests/test_config.json") as f:
+        mock_prod_resp = json.load(f)
+        mock_prod_resp.pop("Terms")
+
+    with open("./tests/test_config.json") as f:
+        mock_offer_resp = {"Terms": json.load(f)["Terms"]}
+
+    mock_get_public_offer_id.return_value = "test-offer-id"
+    mock_get_entity_details.side_effect = [mock_prod_resp, mock_offer_resp]
+
+    mock_boto3.client.return_value.describe_regions.return_value = {
+        "Regions": [
+            {"Endpoint": "ec2.us-east-1.amazonaws.com", "RegionName": "us-east-1", "OptInStatus": "opted-in"},
+            {"Endpoint": "ec2.us-east-2.amazonaws.com", "RegionName": "us-east-2", "OptInStatus": "opted-in"},
+        ]
+    }
+
+    local_config_file = "./tests/local_config/test_config_5.yaml"
+    expected_diff: dict[str, List[Any]] = {
+        "added": [],
+        "removed": [],
+        "changed": [
+            {
+                "name": "SupportTerm",
+                "old_value": {"Type": "SupportTerm", "RefundPolicy": "test_refund_policy_term\n"},
+                "new_value": {"Type": "SupportTerm", "RefundPolicy": "100% refund\n"},
             },
         ],
     }

@@ -116,7 +116,20 @@ def entity_get_diff(entity_id: str, config: TextIO):
     :rtype None
     """
 
+    # Get product specific details
     listing_resp = _driver.get_entity_details(entity_id)
+
+    # Get offer specific details
+    offer_id = _driver.get_public_offer_id(entity_id)
+    listing_offer_resp = _driver.get_entity_details(offer_id)
+
+    # filtering required term details only
+    listing_resp["Terms"] = []
+    if "Terms" in listing_offer_resp:
+        for term in listing_offer_resp["Terms"]:
+            if term["Type"] == "SupportTerm":
+                listing_resp["Terms"].append(term)
+
     entity_from_listing = models.EntityModel(**listing_resp)
 
     with open(config.name, "r") as f:
