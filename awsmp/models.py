@@ -275,7 +275,7 @@ class SupportInformationModel(BaseModel):
 
 class RegionAvailabilityModel(BaseModel):
     """
-    Model for region availability inforation details from entity details
+    Model for region availability information details from entity details
     """
 
     Regions: List[str]
