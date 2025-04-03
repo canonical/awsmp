@@ -240,7 +240,7 @@ class DescriptionModel(BaseModel):
     ProductTitle: str
     ShortDescription: str
     LongDescription: str
-    Sku: str
+    Sku: Optional[str] = Field(default=None)
     Highlights: List[str]
     SearchKeywords: List[str]
     Categories: List[str]
