@@ -19,5 +19,6 @@
             "PromotionalMedia": []},
         "Targeting": {"PositiveTargeting": {"BuyerAccounts": ["099720109477", "297512042063", "782858285006"]}},
         "Dimensions": [{"Name": "a1.large", "Description": "a1.large", "Key": "a1.large", "Unit": "Hrs", "Types": ["Metered"]}],
-        "Compatibility": {"AvailableInstanceTypes": ["a1.large"], "RestrictedInstanceTypes": []}}
+        "Compatibility": {"AvailableInstanceTypes": ["a1.large"], "RestrictedInstanceTypes": []},
+        "Terms": [{"Type": "SupportTerm", "RefundPolicy": "test_refund_policy_term\n"}]}
 

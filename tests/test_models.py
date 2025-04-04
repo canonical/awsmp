@@ -301,6 +301,13 @@ class TestEntity:
         entity_model = models.EntityModel.get_entity_from_yaml(local_config)
         assert entity_model.Description.ProductTitle == "test"
 
+    def test_yaml_to_entity_term(self, mock_boto3):
+        with open("./tests/test_config.yaml", "r") as f:
+            local_config = yaml.safe_load(f)
+
+        entity_model = models.EntityModel.get_entity_from_yaml(local_config)
+        assert entity_model.Terms[0].RefundPolicy == "test_refund_policy_term\n"
+
     def test_non_valid_response(self):
         non_valid_response: dict[str, Any] = {
             "Description": {
@@ -481,4 +488,42 @@ class TestEntity:
         entity1, entity2 = get_entity
         for key, value in custom_config.items():
             setattr(entity2, key, value)
+        assert entity1.get_diff(entity2) == expected_diff
+
+    @pytest.mark.parametrize(
+        "custom_config, expected_diff",
+        [
+            (
+                [{"Type": "SupportTerm", "RefundPolicy": "will be refunded"}],
+                models.DiffModel(
+                    added=[],
+                    removed=[],
+                    changed=[
+                        models.DiffChangedModel(
+                            name="SupportTerm",
+                            old_value={"Type": "SupportTerm", "RefundPolicy": "test_refund_policy_term\n"},
+                            new_value={"Type": "SupportTerm", "RefundPolicy": "will be refunded"},
+                        )
+                    ],
+                ),
+            ),
+            (
+                [{"Type": "SupportTerm", "RefundPolicy": ""}],
+                models.DiffModel(
+                    added=[],
+                    removed=[],
+                    changed=[
+                        models.DiffChangedModel(
+                            name="SupportTerm",
+                            old_value={"Type": "SupportTerm", "RefundPolicy": "test_refund_policy_term\n"},
+                            new_value={"Type": "SupportTerm", "RefundPolicy": ""},
+                        )
+                    ],
+                ),
+            ),
+        ],
+    )
+    def test_get_term_refund_policy_diff(self, mock_boto3, get_entity, custom_config, expected_diff):
+        entity1, entity2 = get_entity
+        setattr(entity2, "Terms", custom_config)
         assert entity1.get_diff(entity2) == expected_diff

@@ -240,7 +240,7 @@ class DescriptionModel(BaseModel):
     ProductTitle: str
     ShortDescription: str
     LongDescription: str
-    Sku: str
+    Sku: Optional[str] = Field(default=None)
     Highlights: List[str]
     SearchKeywords: List[str]
     Categories: List[str]
@@ -275,11 +275,20 @@ class SupportInformationModel(BaseModel):
 
 class RegionAvailabilityModel(BaseModel):
     """
-    Model for region availability inforation details from entity details
+    Model for region availability information details from entity details
     """
 
     Regions: List[str]
     FutureRegionSupport: str
+
+
+class SupportTermModel(BaseModel):
+    """
+    Model for support term details from entity details
+    """
+
+    Type: Literal["SupportTerm"] = "SupportTerm"
+    RefundPolicy: str = Field(max_length=500)
 
 
 class DiffAddedModel(BaseModel):
@@ -332,6 +341,7 @@ class EntityModel(BaseModel):
     PromotionalResources: PromotionalResourcesModel
     SupportInformation: SupportInformationModel
     RegionAvailability: RegionAvailabilityModel
+    Terms: List[SupportTermModel]
 
     @staticmethod
     def get_entity(response: dict[str, Any]) -> EntityModel:
@@ -354,6 +364,7 @@ class EntityModel(BaseModel):
         :rtype: EntityModel
         """
         ami_product = AmiProduct(**yaml_config["product"])
+        ami_offer = Offer(**yaml_config["offer"])
 
         yaml_to_api_response: dict[str, Any] = {
             "Description": {
@@ -378,6 +389,7 @@ class EntityModel(BaseModel):
                 "Regions": ami_product.region.commercial_regions,
                 "FutureRegionSupport": ami_product.region.future_region_supported()[-1],
             },
+            "Terms": [{"Type": "SupportTerm", "RefundPolicy": ami_offer.refund_policy}],
         }
 
         return EntityModel(**yaml_to_api_response)
@@ -465,21 +477,22 @@ class EntityModel(BaseModel):
         :return DiffModel with added, deleted and changed diff details
         :rtype DiffModel
         """
-        non_model_fields = ["SupportTerm"]
+        non_dict_fields = ["Terms"]  # Terms contain different offer details with list format
         diff_added: List[DiffAddedModel] = []
         diff_removed: List[DiffRemovedModel] = []
         diff_changed: List[DiffChangedModel] = []
 
         for entity_key, entity_value in local_entity.model_dump().items():
-            if entity_key not in non_model_fields:
+            if entity_key not in non_dict_fields:
                 for model_key, model_value in entity_value.items():
                     res = EntityModel.get_diff_model_type(
                         model_key, self.model_dump()[entity_key][model_key], model_value
                     )
                     EntityModel.add_to_diff_list(res, diff_added, diff_removed, diff_changed)
             else:
-                res = EntityModel.get_diff_model_type(entity_key, self.model_dump()[entity_key], entity_value)
-                EntityModel.add_to_diff_list(res, diff_added, diff_removed, diff_changed)
+                for index, term in enumerate(entity_value):
+                    res = EntityModel.get_diff_model_type(term["Type"], self.model_dump()[entity_key][index], term)
+                    EntityModel.add_to_diff_list(res, diff_added, diff_removed, diff_changed)
 
         return DiffModel(added=diff_added, removed=diff_removed, changed=diff_changed)
 
