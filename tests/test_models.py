@@ -1,5 +1,5 @@
 import json
-from typing import Any
+from typing import Any, cast
 from unittest.mock import patch
 
 import pytest
@@ -269,6 +269,67 @@ class TestOffer:
             models.Offer(**offer_detail)
 
         assert "must have at most 3 decimal places" in str(e.value)
+
+
+class TestPricingTermModel:
+    def test_pricing_term_model_hourly(self):
+        data = {
+            "Type": "UsageBasedPricingTerm",
+            "CurrencyCode": "USD",
+            "RateCards": [
+                {
+                    "RateCard": [
+                        {"DimensionKey": "c1.medium", "Price": "0.004"},
+                        {"DimensionKey": "c1.xlarge", "Price": "0.014"},
+                        {"DimensionKey": "c3.2xlarge", "Price": "0.014"},
+                        {"DimensionKey": "c3.4xlarge", "Price": "0.028"},
+                    ]
+                }
+            ],
+        }
+        term = models.PricingTermModel(**data)  #  type: ignore
+        assert term.RateCards[0].RateCard[1].DimensionKey == "c1.xlarge"
+
+    def test_pricing_term_model_annual(self):
+        data = {
+            "Type": "ConfigurableUpfrontPricingTerm",
+            "CurrencyCode": "USD",
+            "RateCards": [
+                {
+                    "Selector": {"Type": "Duration", "Value": "P365D"},
+                    "Constraints": {"MultipleDimensionSelection": "Allowed", "QuantityConfiguration": "Allowed"},
+                    "RateCard": [
+                        {"DimensionKey": "c1.medium", "Price": "24.0"},
+                        {"DimensionKey": "c1.xlarge", "Price": "98.0"},
+                        {"DimensionKey": "c3.2xlarge", "Price": "98.0"},
+                        {"DimensionKey": "c3.4xlarge", "Price": "196.0"},
+                    ],
+                }
+            ],
+        }
+        term = models.PricingTermModel(**data)  #  type: ignore
+        selector = cast(models.SelectorModel, term.RateCards[0].Selector)
+        assert term.RateCards[0].RateCard[1].DimensionKey == "c1.xlarge" and selector.Value == "P365D"
+
+    def test_invalid_pricing_term_model(self):
+        data = {
+            "Type": "ConfigurableUpfrontPricingTerm",
+            "CurrencyCode": "USD",
+            "RateCards": [
+                {
+                    "Selector": {"Type": "Duration", "Value": "P365D"},
+                    "Constraints": {"MultipleDimensionSelection": "Allowed"},
+                    "RateCard": [
+                        {"DimensionKey": "c1.medium", "Price": "24.0"},
+                        {"DimensionKey": "c1.xlarge", "Price": "98.0"},
+                        {"DimensionKey": "c3.2xlarge", "Price": "98.0"},
+                        {"DimensionKey": "c3.4xlarge", "Price": "196.0"},
+                    ],
+                }
+            ],
+        }
+        with pytest.raises(ValidationError) as e:
+            models.PricingTermModel(**data)  #  type: ignore
 
 
 class TestEntity:

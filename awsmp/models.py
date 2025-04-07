@@ -291,6 +291,53 @@ class SupportTermModel(BaseModel):
     RefundPolicy: str = Field(max_length=500)
 
 
+class SelectorModel(BaseModel):
+    """
+    Duration detail model from annual pricing details
+    """
+
+    Type: Literal["Duration"]
+    Value: str
+
+
+class ConstraintsModel(BaseModel):
+    """
+    Constraint detail model from annual pricing details
+    """
+
+    MultipleDimensionSelection: Literal["Allowed", "Disallowed"]
+    QuantityConfiguration: Literal["Allowed", "Disallowed"]
+
+
+class RateCardModel(BaseModel):
+    """
+    Pricing ratecard model
+    """
+
+    DimensionKey: str
+    Price: str
+
+
+class RateCardItemsModel(BaseModel):
+    """
+    RateCard items in the details
+    """
+
+    Selector: Optional[SelectorModel] = Field(default=None)
+    Constraints: Optional[ConstraintsModel] = Field(default=None)
+    RateCard: List[RateCardModel]
+
+
+class PricingTermModel(BaseModel):
+    """
+    Model for pricing term details from entity details
+    """
+
+    Type: Literal["UsageBasedPricingTerm", "ConfigurableUpfrontPricingTerm"]
+    CurrencyCode: Literal["USD"]
+    RateCards: List[RateCardItemsModel]
+
+
 class DiffAddedModel(BaseModel):
     """
     Model for fields that have been added in a diff comparison
