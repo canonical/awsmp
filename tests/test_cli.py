@@ -237,6 +237,62 @@ def test_entity_get_diff_terms(mock_boto3, mock_get_entity_details, mock_get_pub
     assert result.output.strip() == json.dumps(expected_diff, indent=2).strip()
 
 
+@pytest.mark.parametrize(
+    "config_name, expected_diff",
+    [
+        (
+            "./tests/local_config/test_config_6.yaml",
+            {
+                "added": [],
+                "removed": [],
+                "changed": [
+                    {
+                        "name": "ConfigurableUpfrontPricingTerm",
+                        "old_value": {"DimensionKey": "a1.large", "Price": "24.528"},
+                        "new_value": {"DimensionKey": "a1.large", "Price": "30.0"},
+                    },
+                ],
+            },
+        ),
+        (
+            "./tests/local_config/test_config_7.yaml",
+            {
+                "added": [],
+                "removed": [],
+                "changed": [],
+            },
+        ),
+    ],
+)
+@patch("awsmp._driver.get_public_offer_id")
+@patch("awsmp._driver.get_entity_details")
+@patch("awsmp.models.boto3")
+def test_entity_get_diff_pricing_terms(
+    mock_boto3, mock_get_entity_details, mock_get_public_offer_id, config_name, expected_diff
+):
+    with open("./tests/test_config.json") as f:
+        mock_prod_resp = json.load(f)
+        mock_prod_resp.pop("Terms")
+
+    with open("./tests/test_config.json") as f:
+        mock_offer_resp = {"Terms": json.load(f)["Terms"]}
+
+    mock_get_public_offer_id.return_value = "test-offer-id"
+    mock_get_entity_details.side_effect = [mock_prod_resp, mock_offer_resp]
+
+    mock_boto3.client.return_value.describe_regions.return_value = {
+        "Regions": [
+            {"Endpoint": "ec2.us-east-1.amazonaws.com", "RegionName": "us-east-1", "OptInStatus": "opted-in"},
+            {"Endpoint": "ec2.us-east-2.amazonaws.com", "RegionName": "us-east-2", "OptInStatus": "opted-in"},
+        ]
+    }
+
+    runner = CliRunner()
+    result = runner.invoke(cli.entity_get_diff, ["temp-list", config_name])
+    print(result.output)
+    assert result.output.strip() == json.dumps(expected_diff, indent=2).strip()
+
+
 @patch("awsmp._driver.get_client")
 @patch("awsmp._driver.changesets.models.boto3")
 def test_public_offer_product_update_details(mock_boto3, mock_get_client):

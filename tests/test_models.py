@@ -355,6 +355,14 @@ class TestEntity:
         entity_model = models.EntityModel(**response_json)
         assert entity_model.Description.ProductTitle == "test"
 
+    def test_valid_response_pricing_term(self):
+        with open("./tests/test_config.json", "r") as f:
+            response_json = json.load(f)
+
+        entity_model = models.EntityModel(**response_json)
+        pricing = cast(models.PricingTermModel, entity_model.Terms[1])
+        assert pricing.RateCards[0].RateCard[0].DimensionKey == "a1.large"
+
     def test_yaml_to_entity(self, mock_boto3):
         with open("./tests/test_config.yaml", "r") as f:
             local_config = yaml.safe_load(f)
@@ -367,7 +375,8 @@ class TestEntity:
             local_config = yaml.safe_load(f)
 
         entity_model = models.EntityModel.get_entity_from_yaml(local_config)
-        assert entity_model.Terms[0].RefundPolicy == "test_refund_policy_term\n"
+        refund_term = cast(models.SupportTermModel, entity_model.Terms[0])
+        assert refund_term.RefundPolicy == "test_refund_policy_term\n"
 
     def test_non_valid_response(self):
         non_valid_response: dict[str, Any] = {
@@ -587,4 +596,130 @@ class TestEntity:
     def test_get_term_refund_policy_diff(self, mock_boto3, get_entity, custom_config, expected_diff):
         entity1, entity2 = get_entity
         setattr(entity2, "Terms", custom_config)
+        assert entity1.get_diff(entity2) == expected_diff
+
+    @pytest.mark.parametrize(
+        "index, custom_config, expected_diff",
+        [
+            (
+                1,
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "CurrencyCode": "USD",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "0.004"},
+                            ]
+                        }
+                    ],
+                },
+                models.DiffModel(
+                    added=[],
+                    removed=[
+                        models.DiffRemovedModel(
+                            name="UsageBasedPricingTerm", value={"DimensionKey": "a1.xlarge", "Price": "0.007"}
+                        ),
+                    ],
+                    changed=[],
+                ),
+            ),
+            (
+                2,
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "CurrencyCode": "USD",
+                    "RateCards": [
+                        {
+                            "Selector": {"Type": "Duration", "Value": "P365D"},
+                            "Constraints": {
+                                "MultipleDimensionSelection": "Allowed",
+                                "QuantityConfiguration": "Allowed",
+                            },
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "24.528"},
+                                {"DimensionKey": "a1.xlarge", "Price": "80.0"},
+                            ],
+                        }
+                    ],
+                },
+                models.DiffModel(
+                    added=[],
+                    removed=[],
+                    changed=[
+                        models.DiffChangedModel(
+                            name="ConfigurableUpfrontPricingTerm",
+                            old_value={"DimensionKey": "a1.xlarge", "Price": "49.056"},
+                            new_value={"DimensionKey": "a1.xlarge", "Price": "80.0"},
+                        ),
+                    ],
+                ),
+            ),
+            (
+                2,
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "CurrencyCode": "USD",
+                    "RateCards": [
+                        {
+                            "Selector": {"Type": "Duration", "Value": "P200D"},
+                            "Constraints": {
+                                "MultipleDimensionSelection": "Allowed",
+                                "QuantityConfiguration": "Allowed",
+                            },
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "24.528"},
+                                {"DimensionKey": "a1.xlarge", "Price": "49.056"},
+                            ],
+                        }
+                    ],
+                },
+                models.DiffModel(
+                    added=[],
+                    removed=[],
+                    changed=[
+                        models.DiffChangedModel(
+                            name="ConfigurableUpfrontPricingTerm",
+                            old_value={"Type": "Duration", "Value": "P365D"},
+                            new_value={"Type": "Duration", "Value": "P200D"},
+                        )
+                    ],
+                ),
+            ),
+            (
+                2,
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "CurrencyCode": "USD",
+                    "RateCards": [
+                        {
+                            "Selector": {"Type": "Duration", "Value": "P365D"},
+                            "Constraints": {
+                                "MultipleDimensionSelection": "Allowed",
+                                "QuantityConfiguration": "Disallowed",
+                            },
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "24.528"},
+                                {"DimensionKey": "a1.xlarge", "Price": "49.056"},
+                            ],
+                        }
+                    ],
+                },
+                models.DiffModel(
+                    added=[],
+                    removed=[],
+                    changed=[
+                        models.DiffChangedModel(
+                            name="ConfigurableUpfrontPricingTerm",
+                            old_value={"MultipleDimensionSelection": "Allowed", "QuantityConfiguration": "Allowed"},
+                            new_value={"MultipleDimensionSelection": "Allowed", "QuantityConfiguration": "Disallowed"},
+                        )
+                    ],
+                ),
+            ),
+        ],
+    )
+    def test_get_term_pricing_diff(self, mock_boto3, get_entity, index, custom_config, expected_diff):
+        entity1, entity2 = get_entity
+        entity2.Terms[index] = custom_config
         assert entity1.get_diff(entity2) == expected_diff
