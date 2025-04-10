@@ -20,5 +20,15 @@
         "Targeting": {"PositiveTargeting": {"BuyerAccounts": ["099720109477", "297512042063", "782858285006"]}},
         "Dimensions": [{"Name": "a1.large", "Description": "a1.large", "Key": "a1.large", "Unit": "Hrs", "Types": ["Metered"]}],
         "Compatibility": {"AvailableInstanceTypes": ["a1.large"], "RestrictedInstanceTypes": []},
-        "Terms": [{"Type": "SupportTerm", "RefundPolicy": "test_refund_policy_term\n"}]}
+        "Terms": [{"Type": "SupportTerm", "RefundPolicy": "test_refund_policy_term\n"}, {
+            "Type": "UsageBasedPricingTerm", "CurrencyCode": "USD",
+            "RateCards": [{"RateCard": [{"DimensionKey": "a1.large","Price": "0.004"},
+            {"DimensionKey": "a1.xlarge","Price": "0.007"}]}]},
+            {"Type": "ConfigurableUpfrontPricingTerm", "CurrencyCode": "USD", "RateCards": [{
+                "Selector": {"Type": "Duration","Value": "P365D"},
+                "Constraints": {"MultipleDimensionSelection": "Allowed","QuantityConfiguration": "Allowed"},
+                "RateCard": [{"DimensionKey": "a1.large","Price": "24.528"},
+                    {"DimensionKey": "a1.xlarge","Price": "49.056"}]
+            }]}]
+}
 

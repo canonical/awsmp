@@ -125,17 +125,19 @@ def entity_get_diff(entity_id: str, config: TextIO):
 
     # filtering required term details only
     listing_resp["Terms"] = []
+    term_order = {"SupportTerm": 0, "UsageBasedPricingTerm": 1, "ConfigurableUpfrontPricingTerm": 2}
     if "Terms" in listing_offer_resp:
-        for term in listing_offer_resp["Terms"]:
-            if term["Type"] == "SupportTerm":
-                listing_resp["Terms"].append(term)
-
+        listing_resp["Terms"] = sorted(
+            [term for term in listing_offer_resp.get("Terms", []) if term["Type"] in term_order],
+            key=lambda x: term_order.get(x["Type"], 3),
+        )
     entity_from_listing = models.EntityModel(**listing_resp)
 
     with open(config.name, "r") as f:
         yaml_config = yaml.safe_load(f)
 
     local_config_entity = models.EntityModel.get_entity_from_yaml(yaml_config)
+
     diff = entity_from_listing.get_diff(local_config_entity)
 
     print(repr(diff))

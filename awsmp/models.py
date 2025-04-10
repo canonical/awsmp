@@ -291,6 +291,53 @@ class SupportTermModel(BaseModel):
     RefundPolicy: str = Field(max_length=500)
 
 
+class SelectorModel(BaseModel):
+    """
+    Duration detail model from annual pricing details
+    """
+
+    Type: Literal["Duration"]
+    Value: str
+
+
+class ConstraintsModel(BaseModel):
+    """
+    Constraint detail model from annual pricing details
+    """
+
+    MultipleDimensionSelection: Literal["Allowed", "Disallowed"]
+    QuantityConfiguration: Literal["Allowed", "Disallowed"]
+
+
+class RateCardModel(BaseModel):
+    """
+    Pricing ratecard model
+    """
+
+    DimensionKey: str
+    Price: str
+
+
+class RateCardItemsModel(BaseModel):
+    """
+    RateCard items in the details
+    """
+
+    Selector: Optional[SelectorModel] = Field(default=None)
+    Constraints: Optional[ConstraintsModel] = Field(default=None)
+    RateCard: List[RateCardModel]
+
+
+class PricingTermModel(BaseModel):
+    """
+    Model for pricing term details from entity details
+    """
+
+    Type: Literal["UsageBasedPricingTerm", "ConfigurableUpfrontPricingTerm"]
+    CurrencyCode: Literal["USD"]
+    RateCards: List[RateCardItemsModel]
+
+
 class DiffAddedModel(BaseModel):
     """
     Model for fields that have been added in a diff comparison
@@ -341,7 +388,7 @@ class EntityModel(BaseModel):
     PromotionalResources: PromotionalResourcesModel
     SupportInformation: SupportInformationModel
     RegionAvailability: RegionAvailabilityModel
-    Terms: List[SupportTermModel]
+    Terms: List[Annotated[Union[SupportTermModel, PricingTermModel], Field(discriminator="Type")]]
 
     @staticmethod
     def get_entity(response: dict[str, Any]) -> EntityModel:
@@ -355,6 +402,30 @@ class EntityModel(BaseModel):
         return EntityModel(**response)
 
     @staticmethod
+    def _get_rate_cards_from_yaml(
+        instance_types: List[InstanceTypePricing],
+    ) -> Tuple[List[dict[str, Any]], List[dict[str, Any]]]:
+        rate_card_hourly = []
+        rate_card_annual = []
+        for instance_type in instance_types:
+            rate_card_hourly.append({"DimensionKey": instance_type.name, "Price": str(instance_type.price_hourly)})
+            if "price_annual" in instance_type.__fields__ and instance_type.price_annual is not None:
+                rate_card_annual.append({"DimensionKey": instance_type.name, "Price": str(instance_type.price_annual)})
+
+        annual_card_items, hourly_card_items = [], []
+        if rate_card_annual:
+            annual_card_items.append(
+                {
+                    "Selector": {"Type": "Duration", "Value": "P365D"},
+                    "Constraints": {"MultipleDimensionSelection": "Allowed", "QuantityConfiguration": "Allowed"},
+                    "RateCard": rate_card_annual,
+                }
+            )
+        hourly_card_items.append({"RateCard": rate_card_hourly})
+
+        return hourly_card_items, annual_card_items
+
+    @staticmethod
     def get_entity_from_yaml(yaml_config: dict[str, Any]) -> EntityModel:
         """
         Convert a dictionary config into an EntityModel object
@@ -365,6 +436,8 @@ class EntityModel(BaseModel):
         """
         ami_product = AmiProduct(**yaml_config["product"])
         ami_offer = Offer(**yaml_config["offer"])
+
+        rate_cards_hourly, rate_cards_annual = EntityModel._get_rate_cards_from_yaml(ami_offer.instance_types)
 
         yaml_to_api_response: dict[str, Any] = {
             "Description": {
@@ -389,8 +462,15 @@ class EntityModel(BaseModel):
                 "Regions": ami_product.region.commercial_regions,
                 "FutureRegionSupport": ami_product.region.future_region_supported()[-1],
             },
-            "Terms": [{"Type": "SupportTerm", "RefundPolicy": ami_offer.refund_policy}],
+            "Terms": [
+                {"Type": "SupportTerm", "RefundPolicy": ami_offer.refund_policy},
+                {"Type": "UsageBasedPricingTerm", "CurrencyCode": "USD", "RateCards": rate_cards_hourly},
+            ],
         }
+        if rate_cards_annual:
+            yaml_to_api_response["Terms"].append(
+                {"Type": "ConfigurableUpfrontPricingTerm", "CurrencyCode": "USD", "RateCards": rate_cards_annual}
+            )
 
         return EntityModel(**yaml_to_api_response)
 
@@ -469,6 +549,57 @@ class EntityModel(BaseModel):
         elif isinstance(res, DiffChangedModel):
             diff_changed.append(res)
 
+    @staticmethod
+    def _add_diff(
+        key: str,
+        val1: Any,
+        val2: Any,
+        diff_added: List[DiffAddedModel],
+        diff_removed: List[DiffRemovedModel],
+        diff_changed: List[DiffChangedModel],
+    ) -> None:
+        """
+        helper function to get the diff model type and add to the diff list
+        """
+        res = EntityModel.get_diff_model_type(key, val1, val2)
+        EntityModel.add_to_diff_list(res, diff_added, diff_removed, diff_changed)
+
+    @staticmethod
+    def _compare_rate_cards(
+        term_type: str,
+        entity_rate_cards: dict[str, Any],
+        local_rate_cards: dict[str, Any],
+        diff_added: List[DiffAddedModel],
+        diff_removed: List[DiffRemovedModel],
+        diff_changed: List[DiffChangedModel],
+    ) -> None:
+        """
+        Helper function to compare ratecard
+        """
+        for dimension_key in local_rate_cards:
+            if dimension_key not in entity_rate_cards:
+                # instance type added
+                EntityModel._add_diff(
+                    term_type, None, local_rate_cards[dimension_key], diff_added, diff_removed, diff_changed
+                )
+            elif entity_rate_cards[dimension_key] != local_rate_cards[dimension_key]:
+                # pricing changed
+                EntityModel._add_diff(
+                    term_type,
+                    entity_rate_cards[dimension_key],
+                    local_rate_cards[dimension_key],
+                    diff_added,
+                    diff_removed,
+                    diff_changed,
+                )
+
+        for dimension_key in entity_rate_cards:
+            # instance type removed
+            if dimension_key not in local_rate_cards:
+                EntityModel._add_diff(
+                    term_type, entity_rate_cards[dimension_key], None, diff_added, diff_removed, diff_changed
+                )
+
     def _get_diff_model(self, local_entity: EntityModel) -> DiffModel:
         """
         Get complete DiffModel instance of diff from listing and local config
@@ -482,17 +613,70 @@ class EntityModel(BaseModel):
         diff_removed: List[DiffRemovedModel] = []
         diff_changed: List[DiffChangedModel] = []
 
+        def _add_diff(key, val1, val2):
+            res = EntityModel.get_diff_model_type(key, val1, val2)
+            EntityModel.add_to_diff_list(res, diff_added, diff_removed, diff_changed)
+
+        entity_model = self.model_dump()
+
         for entity_key, entity_value in local_entity.model_dump().items():
             if entity_key not in non_dict_fields:
                 for model_key, model_value in entity_value.items():
-                    res = EntityModel.get_diff_model_type(
-                        model_key, self.model_dump()[entity_key][model_key], model_value
+                    EntityModel._add_diff(
+                        model_key,
+                        entity_model[entity_key][model_key],
+                        model_value,
+                        diff_added,
+                        diff_removed,
+                        diff_changed,
                     )
-                    EntityModel.add_to_diff_list(res, diff_added, diff_removed, diff_changed)
             else:
                 for index, term in enumerate(entity_value):
-                    res = EntityModel.get_diff_model_type(term["Type"], self.model_dump()[entity_key][index], term)
-                    EntityModel.add_to_diff_list(res, diff_added, diff_removed, diff_changed)
+                    if "Pricing" not in term["Type"]:
+                        EntityModel._add_diff(
+                            term["Type"], entity_model[entity_key][index], term, diff_added, diff_removed, diff_changed
+                        )
+                    else:
+                        for item, value in term.items():
+                            if item not in ["RateCards"]:
+                                # currency code
+                                EntityModel._add_diff(
+                                    term["Type"],
+                                    entity_model[entity_key][index][item],
+                                    term[item],
+                                    diff_added,
+                                    diff_removed,
+                                    diff_changed,
+                                )
+                            else:
+                                for extra_item, value in term[item][-1].items():
+                                    if extra_item not in ["RateCard"]:
+                                        # selector, constraints
+                                        EntityModel._add_diff(
+                                            term["Type"],
+                                            entity_model[entity_key][index][item][-1][extra_item],
+                                            value,
+                                            diff_added,
+                                            diff_removed,
+                                            diff_changed,
+                                        )
+                                    else:
+                                        # Compare ratecards
+                                        local_rate_cards = {
+                                            card["DimensionKey"]: card for card in term[item][-1]["RateCard"]
+                                        }
+                                        entity_rate_cards = {
+                                            card["DimensionKey"]: card
+                                            for card in self.model_dump()[entity_key][index][item][-1]["RateCard"]
+                                        }
+                                        EntityModel._compare_rate_cards(
+                                            term["Type"],
+                                            entity_rate_cards,
+                                            local_rate_cards,
+                                            diff_added,
+                                            diff_removed,
+                                            diff_changed,
+                                        )
 
         return DiffModel(added=diff_added, removed=diff_removed, changed=diff_changed)
 
