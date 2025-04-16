@@ -178,25 +178,82 @@ def test_ami_product_update_instance_type(mock_get_details, mock_get_client):
     }
     res = ap.update_instance_types(offer_config, "Hrs")
 
-    print(
-        mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][2]["DetailsDocument"][
-            "Terms"
-        ][0]["RateCards"][0]["RateCard"][-1]["DimensionKey"]
-    )
     assert mock_get_client.return_value.start_change_set.call_count == 1
-    assert mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][1][
+    assert mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][2][
         "DetailsDocument"
     ] == {"InstanceTypes": ["c3.16xlarge"]}
     assert (
-        mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][2]["DetailsDocument"][
+        mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][0]["DetailsDocument"][
             "Terms"
         ][0]["RateCards"][0]["RateCard"][-1]["DimensionKey"]
         == "c3.16xlarge"
-        and mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][2]["DetailsDocument"][
+        and mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][0]["DetailsDocument"][
             "Terms"
         ][0]["RateCards"][0]["RateCard"][-1]["Price"]
         == "0.0"
     )
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_entity_details")
+def test_ami_product_update_instance_type_restrict_instance_type(mock_get_details, mock_get_client):
+    ap = _driver.AmiProduct(product_id="testing")
+    mock_get_details.return_value = {
+        "Dimensions": [{"Name": "c3.2xlarge"}, {"Name": "c3.4xlarge"}, {"Name": "c3.8xlarge"}]
+    }
+    offer_config = {
+        "instance_types": [
+            {"name": "c3.2xlarge", "hourly": 0.00, "yearly": 0.00},
+            {"name": "c3.4xlarge", "hourly": 0.00, "yearly": 0.00},
+        ],
+        "refund_policy": "refund_policy",
+        "eula_document": [{"type": "StandardEula", "version": "2025-04-05"}],
+    }
+    res = ap.update_instance_types(offer_config, "Hrs")
+
+    assert mock_get_client.return_value.start_change_set.call_count == 1
+    assert mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][1][
+        "DetailsDocument"
+    ] == {"InstanceTypes": ["c3.8xlarge"]}
+    assert mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][2]["DetailsDocument"][
+        0
+    ] == {"Key": "c3.8xlarge", "Types": ["Metered"]}
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_entity_details")
+def test_ami_product_update_instance_type_restrict_and_add_instance_type(mock_get_details, mock_get_client):
+    ap = _driver.AmiProduct(product_id="testing")
+    mock_get_details.return_value = {
+        "Dimensions": [{"Name": "c3.2xlarge"}, {"Name": "c3.4xlarge"}, {"Name": "c3.8xlarge"}]
+    }
+    offer_config = {
+        "instance_types": [
+            {"name": "c3.2xlarge", "hourly": 0.00, "yearly": 0.00},
+            {"name": "c3.4xlarge", "hourly": 0.00, "yearly": 0.00},
+            {"name": "c1.medium", "hourly": 0.00, "yearly": 0.00},
+        ],
+        "refund_policy": "refund_policy",
+        "eula_document": [{"type": "StandardEula", "version": "2025-04-05"}],
+    }
+    res = ap.update_instance_types(offer_config, "Hrs")
+
+    assert mock_get_client.return_value.start_change_set.call_count == 1
+    assert (
+        mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][1]["DetailsDocument"][0][
+            "Key"
+        ]
+        == "c1.medium"
+    )
+    assert mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][2][
+        "DetailsDocument"
+    ] == {"InstanceTypes": ["c1.medium"]}
+    assert mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][3][
+        "DetailsDocument"
+    ] == {"InstanceTypes": ["c3.8xlarge"]}
+    assert mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][4]["DetailsDocument"][
+        0
+    ] == {"Key": "c3.8xlarge", "Types": ["Metered"]}
 
 
 @pytest.mark.parametrize(
