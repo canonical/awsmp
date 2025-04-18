@@ -254,6 +254,20 @@ def _changeset_update_ami_product_instance_type(product_id: str, new_instance_ty
     }
 
 
+def _changeset_update_ami_product_restrict_instance_type(
+    product_id: str, removed_instance_types: List[str]
+) -> ChangeSetType:
+    # return changeset
+    return {
+        "ChangeType": "RestrictInstanceTypes",
+        "Entity": {
+            "Type": "AmiProduct@1.0",
+            "Identifier": product_id,
+        },
+        "DetailsDocument": {"InstanceTypes": removed_instance_types},
+    }
+
+
 def _changeset_update_ami_product_region(product_id: str, region_config: Dict) -> ChangeSetType:
     # config file format checking available regions
     regions = models.Region(**region_config)
@@ -304,6 +318,44 @@ def _changeset_update_ami_product_dimension(
 
     return {
         "ChangeType": "AddDimensions",
+        "Entity": {
+            "Type": "AmiProduct@1.0",
+            "Identifier": product_id,
+        },
+        "DetailsDocument": dimension_changeset,
+    }
+
+
+def _changeset_update_ami_product_restrict_dimension(
+    product_id: str, restrict_instance_types: List[str]
+) -> ChangeSetType:
+    """
+    Generate restrict dimension changeset
+
+    :param str product_id: product id
+    :param List[str] restrict_instance_types: list of instance types to restrict
+    :return: Changeset
+    :rtype: ChangeSetType
+
+    e.g.)
+    {
+        "ChangeType": "RestrictDimensions",
+        "Entity": {
+            "Type: "AmiProduct@1.0"
+            "Identifier": prod-1234,
+        },
+        "DetailsDocument": [
+            {"Key": "c1.medium", "Types": ["Metered"]},
+            {"Key": "c3.xlarge", "Types": ["Metered"]},
+        ],
+    }
+    """
+    dimension_changeset: List[dict[str, Any]] = [
+        {"Key": instance_type, "Types": ["Metered"]} for instance_type in restrict_instance_types
+    ]
+
+    return {
+        "ChangeType": "RestrictDimensions",
         "Entity": {
             "Type": "AmiProduct@1.0",
             "Identifier": product_id,
@@ -407,16 +459,45 @@ def get_ami_listing_update_instance_type_changesets(
     offer_detail: models.Offer,
     dimension_unit: Literal["Hrs", "Units"],
     new_instance_types: List[str],
+    removed_instance_types: List[str],
 ) -> List[ChangeSetType]:
-    return [
-        _changeset_update_ami_product_dimension(product_id, dimension_unit, new_instance_types),
-        _changeset_update_ami_product_instance_type(product_id, new_instance_types),
-        _changeset_update_pricing_terms(
-            offer_detail.instance_types,
-            monthly_subscription_fee=offer_detail.monthly_subscription_fee,
-            offer_id=offer_id,
-        ),
-    ]
+    """
+    Return list of changeset to restrict instance types with pricing term
+    :param str product_id: product id
+    :param str offer_id: offer id
+    :param models.Offer offer_detail: offer configuration in local confi file
+    :param Literal["Hrs", "Units"] dimension_unit: dimension unit of instance types
+    :param List[str] new_instance_types: list of instance types to add to the listing
+    :param List[str] removed_instance_types: list of instance types to remove from the listing
+    :return: List of Changesets
+    :rtype: List[ChangeSetType]
+    """
+
+    if not new_instance_types and not removed_instance_types:
+        return []
+    else:
+        changeset_list = [
+            _changeset_update_pricing_terms(
+                offer_detail.instance_types,
+                monthly_subscription_fee=offer_detail.monthly_subscription_fee,
+                offer_id=offer_id,
+            )
+        ]
+        if new_instance_types:
+            changeset_list.extend(
+                [
+                    _changeset_update_ami_product_dimension(product_id, dimension_unit, new_instance_types),
+                    _changeset_update_ami_product_instance_type(product_id, new_instance_types),
+                ]
+            )
+        if removed_instance_types:
+            changeset_list.extend(
+                [
+                    _changeset_update_ami_product_restrict_instance_type(product_id, removed_instance_types),
+                    _changeset_update_ami_product_restrict_dimension(product_id, removed_instance_types),
+                ]
+            )
+        return changeset_list
 
 
 def get_ami_listing_update_region_changesets(product_id: str, region_config: Dict) -> List[ChangeSetType]:

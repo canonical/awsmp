@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, List, Union, cast
 from unittest.mock import patch
 
 import pytest
@@ -405,15 +405,39 @@ def test_get_ami_listing_update_instance_type_changesets_add_new_instance_type()
     }
     offer_detail = models.Offer(**offer_config)
     res: List[types.ChangeSetType] = changesets.get_ami_listing_update_instance_type_changesets(
-        "test-id", "test-offer_id", offer_detail, "Hrs", ["c4.large"]
+        "test-id", "test-offer_id", offer_detail, "Hrs", ["c4.large"], []
     )
-    details_document = [cast(Dict[str, Any], item["DetailsDocument"]) for item in res[1:]]
+    details_document = [cast(Dict[str, Any], item["DetailsDocument"]) for item in res[:]]
     assert (
-        details_document[0]["InstanceTypes"] == ["c4.large"]
-        and details_document[1]["Terms"][0]["RateCards"][0]["RateCard"][1]
+        details_document[-1]["InstanceTypes"] == ["c4.large"]
+        and details_document[0]["Terms"][0]["RateCards"][0]["RateCard"][1]
         == {"DimensionKey": "c4.large", "Price": "0.55"}
-        and details_document[1]["Terms"][1]["RateCards"][0]["RateCard"][1]
+        and details_document[0]["Terms"][1]["RateCards"][0]["RateCard"][1]
         == {"DimensionKey": "c4.large", "Price": "78.56"}
+    )
+
+
+def test_get_ami_listing_update_instance_type_changesets_add_new_multiple_instance_types():
+    offer_config: Dict[str, Any] = {
+        "instance_types": [
+            {"name": "c3.xlarge", "yearly": 123.44, "hourly": 0.12},
+            {"name": "c4.large", "yearly": 78.56, "hourly": 0.55},
+            {"name": "c5.large", "yearly": 100.78, "hourly": 1.28},
+        ],
+        "eula_document": [{"type": "StandardEula", "version": "2025-05-05"}],
+        "refund_policy": "refund_policy",
+    }
+    offer_detail = models.Offer(**offer_config)
+    res: List[types.ChangeSetType] = changesets.get_ami_listing_update_instance_type_changesets(
+        "test-id", "test-offer_id", offer_detail, "Hrs", ["c4.large", "c5.large"], []
+    )
+    details_document = [cast(Dict[str, Any], item["DetailsDocument"]) for item in res[:]]
+    assert (
+        details_document[-1]["InstanceTypes"] == ["c4.large", "c5.large"]
+        and details_document[0]["Terms"][0]["RateCards"][0]["RateCard"][1]
+        == {"DimensionKey": "c4.large", "Price": "0.55"}
+        and details_document[0]["Terms"][0]["RateCards"][0]["RateCard"][2]
+        == {"DimensionKey": "c5.large", "Price": "1.28"}
     )
 
 
@@ -429,15 +453,99 @@ def test_get_ami_listing_update_instance_type_changesets_add_new_instance_type_w
     }
     offer_detail = models.Offer(**offer_config)
     res: List[types.ChangeSetType] = changesets.get_ami_listing_update_instance_type_changesets(
-        "test-id", "test-offer_id", offer_detail, "Hrs", ["c4.large"]
+        "test-id", "test-offer_id", offer_detail, "Hrs", ["c4.large"], []
     )
-    details_document = [cast(Dict[str, Any], item["DetailsDocument"]) for item in res[1:]]
-    assert details_document[1]["Terms"][0]["RateCards"][0]["RateCard"][1] == {
+    details_document = [cast(Dict[str, Any], item["DetailsDocument"]) for item in res[:]]
+    assert details_document[0]["Terms"][0]["RateCards"][0]["RateCard"][1] == {
         "DimensionKey": "c4.large",
         "Price": "0.55",
-    } and details_document[1]["Terms"][1] == {
+    } and details_document[0]["Terms"][1] == {
         "Type": "RecurringPaymentTerm",
         "CurrencyCode": "USD",
         "BillingPeriod": "Monthly",
         "Price": "265.0",
     }
+
+
+def test_get_ami_listing_update_instance_type_changesets_restrict_instance_type():
+    offer_config: Dict[str, Any] = {
+        "instance_types": [
+            {"name": "c3.xlarge", "yearly": 123.44, "hourly": 0.12},
+        ],
+        "eula_document": [{"type": "StandardEula", "version": "2025-05-05"}],
+        "refund_policy": "refund_policy",
+    }
+    offer_detail = models.Offer(**offer_config)
+    res: List[types.ChangeSetType] = changesets.get_ami_listing_update_instance_type_changesets(
+        "test-id", "test-offer_id", offer_detail, "Hrs", [], ["c4.large"]
+    )
+    details_document = [cast(Any, item["DetailsDocument"]) for item in res[:]]
+
+    assert (
+        details_document[1]["InstanceTypes"] == ["c4.large"]
+        and details_document[2][0]["Key"] == "c4.large"
+        and details_document[0]["Terms"][0]["RateCards"][0]["RateCard"][0]
+        == {"DimensionKey": "c3.xlarge", "Price": "0.12"}
+    )
+
+
+def test_get_ami_listing_update_instance_type_changesets_restrict_multiple_instance_types():
+    offer_config: Dict[str, Any] = {
+        "instance_types": [
+            {"name": "c3.xlarge", "yearly": 123.44, "hourly": 0.12},
+        ],
+        "eula_document": [{"type": "StandardEula", "version": "2025-05-05"}],
+        "refund_policy": "refund_policy",
+    }
+    offer_detail = models.Offer(**offer_config)
+    res: List[types.ChangeSetType] = changesets.get_ami_listing_update_instance_type_changesets(
+        "test-id", "test-offer_id", offer_detail, "Hrs", [], ["c4.large", "c5.large"]
+    )
+    details_document = [cast(Any, item["DetailsDocument"]) for item in res[:]]
+
+    assert (
+        details_document[1]["InstanceTypes"] == ["c4.large", "c5.large"]
+        and details_document[2][0]["Key"] == "c4.large"
+        and details_document[2][1]["Key"] == "c5.large"
+        and details_document[0]["Terms"][0]["RateCards"][0]["RateCard"][0]
+        == {"DimensionKey": "c3.xlarge", "Price": "0.12"}
+    )
+
+
+def test_get_ami_listing_update_instance_type_changesets_restrict_and_add_instance_type():
+    offer_config: Dict[str, Any] = {
+        "instance_types": [
+            {"name": "c3.xlarge", "yearly": 123.44, "hourly": 0.12},
+            {"name": "c4.large", "yearly": 78.56, "hourly": 0.55},
+        ],
+        "eula_document": [{"type": "StandardEula", "version": "2025-05-05"}],
+        "refund_policy": "refund_policy",
+    }
+    offer_detail = models.Offer(**offer_config)
+    res: List[types.ChangeSetType] = changesets.get_ami_listing_update_instance_type_changesets(
+        "test-id", "test-offer_id", offer_detail, "Hrs", ["c4.large"], ["c1.medium"]
+    )
+    details_document = [cast(Any, item["DetailsDocument"]) for item in res[:]]
+    assert (
+        details_document[0]["Terms"][0]["RateCards"][0]["RateCard"][1] == {"DimensionKey": "c4.large", "Price": "0.55"}
+        and details_document[1][0]["Key"] == "c4.large"
+        and details_document[2]["InstanceTypes"] == ["c4.large"]
+        and details_document[3]["InstanceTypes"] == ["c1.medium"]
+        and details_document[4][0]["Key"] == "c1.medium"
+    )
+
+
+def test_get_ami_listing_update_instance_type_changesets_no_restrict_and_add_instance_type():
+    offer_config: Dict[str, Any] = {
+        "instance_types": [
+            {"name": "c3.xlarge", "yearly": 123.44, "hourly": 0.12},
+            {"name": "c4.large", "yearly": 78.56, "hourly": 0.55},
+        ],
+        "eula_document": [{"type": "StandardEula", "version": "2025-05-05"}],
+        "refund_policy": "refund_policy",
+    }
+    offer_detail = models.Offer(**offer_config)
+    res: List[types.ChangeSetType] = changesets.get_ami_listing_update_instance_type_changesets(
+        "test-id", "test-offer_id", offer_detail, "Hrs", [], []
+    )
+    assert res == []
