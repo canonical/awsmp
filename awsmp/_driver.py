@@ -63,9 +63,10 @@ class AmiProduct:
         all_instance_types = {instance_type.name for instance_type in offer_detail.instance_types}
         existing_instance_types = _get_existing_instance_types(self.product_id)
         new_instance_types = list(all_instance_types - existing_instance_types)
+        removed_instance_types = list(existing_instance_types - all_instance_types)
 
         changeset = changesets.get_ami_listing_update_instance_type_changesets(
-            self.product_id, self.offer_id, offer_detail, dimension_unit, new_instance_types
+            self.product_id, self.offer_id, offer_detail, dimension_unit, new_instance_types, removed_instance_types
         )
         changeset_name = f"Product {self.product_id} instance type update"
 
