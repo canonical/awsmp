@@ -548,4 +548,7 @@ def test_get_ami_listing_update_instance_type_changesets_no_restrict_and_add_ins
     res: List[types.ChangeSetType] = changesets.get_ami_listing_update_instance_type_changesets(
         "test-id", "test-offer_id", offer_detail, "Hrs", [], []
     )
-    assert res == []
+    assert (
+        res[0]["ChangeType"] == "UpdatePricingTerms"
+        and res[0]["DetailsDocument"]["Terms"][0]["RateCards"][0]["RateCard"][0]["Price"] == "0.12"  # type: ignore
+    )
