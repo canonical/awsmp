@@ -98,13 +98,35 @@ class AmiProduct:
 
         return get_response(changeset, changeset_name)
 
-    def update(self, configs: dict[str, Any]) -> ChangeSetReturnType:
+    def update(
+        self, configs: Dict[str, Any], dimension_unit: Literal["Hrs", "Units"], price_change_allowed: bool
+    ) -> Optional[ChangeSetReturnType]:
         """
-        Update AMI product details (Description, Region)
+        Update AMI product details (Description, Region, Instance type) and public offer pricing term
+        :prarm configs dict[str, Any]: Local configuration file
+        :param dimension_unit Literal["Hrs", "Units"]: Either hourly or units
+        :param bool price_change_allowed: Flag to indicate price change is allowed
+        :return: Response from the request
+        :rtype: ChangeSetReturnType
         """
         changeset = changesets.get_ami_listing_update_changesets(
             self.product_id, configs["product"]["description"], configs["product"]["region"]
         )
+        changeset_pricing, hourly_diff, annual_diff = self._get_instance_type_changeset_and_pricing_diff(
+            configs["offer"], dimension_unit
+        )
+
+        if hourly_diff or annual_diff:
+            if not price_change_allowed:
+                logger.error(
+                    "There are pricing changes but changing price flag is not set. Please check the pricing files or set the price flag.\nPrice change details:\nHourly: %s\nAnnual: %s\n"
+                    % (hourly_diff, annual_diff)
+                )
+                return None
+
+        if changeset_pricing is not None:
+            changeset.extend(changeset_pricing)
+
         changeset_name = f"Product {self.product_id} update product details"
 
         return get_response(changeset, changeset_name)
