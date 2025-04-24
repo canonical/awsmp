@@ -473,31 +473,28 @@ def get_ami_listing_update_instance_type_changesets(
     :rtype: List[ChangeSetType]
     """
 
-    if not new_instance_types and not removed_instance_types:
-        return []
-    else:
-        changeset_list = [
-            _changeset_update_pricing_terms(
-                offer_detail.instance_types,
-                monthly_subscription_fee=offer_detail.monthly_subscription_fee,
-                offer_id=offer_id,
-            )
-        ]
-        if new_instance_types:
-            changeset_list.extend(
-                [
-                    _changeset_update_ami_product_dimension(product_id, dimension_unit, new_instance_types),
-                    _changeset_update_ami_product_instance_type(product_id, new_instance_types),
-                ]
-            )
-        if removed_instance_types:
-            changeset_list.extend(
-                [
-                    _changeset_update_ami_product_restrict_instance_type(product_id, removed_instance_types),
-                    _changeset_update_ami_product_restrict_dimension(product_id, removed_instance_types),
-                ]
-            )
-        return changeset_list
+    changeset_list = [
+        _changeset_update_pricing_terms(
+            offer_detail.instance_types,
+            monthly_subscription_fee=offer_detail.monthly_subscription_fee,
+            offer_id=offer_id,
+        )
+    ]
+    if new_instance_types:
+        changeset_list.extend(
+            [
+                _changeset_update_ami_product_dimension(product_id, dimension_unit, new_instance_types),
+                _changeset_update_ami_product_instance_type(product_id, new_instance_types),
+            ]
+        )
+    if removed_instance_types:
+        changeset_list.extend(
+            [
+                _changeset_update_ami_product_restrict_instance_type(product_id, removed_instance_types),
+                _changeset_update_ami_product_restrict_dimension(product_id, removed_instance_types),
+            ]
+        )
+    return changeset_list
 
 
 def get_ami_listing_update_region_changesets(product_id: str, region_config: Dict) -> List[ChangeSetType]:

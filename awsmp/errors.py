@@ -81,3 +81,13 @@ class NoProductIdProvidedException(Exception):
 No product ids are provided. Please pass at least one product id for using this function.
 """
         super().__init__(message)
+
+
+class AmiPriceChangeError(Exception):
+    def __init__(self):
+        message = f"""
+
+
+Listing is published. Contact AWS Marketplace to change the pricing type.
+"""
+        super().__init__(message)

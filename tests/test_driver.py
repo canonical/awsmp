@@ -1,4 +1,5 @@
 import io
+from typing import List, cast
 from unittest.mock import patch
 
 import pytest
@@ -9,10 +10,12 @@ from pydantic import ValidationError
 from awsmp import _driver
 from awsmp.errors import (
     AccessDeniedException,
+    AmiPriceChangeError,
     MissingInstanceTypeError,
     ResourceNotFoundException,
     UnrecognizedClientException,
 )
+from awsmp.types import ChangeSetType
 
 
 class TestAmiProduct(object):
@@ -163,9 +166,38 @@ def test_ami_product_create_without_permission(mock_get_client):
 @patch("awsmp._driver.get_entity_details")
 def test_ami_product_update_instance_type(mock_get_details, mock_get_client):
     ap = _driver.AmiProduct(product_id="testing")
-    mock_get_details.return_value = {
-        "Dimensions": [{"Name": "c3.2xlarge"}, {"Name": "c3.4xlarge"}, {"Name": "c3.8xlarge"}]
-    }
+    mock_get_details.side_effect = [
+        {"Dimensions": [{"Name": "c3.2xlarge"}, {"Name": "c3.4xlarge"}, {"Name": "c3.8xlarge"}]},
+        {"Description": {"Visibility": "Limited"}},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.2xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.00"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.2xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.00"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
+    ]
     offer_config = {
         "instance_types": [
             {"name": "c3.2xlarge", "hourly": 0.00, "yearly": 0.00},
@@ -176,7 +208,11 @@ def test_ami_product_update_instance_type(mock_get_details, mock_get_client):
         "refund_policy": "refund_policy",
         "eula_document": [{"type": "StandardEula", "version": "2025-04-05"}],
     }
-    res = ap.update_instance_types(offer_config, "Hrs")
+
+    mock_get_client.return_value.list_entities.return_value = {
+        "EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]
+    }
+    res = ap.update_instance_types(offer_config, "Hrs", False)
 
     assert mock_get_client.return_value.start_change_set.call_count == 1
     assert mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][2][
@@ -198,6 +234,38 @@ def test_ami_product_update_instance_type(mock_get_details, mock_get_client):
 @patch("awsmp._driver.get_entity_details")
 def test_ami_product_update_instance_type_restrict_instance_type(mock_get_details, mock_get_client):
     ap = _driver.AmiProduct(product_id="testing")
+    mock_get_details.side_effect = [
+        {"Dimensions": [{"Name": "c3.2xlarge"}, {"Name": "c3.4xlarge"}, {"Name": "c3.8xlarge"}]},
+        {"Description": {"Visibility": "Limited"}},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.2xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.00"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.2xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.00"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
+    ]
     mock_get_details.return_value = {
         "Dimensions": [{"Name": "c3.2xlarge"}, {"Name": "c3.4xlarge"}, {"Name": "c3.8xlarge"}]
     }
@@ -209,7 +277,7 @@ def test_ami_product_update_instance_type_restrict_instance_type(mock_get_detail
         "refund_policy": "refund_policy",
         "eula_document": [{"type": "StandardEula", "version": "2025-04-05"}],
     }
-    res = ap.update_instance_types(offer_config, "Hrs")
+    res = ap.update_instance_types(offer_config, "Hrs", False)
 
     assert mock_get_client.return_value.start_change_set.call_count == 1
     assert mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][1][
@@ -224,9 +292,38 @@ def test_ami_product_update_instance_type_restrict_instance_type(mock_get_detail
 @patch("awsmp._driver.get_entity_details")
 def test_ami_product_update_instance_type_restrict_and_add_instance_type(mock_get_details, mock_get_client):
     ap = _driver.AmiProduct(product_id="testing")
-    mock_get_details.return_value = {
-        "Dimensions": [{"Name": "c3.2xlarge"}, {"Name": "c3.4xlarge"}, {"Name": "c3.8xlarge"}]
-    }
+    mock_get_details.side_effect = [
+        {"Dimensions": [{"Name": "c3.2xlarge"}, {"Name": "c3.4xlarge"}, {"Name": "c3.8xlarge"}]},
+        {"Description": {"Visibility": "Limited"}},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.2xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.00"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.2xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.00"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
+    ]
     offer_config = {
         "instance_types": [
             {"name": "c3.2xlarge", "hourly": 0.00, "yearly": 0.00},
@@ -236,7 +333,7 @@ def test_ami_product_update_instance_type_restrict_and_add_instance_type(mock_ge
         "refund_policy": "refund_policy",
         "eula_document": [{"type": "StandardEula", "version": "2025-04-05"}],
     }
-    res = ap.update_instance_types(offer_config, "Hrs")
+    res = ap.update_instance_types(offer_config, "Hrs", False)
 
     assert mock_get_client.return_value.start_change_set.call_count == 1
     assert (
@@ -254,6 +351,787 @@ def test_ami_product_update_instance_type_restrict_and_add_instance_type(mock_ge
     assert mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][4]["DetailsDocument"][
         0
     ] == {"Key": "c3.8xlarge", "Types": ["Metered"]}
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_entity_details")
+def test_ami_product_update_instance_type_pricing_update(mock_get_details, mock_get_client):
+    ap = _driver.AmiProduct(product_id="testing")
+    mock_get_details.side_effect = [
+        {"Dimensions": [{"Name": "c3.2xlarge"}, {"Name": "c3.4xlarge"}, {"Name": "c3.8xlarge"}]},
+        {"Description": {"Visibility": "Limited"}},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.2xlarge", "Price": "0.03"},
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.12"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.50"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.2xlarge", "Price": "12.00"},
+                                {"DimensionKey": "c3.4xlarge", "Price": "24.00"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "90.00"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
+    ]
+    offer_config = {
+        "instance_types": [
+            {"name": "c3.2xlarge", "hourly": 0.03, "yearly": 12.00},
+            {"name": "c3.4xlarge", "hourly": 0.12, "yearly": 24.00},
+            {"name": "c3.8xlarge", "hourly": 0.50, "yearly": 78.00},
+        ],
+        "refund_policy": "refund_policy",
+        "eula_document": [{"type": "StandardEula", "version": "2025-04-05"}],
+    }
+
+    mock_get_client.return_value.list_entities.return_value = {
+        "EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]
+    }
+    res = ap.update_instance_types(offer_config, "Hrs", False)
+    assert res == None
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_entity_details")
+def test_ami_product_update_instance_type_restrict_and_add_instance_type_pricing_update(
+    mock_get_details, mock_get_client
+):
+    ap = _driver.AmiProduct(product_id="testing")
+    mock_get_details.side_effect = [
+        {"Dimensions": [{"Name": "c3.2xlarge"}, {"Name": "c3.4xlarge"}, {"Name": "c3.8xlarge"}]},
+        {"Description": {"Visibility": "Limited"}},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.2xlarge", "Price": "0.03"},
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.12"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.50"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.2xlarge", "Price": "12.00"},
+                                {"DimensionKey": "c3.4xlarge", "Price": "24.00"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "90.00"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
+    ]
+    offer_config = {
+        "instance_types": [
+            {"name": "c3.2xlarge", "hourly": 0.03, "yearly": 12.00},
+            {"name": "c3.4xlarge", "hourly": 0.12, "yearly": 28.00},
+            {"name": "c1.medium", "hourly": 0.04, "yearly": 10.00},
+        ],
+        "refund_policy": "refund_policy",
+        "eula_document": [{"type": "StandardEula", "version": "2025-04-05"}],
+    }
+    res = ap.update_instance_types(offer_config, "Hrs", True)
+
+    assert mock_get_client.return_value.start_change_set.call_count == 1
+    assert (
+        mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][1]["DetailsDocument"][0][
+            "Key"
+        ]
+        == "c1.medium"
+    )
+    assert mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][2][
+        "DetailsDocument"
+    ] == {"InstanceTypes": ["c1.medium"]}
+    assert mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][3][
+        "DetailsDocument"
+    ] == {"InstanceTypes": ["c3.8xlarge"]}
+    assert mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][4]["DetailsDocument"][
+        0
+    ] == {"Key": "c3.8xlarge", "Types": ["Metered"]}
+    assert (
+        mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][0]["DetailsDocument"][
+            "Terms"
+        ][1]["RateCards"][0]["RateCard"][1]["Price"]
+        == "28.0"
+    )
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_entity_details")
+def test_ami_product_update_instance_type_pricing_update_exception(mock_get_details, mock_get_client):
+    ap = _driver.AmiProduct(product_id="testing")
+    mock_get_details.side_effect = [
+        {"Dimensions": [{"Name": "c3.2xlarge"}, {"Name": "c3.4xlarge"}, {"Name": "c3.8xlarge"}]},
+        {"Description": {"Visibility": "Limited"}},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.2xlarge", "Price": "0.03"},
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.12"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.50"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
+    ]
+    offer_config = {
+        "instance_types": [
+            {"name": "c3.2xlarge", "hourly": 0.03, "yearly": 12.00},
+            {"name": "c3.4xlarge", "hourly": 0.12, "yearly": 28.00},
+            {"name": "c3.8xlarge", "hourly": 0.50, "yearly": 75.00},
+        ],
+        "refund_policy": "refund_policy",
+        "eula_document": [{"type": "StandardEula", "version": "2025-04-05"}],
+    }
+    with pytest.raises(AmiPriceChangeError) as excInfo:
+        ap.update_instance_types(offer_config, "Hrs", True)
+    assert "Contact AWS Marketplace" in excInfo.value.args[0]
+
+
+@pytest.mark.parametrize(
+    "terms, expected_output",
+    [
+        (
+            [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "CurrencyCode": "USD",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.028"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.056"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "CurrencyCode": "USD",
+                    "RateCards": [
+                        {
+                            "Selector": {"Type": "Duration", "Value": "P365D"},
+                            "Constraints": {
+                                "MultipleDimensionSelection": "Allowed",
+                                "QuantityConfiguration": "Allowed",
+                            },
+                            "RateCard": [
+                                {"DimensionKey": "c3.4xlarge", "Price": "196.224"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "392.448"},
+                            ],
+                        }
+                    ],
+                },
+                {"Type": "LegalTerm", "Documents": [{"Type": "CustomEula", "Url": "https://aws.com"}]},
+                {"Type": "SupportTerm", "RefundPolicy": "No refunds.\n"},
+            ],
+            (
+                [{"DimensionKey": "c3.4xlarge", "Price": "0.028"}, {"DimensionKey": "c3.8xlarge", "Price": "0.056"}],
+                [
+                    {"DimensionKey": "c3.4xlarge", "Price": "196.224"},
+                    {"DimensionKey": "c3.8xlarge", "Price": "392.448"},
+                ],
+            ),
+        ),
+        (
+            [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "CurrencyCode": "USD",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.028"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.056"},
+                            ]
+                        }
+                    ],
+                },
+                {"Type": "LegalTerm", "Documents": [{"Type": "CustomEula", "Url": "https://aws.com"}]},
+                {"Type": "SupportTerm", "RefundPolicy": "No refunds.\n"},
+            ],
+            ([{"DimensionKey": "c3.4xlarge", "Price": "0.028"}, {"DimensionKey": "c3.8xlarge", "Price": "0.056"}], []),
+        ),
+        (
+            [
+                {"Type": "LegalTerm", "Documents": [{"Type": "CustomEula", "Url": "https://aws.com"}]},
+                {"Type": "SupportTerm", "RefundPolicy": "No refunds.\n"},
+            ],
+            ([], []),
+        ),
+    ],
+)
+def test_get_full_ratecard_info(terms, expected_output):
+    assert _driver._get_full_ratecard_info(terms) == expected_output
+
+
+@pytest.mark.parametrize(
+    "existing_prices, local_prices, expected_diffs",
+    [
+        ([], [], []),
+        (
+            [{"DimensionKey": "c3.4xlarge", "Price": "0.028"}, {"DimensionKey": "c3.8xlarge", "Price": "0.056"}],
+            [{"DimensionKey": "c3.4xlarge", "Price": "0.028"}, {"DimensionKey": "c3.8xlarge", "Price": "0.12"}],
+            [{"DimensionKey": "c3.8xlarge", "Original Price": "0.056", "New Price": "0.12"}],
+        ),
+        (
+            [{"DimensionKey": "c3.4xlarge", "Price": "0.028"}, {"DimensionKey": "c3.8xlarge", "Price": "0.056"}],
+            [{"DimensionKey": "c3.4xlarge", "Price": "0.028"}],
+            [],
+        ),
+        (
+            [{"DimensionKey": "c3.4xlarge", "Price": "0.028"}],
+            [{"DimensionKey": "c3.4xlarge", "Price": "0.028"}, {"DimensionKey": "c3.8xlarge", "Price": "0.056"}],
+            [],
+        ),
+        (
+            [{"DimensionKey": "c3.4xlarge", "Price": "0.028"}],
+            [{"DimensionKey": "c3.4xlarge", "Price": "0.012"}, {"DimensionKey": "c3.8xlarge", "Price": "0.056"}],
+            [{"DimensionKey": "c3.4xlarge", "Original Price": "0.028", "New Price": "0.012"}],
+        ),
+    ],
+)
+def test_build_pricing_diff(existing_prices, local_prices, expected_diffs):
+    assert _driver._build_pricing_diff(existing_prices, local_prices) == expected_diffs
+
+
+@pytest.mark.parametrize(
+    "visibility, terms, changeset, expected_output",
+    [
+        ("Draft", {"Terms": []}, [{"ChangeType": "UpdatePricingTerms", "DetailsDocument": {"Terms": []}}], ([], [])),
+        (
+            "Draft",
+            {"Terms": []},
+            [
+                {
+                    "ChangeType": "UpdatePricingTerms",
+                    "DetailsDocument": {
+                        "PricingModel": "Usage",
+                        "Terms": [
+                            {
+                                "Type": "UsageBasedPricingTerm",
+                                "CurrencyCode": "USD",
+                                "RateCards": [
+                                    {
+                                        "RateCard": [
+                                            {"DimensionKey": "c3.4xlarge", "Price": "0.028"},
+                                            {"DimensionKey": "c3.8xlarge", "Price": "0.056"},
+                                        ]
+                                    }
+                                ],
+                            },
+                            {
+                                "Type": "ConfigurableUpfrontPricingTerm",
+                                "CurrencyCode": "USD",
+                                "RateCards": [
+                                    {
+                                        "Selector": {"Type": "Duration", "Value": "P365D"},
+                                        "Constraints": {
+                                            "MultipleDimensionSelection": "Allowed",
+                                            "QuantityConfiguration": "Allowed",
+                                        },
+                                        "RateCard": [
+                                            {"DimensionKey": "c3.4xlarge", "Price": "196.224"},
+                                            {"DimensionKey": "c3.8xlarge", "Price": "392.448"},
+                                        ],
+                                    }
+                                ],
+                            },
+                        ],
+                    },
+                }
+            ],
+            ([], []),
+        ),
+        (
+            "Draft",
+            {
+                "Terms": [
+                    {
+                        "Type": "UsageBasedPricingTerm",
+                        "CurrencyCode": "USD",
+                        "RateCards": [
+                            {
+                                "RateCard": [
+                                    {"DimensionKey": "c3.4xlarge", "Price": "0.0"},
+                                    {"DimensionKey": "c3.8xlarge", "Price": "0.0"},
+                                ]
+                            }
+                        ],
+                    }
+                ]
+            },
+            [
+                {
+                    "ChangeType": "UpdatePricingTerms",
+                    "DetailsDocument": {
+                        "PricingModel": "Usage",
+                        "Terms": [
+                            {
+                                "Type": "UsageBasedPricingTerm",
+                                "CurrencyCode": "USD",
+                                "RateCards": [
+                                    {
+                                        "RateCard": [
+                                            {"DimensionKey": "c3.4xlarge", "Price": "0.028"},
+                                            {"DimensionKey": "c3.8xlarge", "Price": "0.056"},
+                                        ]
+                                    }
+                                ],
+                            },
+                        ],
+                    },
+                }
+            ],
+            (
+                [
+                    {"DimensionKey": "c3.4xlarge", "Original Price": "0.0", "New Price": "0.028"},
+                    {"DimensionKey": "c3.8xlarge", "Original Price": "0.0", "New Price": "0.056"},
+                ],
+                [],
+            ),
+        ),
+        (
+            "Draft",
+            {
+                "Terms": [
+                    {
+                        "Type": "UsageBasedPricingTerm",
+                        "CurrencyCode": "USD",
+                        "RateCards": [
+                            {
+                                "RateCard": [
+                                    {"DimensionKey": "c3.4xlarge", "Price": "0.0"},
+                                    {"DimensionKey": "c3.8xlarge", "Price": "0.0"},
+                                ]
+                            }
+                        ],
+                    }
+                ]
+            },
+            [
+                {
+                    "ChangeType": "UpdatePricingTerms",
+                    "DetailsDocument": {
+                        "Terms": [
+                            {
+                                "Type": "UsageBasedPricingTerm",
+                                "RateCards": [
+                                    {
+                                        "RateCard": [
+                                            {"DimensionKey": "c3.4xlarge", "Price": "0.028"},
+                                            {"DimensionKey": "c3.8xlarge", "Price": "0.056"},
+                                        ]
+                                    }
+                                ],
+                            },
+                        ],
+                    },
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "CurrencyCode": "USD",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.4xlarge", "Price": "196.224"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "392.448"},
+                            ]
+                        }
+                    ],
+                },
+            ],
+            (
+                [
+                    {"DimensionKey": "c3.4xlarge", "Original Price": "0.0", "New Price": "0.028"},
+                    {"DimensionKey": "c3.8xlarge", "Original Price": "0.0", "New Price": "0.056"},
+                ],
+                [],
+            ),
+        ),
+        (
+            "Limited",
+            {
+                "Terms": [
+                    {
+                        "Type": "UsageBasedPricingTerm",
+                        "CurrencyCode": "USD",
+                        "RateCards": [
+                            {
+                                "RateCard": [
+                                    {"DimensionKey": "c3.4xlarge", "Price": "0.028"},
+                                    {"DimensionKey": "c3.8xlarge", "Price": "0.030"},
+                                ]
+                            }
+                        ],
+                    }
+                ]
+            },
+            [
+                {
+                    "ChangeType": "UpdatePricingTerms",
+                    "DetailsDocument": {
+                        "Terms": [
+                            {
+                                "Type": "UsageBasedPricingTerm",
+                                "RateCards": [
+                                    {
+                                        "RateCard": [
+                                            {"DimensionKey": "c3.4xlarge", "Price": "0.028"},
+                                            {"DimensionKey": "c3.8xlarge", "Price": "0.056"},
+                                        ]
+                                    }
+                                ],
+                            },
+                        ],
+                    },
+                }
+            ],
+            (
+                [
+                    {"DimensionKey": "c3.8xlarge", "Original Price": "0.030", "New Price": "0.056"},
+                ],
+                [],
+            ),
+        ),
+        (
+            "Limited",
+            {
+                "Terms": [
+                    {
+                        "Type": "UsageBasedPricingTerm",
+                        "RateCards": [
+                            {
+                                "RateCard": [
+                                    {"DimensionKey": "c3.4xlarge", "Price": "0.012"},
+                                    {"DimensionKey": "c3.8xlarge", "Price": "0.030"},
+                                ]
+                            }
+                        ],
+                    },
+                    {
+                        "Type": "ConfigurableUpfrontPricingTerm",
+                        "RateCards": [
+                            {
+                                "RateCard": [
+                                    {"DimensionKey": "c3.4xlarge", "Price": "13.0"},
+                                    {"DimensionKey": "c3.8xlarge", "Price": "24.0"},
+                                ]
+                            }
+                        ],
+                    },
+                ]
+            },
+            [
+                {
+                    "ChangeType": "UpdatePricingTerms",
+                    "DetailsDocument": {
+                        "Terms": [
+                            {
+                                "Type": "UsageBasedPricingTerm",
+                                "RateCards": [
+                                    {
+                                        "RateCard": [
+                                            {"DimensionKey": "c3.4xlarge", "Price": "0.012"},
+                                            {"DimensionKey": "c3.8xlarge", "Price": "0.028"},
+                                        ]
+                                    }
+                                ],
+                            },
+                            {
+                                "Type": "ConfigurableUpfrontPricingTerm",
+                                "RateCards": [
+                                    {
+                                        "RateCard": [
+                                            {"DimensionKey": "c3.4xlarge", "Price": "13.0"},
+                                            {"DimensionKey": "c3.8xlarge", "Price": "56.00"},
+                                        ]
+                                    }
+                                ],
+                            },
+                        ],
+                    },
+                },
+            ],
+            (
+                [
+                    {"DimensionKey": "c3.8xlarge", "Original Price": "0.030", "New Price": "0.028"},
+                ],
+                [{"DimensionKey": "c3.8xlarge", "Original Price": "24.0", "New Price": "56.00"}],
+            ),
+        ),
+    ],
+)
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_entity_details")
+def test_get_pricing_diff(mock_get_entity_details, mock_get_client, visibility, terms, changeset, expected_output):
+    mock_get_entity_details.side_effect = [{"Description": {"Visibility": visibility}}, terms]
+    mock_get_client.return_value.list_entities.return_value = {
+        "EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]
+    }
+    assert _driver._get_pricing_diff("prod-id", changeset) == expected_output
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_entity_details")
+def test_get_pricing_diff_exception(mock_get_entity_details, mock_get_client):
+    mock_get_entity_details.side_effect = [
+        {"Description": {"Visibility": "Limited"}},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.028"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.056"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
+    ]
+    mock_get_client.return_value.list_entities.return_value = {
+        "EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]
+    }
+    changeset = cast(
+        List[ChangeSetType],
+        [
+            {
+                "ChangeType": "UpdatePricingTerms",
+                "Entity": {"Type": "Offer@1.0", "Identifier": "test-offer"},
+                "DetailsDocument": {
+                    "PricingModel": "Usage",
+                    "Terms": [
+                        {
+                            "Type": "UsageBasedPricingTerm",
+                            "CurrencyCode": "USD",
+                            "RateCards": [
+                                {
+                                    "RateCard": [
+                                        {"DimensionKey": "c3.4xlarge", "Price": "0.028"},
+                                        {"DimensionKey": "c3.8xlarge", "Price": "0.056"},
+                                    ]
+                                }
+                            ],
+                        },
+                        {
+                            "Type": "ConfigurableUpfrontPricingTerm",
+                            "CurrencyCode": "USD",
+                            "RateCards": [
+                                {
+                                    "Selector": {"Type": "Duration", "Value": "P365D"},
+                                    "Constraints": {
+                                        "MultipleDimensionSelection": "Allowed",
+                                        "QuantityConfiguration": "Allowed",
+                                    },
+                                    "RateCard": [
+                                        {"DimensionKey": "c3.4xlarge", "Price": "196.224"},
+                                        {"DimensionKey": "c3.8xlarge", "Price": "392.448"},
+                                    ],
+                                }
+                            ],
+                        },
+                    ],
+                },
+            }
+        ],
+    )
+    with pytest.raises(AmiPriceChangeError) as excInfo:
+        _driver._get_pricing_diff("prod-id", changeset)
+    assert "Contact AWS Marketplace" in excInfo.value.args[0]
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_entity_details")
+def test_get_pricing_diff_exception_no_yearly(mock_get_entity_details, mock_get_client):
+    mock_get_entity_details.side_effect = [
+        {"Description": {"Visibility": "Limited"}},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.028"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.056"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "CurrencyCode": "USD",
+                    "RateCards": [
+                        {
+                            "Selector": {"Type": "Duration", "Value": "P365D"},
+                            "Constraints": {
+                                "MultipleDimensionSelection": "Allowed",
+                                "QuantityConfiguration": "Allowed",
+                            },
+                            "RateCard": [
+                                {"DimensionKey": "c3.4xlarge", "Price": "196.224"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "392.448"},
+                            ],
+                        }
+                    ],
+                },
+            ]
+        },
+    ]
+    mock_get_client.return_value.list_entities.return_value = {
+        "EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]
+    }
+    changeset = cast(
+        List[ChangeSetType],
+        [
+            {
+                "ChangeType": "UpdatePricingTerms",
+                "Entity": {"Type": "Offer@1.0", "Identifier": "test-offer"},
+                "DetailsDocument": {
+                    "PricingModel": "Usage",
+                    "Terms": [
+                        {
+                            "Type": "UsageBasedPricingTerm",
+                            "CurrencyCode": "USD",
+                            "RateCards": [
+                                {
+                                    "RateCard": [
+                                        {"DimensionKey": "c3.4xlarge", "Price": "0.028"},
+                                        {"DimensionKey": "c3.8xlarge", "Price": "0.056"},
+                                    ]
+                                }
+                            ],
+                        },
+                    ],
+                },
+            }
+        ],
+    )
+    with pytest.raises(AmiPriceChangeError) as excInfo:
+        _driver._get_pricing_diff("prod-id", changeset)
+    assert "Contact AWS Marketplace" in excInfo.value.args[0]
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_entity_details")
+def test_get_pricing_diff_exception_free_to_paid(mock_get_entity_details, mock_get_client):
+    mock_get_entity_details.side_effect = [
+        {"Description": {"Visibility": "Public"}},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.0"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.0"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "CurrencyCode": "USD",
+                    "RateCards": [
+                        {
+                            "Selector": {"Type": "Duration", "Value": "P365D"},
+                            "Constraints": {
+                                "MultipleDimensionSelection": "Allowed",
+                                "QuantityConfiguration": "Allowed",
+                            },
+                            "RateCard": [
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.0"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.0"},
+                            ],
+                        }
+                    ],
+                },
+            ]
+        },
+    ]
+    mock_get_client.return_value.list_entities.return_value = {
+        "EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]
+    }
+    changeset = cast(
+        List[ChangeSetType],
+        [
+            {
+                "ChangeType": "UpdatePricingTerms",
+                "Entity": {"Type": "Offer@1.0", "Identifier": "test-offer"},
+                "DetailsDocument": {
+                    "PricingModel": "Usage",
+                    "Terms": [
+                        {
+                            "Type": "UsageBasedPricingTerm",
+                            "CurrencyCode": "USD",
+                            "RateCards": [
+                                {
+                                    "RateCard": [
+                                        {"DimensionKey": "c3.4xlarge", "Price": "0.028"},
+                                        {"DimensionKey": "c3.8xlarge", "Price": "0.056"},
+                                    ]
+                                }
+                            ],
+                        },
+                        {
+                            "Type": "ConfigurableUpfrontPricingTerm",
+                            "CurrencyCode": "USD",
+                            "RateCards": [
+                                {
+                                    "Selector": {"Type": "Duration", "Value": "P365D"},
+                                    "Constraints": {
+                                        "MultipleDimensionSelection": "Allowed",
+                                        "QuantityConfiguration": "Allowed",
+                                    },
+                                    "RateCard": [
+                                        {"DimensionKey": "c3.4xlarge", "Price": "196.224"},
+                                        {"DimensionKey": "c3.8xlarge", "Price": "392.448"},
+                                    ],
+                                }
+                            ],
+                        },
+                    ],
+                },
+            }
+        ],
+    )
+    with pytest.raises(AmiPriceChangeError) as excInfo:
+        _driver._get_pricing_diff("prod-id", changeset)
+    assert "Contact AWS Marketplace" in excInfo.value.args[0]
 
 
 @pytest.mark.parametrize(

@@ -1,6 +1,6 @@
 import csv
 import logging
-from typing import IO, Any, Dict, List, Literal, Optional
+from typing import IO, Any, Dict, List, Literal, Optional, Tuple, cast
 
 import boto3
 from botocore.exceptions import ClientError
@@ -8,6 +8,7 @@ from botocore.exceptions import ClientError
 from . import changesets, models
 from .errors import (
     AccessDeniedException,
+    AmiPriceChangeError,
     MissingInstanceTypeError,
     ResourceNotFoundException,
     UnrecognizedClientException,
@@ -49,26 +50,45 @@ class AmiProduct:
         return get_response(changeset, changeset_name)
 
     def update_instance_types(
-        self, offer_config: Dict[str, Any], dimension_unit: Literal["Hrs", "Units"]
-    ) -> ChangeSetReturnType:
+        self, offer_config: Dict[str, Any], dimension_unit: Literal["Hrs", "Units"], price_change_allowed: bool
+    ) -> Optional[ChangeSetReturnType]:
         """
         Update instance types and pricing term based on the offer config
         :param Dict[str, Any] offer_config: offer configuration loaded from yaml file
         :param Literal["Hrs", "Units"] dimension_unit: Either hourly or units
-        :return: Changeset for updating instance API request
-        :rtype: ChangeSetReturnType
+        :param bool price_change_allowed: flag to indicate price change is allowed
+        :return: Changeset for updating instance API request or None
+        :rtype: ChangeSetReturnType or None
         """
         offer_detail = models.Offer(**offer_config)
 
-        all_instance_types = {instance_type.name for instance_type in offer_detail.instance_types}
+        local_instance_types = {instance_type.name for instance_type in offer_detail.instance_types}
         existing_instance_types = _get_existing_instance_types(self.product_id)
-        new_instance_types = list(all_instance_types - existing_instance_types)
-        removed_instance_types = list(existing_instance_types - all_instance_types)
+        new_instance_types = list(local_instance_types - existing_instance_types)
+        removed_instance_types = list(existing_instance_types - local_instance_types)
 
         changeset = changesets.get_ami_listing_update_instance_type_changesets(
             self.product_id, self.offer_id, offer_detail, dimension_unit, new_instance_types, removed_instance_types
         )
+
+        # Checking pricing diff
+        hourly_diff, annual_diff = _get_pricing_diff(self.product_id, changeset)
         changeset_name = f"Product {self.product_id} instance type update"
+
+        if hourly_diff or annual_diff:
+            if not price_change_allowed:
+                logger.error(
+                    "There are pricing changes but changing price flag is not set. Please check the pricing files or set the price flag.\n"
+                    "Price change details:\n"
+                    f"Hourly: {hourly_diff}\nAnnual: {annual_diff}\n"
+                )
+                return None
+            return get_response(changeset, changeset_name)
+
+        if not new_instance_types and not removed_instance_types:
+            # There are nothing to update
+            logger.info("There is no instance information details to update.")
+            return None
 
         return get_response(changeset, changeset_name)
 
@@ -206,6 +226,84 @@ def get_entity_versions(entity_id: str) -> List[dict[str, str]]:
 def _get_ratecard_info(changeset: Dict, idx: int, instance_types: List[str]) -> List[Dict]:
     ratecard = changeset[3]["DetailsDocument"]["Terms"][idx]["RateCards"][0]["RateCard"]
     return [r for r in ratecard if r["DimensionKey"] in instance_types]
+
+
+def _get_full_ratecard_info(terms: List) -> Tuple[List, List]:
+    """
+    Get the full ratecard information from Terms
+    :param List terms: Terms details from the entity or changeset details
+    :return two lists of hourly or/and annual rate cards
+    :rtype: Tuple[List, List]
+    """
+    hourly, annual = [], []
+    for term in terms:
+        if term["Type"] == "UsageBasedPricingTerm":
+            hourly = term["RateCards"][0]["RateCard"]
+        elif term["Type"] == "ConfigurableUpfrontPricingTerm":
+            annual = term["RateCards"][0]["RateCard"]
+
+    return hourly, annual
+
+
+def _build_pricing_diff(existing_prices: List, local_prices: List) -> List:
+    """
+    Compare prices of each instance types and return difference details
+    :param List existing_prices: price information from existing/live listing
+    :param List local_prices: price information from local configuration file
+    :return: List of different pricing information for an instance type
+    :rtype: List
+    """
+    original_pricing, local_pricing = {}, {}
+    if existing_prices:
+        original_pricing = {price["DimensionKey"]: price["Price"] for price in existing_prices}
+    if local_prices:
+        local_pricing = {price["DimensionKey"]: price["Price"] for price in local_prices}
+
+    diffs = []
+    for key in original_pricing:
+        if key in local_pricing and float(original_pricing[key]) != float(local_pricing[key]):
+            diffs.append(
+                {"DimensionKey": key, "Original Price": original_pricing[key], "New Price": local_pricing[key]}
+            )
+
+    return diffs
+
+
+def _get_pricing_diff(product_id: str, changeset: List[ChangeSetType]) -> Tuple[List, List]:
+    """
+    Check if there are differences between the given changeset from the local configuration and the existing listing pricing terms
+    :param str product_id: product id of existing/live listing
+    :param List[ChangeSetType] chageset: changeset from local configuration file
+    :return: Hourly and Anuual pricing diff details
+    :rtype: Tuple[List, List]
+    """
+    change = cast(dict[str, Any], changeset[0])
+    local_pricing_changesets = change["DetailsDocument"]["Terms"]
+    local_hourly, local_annual = _get_full_ratecard_info(local_pricing_changesets)
+
+    # existing pricing information from the listing
+    existing_listing_status = get_entity_details(product_id)["Description"]["Visibility"]
+    existing_terms = get_entity_details(get_public_offer_id(product_id))["Terms"]
+    existing_hourly, existing_annual = _get_full_ratecard_info(existing_terms)
+
+    diffs_hourly = _build_pricing_diff(existing_hourly, local_hourly)
+    diffs_annual = _build_pricing_diff(existing_annual, local_annual)
+
+    if existing_listing_status != "Draft":
+        # Only staging listings are able to change pricing type
+        # e.g. hourly -> hourly + annual, hourly + annual -> hourly
+        pricing_type = (local_annual and not existing_annual) or (existing_annual and not local_annual)
+
+        def all_zero_to_paid(diffs):
+            # check if pricing request from free (0.0) to non-zero prices
+            return bool(diffs) and all(
+                float(item["Original Price"]) == 0.0 and float(item["New Price"]) != 0.0 for item in diffs
+            )
+
+        if pricing_type or all_zero_to_paid(diffs_hourly) or all_zero_to_paid(diffs_annual):
+            raise AmiPriceChangeError
+
+    return diffs_hourly, diffs_annual
 
 
 def _get_existing_instance_types(product_id: str):

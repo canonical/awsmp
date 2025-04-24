@@ -289,7 +289,6 @@ def test_entity_get_diff_pricing_terms(
 
     runner = CliRunner()
     result = runner.invoke(cli.entity_get_diff, ["temp-list", config_name])
-    print(result.output)
     assert result.output.strip() == json.dumps(expected_diff, indent=2).strip()
 
 
@@ -311,3 +310,336 @@ def test_public_offer_product_update_details(mock_boto3, mock_get_client):
     ] and ["test_highlight_1"] == mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][0]["DetailsDocument"][
         "Highlights"
     ]
+
+
+@patch("awsmp._driver.changesets.models.boto3")
+@patch("awsmp._driver.get_entity_details")
+@patch("awsmp._driver.get_client")
+def test_public_offer_product_update_instance_type(mock_get_client, mock_get_details, mock_boto3):
+    mock_boto3.client.return_value.describe_regions.return_value = {
+        "Regions": [
+            {"Endpoint": "ec2.us-east-1.amazonaws.com", "RegionName": "us-east-1", "OptInStatus": "opted-in"},
+            {"Endpoint": "ec2.us-east-2.amazonaws.com", "RegionName": "us-east-2", "OptInStatus": "opted-in"},
+        ]
+    }
+
+    mock_get_details.side_effect = [
+        {"Dimensions": [{"Name": "a1.large"}]},
+        {"Description": {"Visibility": "Limited"}},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "0.004"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "24.528"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
+    ]
+
+    mock_get_client.return_value.list_entities.side_effect = [
+        {"EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]},
+        {"EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]},
+    ]
+
+    runner = CliRunner()
+    runner.invoke(
+        cli.ami_product_update_instance_type,
+        [
+            "--product-id",
+            "some-prod-id",
+            "--config",
+            "./tests/test_config.yaml",
+            "--dimension-unit",
+            "Hrs",
+            "--price-change-allowed",
+            "N",
+        ],
+    )
+    mock_start_change_set = mock_get_client.return_value.start_change_set
+    assert (
+        mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][0]["DetailsDocument"]["Terms"][1]["RateCards"][0][
+            "RateCard"
+        ][1]["Price"]
+        == "49.056"
+    ) and mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][1]["DetailsDocument"][0]["Key"] == "a1.xlarge"
+
+
+@patch("awsmp._driver.changesets.models.boto3")
+@patch("awsmp._driver.get_entity_details")
+@patch("awsmp._driver.get_client")
+def test_public_offer_product_update_instance_type_restrict_instance_type(
+    mock_get_client, mock_get_details, mock_boto3
+):
+    mock_boto3.client.return_value.describe_regions.return_value = {
+        "Regions": [
+            {"Endpoint": "ec2.us-east-1.amazonaws.com", "RegionName": "us-east-1", "OptInStatus": "opted-in"},
+            {"Endpoint": "ec2.us-east-2.amazonaws.com", "RegionName": "us-east-2", "OptInStatus": "opted-in"},
+        ]
+    }
+
+    mock_get_details.side_effect = [
+        {"Dimensions": [{"Name": "a1.large"}, {"Name": "a1.xlarge"}, {"Name": "t1.micro"}]},
+        {"Description": {"Visibility": "Limited"}},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "0.004"},
+                                {"DimensionKey": "a1.xlarge", "Price": "0.007"},
+                                {"DimensionKey": "t1.micro", "Price": "0.001"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "24.528"},
+                                {"DimensionKey": "a1.xlarge", "Price": "49.056"},
+                                {"DimensionKey": "t1.micro", "Price": "0.4"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
+    ]
+
+    mock_get_client.return_value.list_entities.side_effect = [
+        {"EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]},
+        {"EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]},
+    ]
+
+    runner = CliRunner()
+    runner.invoke(
+        cli.ami_product_update_instance_type,
+        [
+            "--product-id",
+            "some-prod-id",
+            "--config",
+            "./tests/test_config.yaml",
+            "--dimension-unit",
+            "Hrs",
+            "--price-change-allowed",
+            "N",
+        ],
+    )
+    mock_start_change_set = mock_get_client.return_value.start_change_set
+    assert (
+        mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][0]["DetailsDocument"]["Terms"][1]["RateCards"][0][
+            "RateCard"
+        ][1]["Price"]
+        == "49.056"
+    ) and mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][2]["DetailsDocument"][0]["Key"] == "t1.micro"
+
+
+@patch("awsmp._driver.changesets.models.boto3")
+@patch("awsmp._driver.get_entity_details")
+@patch("awsmp._driver.get_client")
+def test_public_offer_product_update_instance_type_pricing_change(mock_get_client, mock_get_details, mock_boto3):
+    mock_boto3.client.return_value.describe_regions.return_value = {
+        "Regions": [
+            {"Endpoint": "ec2.us-east-1.amazonaws.com", "RegionName": "us-east-1", "OptInStatus": "opted-in"},
+            {"Endpoint": "ec2.us-east-2.amazonaws.com", "RegionName": "us-east-2", "OptInStatus": "opted-in"},
+        ]
+    }
+
+    mock_get_details.side_effect = [
+        {"Dimensions": [{"Name": "a1.large"}, {"Name": "a1.xlarge"}]},
+        {"Description": {"Visibility": "Limited"}},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "0.004"},
+                                {"DimensionKey": "a1.xlarge", "Price": "0.007"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "24.528"},
+                                {"DimensionKey": "a1.xlarge", "Price": "30.056"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
+    ]
+
+    mock_get_client.return_value.list_entities.side_effect = [
+        {"EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]},
+        {"EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]},
+    ]
+
+    runner = CliRunner()
+    runner.invoke(
+        cli.ami_product_update_instance_type,
+        [
+            "--product-id",
+            "some-prod-id",
+            "--config",
+            "./tests/test_config.yaml",
+            "--dimension-unit",
+            "Hrs",
+            "--price-change-allowed",
+            "y",
+        ],
+    )
+    mock_start_change_set = mock_get_client.return_value.start_change_set
+    assert (
+        mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][0]["DetailsDocument"]["Terms"][1]["RateCards"][0][
+            "RateCard"
+        ][1]["Price"]
+        == "49.056"
+    )
+
+
+@patch("awsmp._driver.changesets.models.boto3")
+@patch("awsmp._driver.get_entity_details")
+@patch("awsmp._driver.get_client")
+def test_public_offer_product_update_instance_type_pricing_change_not_allowed(
+    mock_get_client, mock_get_details, mock_boto3
+):
+    mock_boto3.client.return_value.describe_regions.return_value = {
+        "Regions": [
+            {"Endpoint": "ec2.us-east-1.amazonaws.com", "RegionName": "us-east-1", "OptInStatus": "opted-in"},
+            {"Endpoint": "ec2.us-east-2.amazonaws.com", "RegionName": "us-east-2", "OptInStatus": "opted-in"},
+        ]
+    }
+
+    mock_get_details.side_effect = [
+        {"Dimensions": [{"Name": "a1.large"}, {"Name": "a1.xlarge"}]},
+        {"Description": {"Visibility": "Limited"}},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "0.004"},
+                                {"DimensionKey": "a1.xlarge", "Price": "0.007"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "24.528"},
+                                {"DimensionKey": "a1.xlarge", "Price": "30.056"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
+    ]
+
+    mock_get_client.return_value.list_entities.side_effect = [
+        {"EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]},
+        {"EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]},
+    ]
+
+    runner = CliRunner()
+    res = runner.invoke(
+        cli.ami_product_update_instance_type,
+        [
+            "--product-id",
+            "some-prod-id",
+            "--config",
+            "./tests/test_config.yaml",
+            "--dimension-unit",
+            "Hrs",
+            "--price-change-allowed",
+            "N",
+        ],
+    )
+    assert res.return_value == None
+
+
+@patch("awsmp._driver.changesets.models.boto3")
+@patch("awsmp._driver.get_entity_details")
+@patch("awsmp._driver.get_client")
+def test_public_offer_product_update_instance_type_pricing_change_exception(
+    mock_get_client, mock_get_details, mock_boto3
+):
+    mock_boto3.client.return_value.describe_regions.return_value = {
+        "Regions": [
+            {"Endpoint": "ec2.us-east-1.amazonaws.com", "RegionName": "us-east-1", "OptInStatus": "opted-in"},
+            {"Endpoint": "ec2.us-east-2.amazonaws.com", "RegionName": "us-east-2", "OptInStatus": "opted-in"},
+        ]
+    }
+
+    mock_get_details.side_effect = [
+        {"Dimensions": [{"Name": "a1.large"}, {"Name": "a1.xlarge"}]},
+        {"Description": {"Visibility": "Limited"}},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "0.004"},
+                                {"DimensionKey": "a1.xlarge", "Price": "0.007"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
+    ]
+
+    mock_get_client.return_value.list_entities.side_effect = [
+        {"EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]},
+        {"EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]},
+    ]
+
+    runner = CliRunner()
+    res = runner.invoke(
+        cli.ami_product_update_instance_type,
+        [
+            "--product-id",
+            "some-prod-id",
+            "--config",
+            "./tests/test_config.yaml",
+            "--dimension-unit",
+            "Hrs",
+            "--price-change-allowed",
+            "N",
+        ],
+    )
+    assert res.exit_code == 1 and res.exc_info is not None and "Contact AWS" in res.exc_info[1].args[0]
