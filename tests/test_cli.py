@@ -670,8 +670,6 @@ def test_public_offer_product_update_instance_type(mock_get_client, mock_get_det
             "./tests/test_config.yaml",
             "--dimension-unit",
             "Hrs",
-            "--price-change-allowed",
-            "N",
         ],
     )
     mock_start_change_set = mock_get_client.return_value.start_change_set
@@ -744,8 +742,6 @@ def test_public_offer_product_update_instance_type_restrict_instance_type(
             "./tests/test_config.yaml",
             "--dimension-unit",
             "Hrs",
-            "--price-change-allowed",
-            "N",
         ],
     )
     mock_start_change_set = mock_get_client.return_value.start_change_set
@@ -814,8 +810,7 @@ def test_public_offer_product_update_instance_type_pricing_change(mock_get_clien
             "./tests/test_config.yaml",
             "--dimension-unit",
             "Hrs",
-            "--price-change-allowed",
-            "y",
+            "--allow-price-change",
         ],
     )
     mock_start_change_set = mock_get_client.return_value.start_change_set
@@ -886,8 +881,6 @@ def test_public_offer_product_update_instance_type_pricing_change_not_allowed(
             "./tests/test_config.yaml",
             "--dimension-unit",
             "Hrs",
-            "--price-change-allowed",
-            "N",
         ],
     )
     assert res.return_value == None
@@ -941,8 +934,6 @@ def test_public_offer_product_update_instance_type_pricing_change_exception(
             "./tests/test_config.yaml",
             "--dimension-unit",
             "Hrs",
-            "--price-change-allowed",
-            "N",
         ],
     )
     assert res.exit_code == 1 and res.exc_info is not None and "Contact AWS" in res.exc_info[1].args[0]
