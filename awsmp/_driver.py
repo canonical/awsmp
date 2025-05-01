@@ -60,20 +60,14 @@ class AmiProduct:
         :return: Changeset for updating instance API request or None
         :rtype: ChangeSetReturnType or None
         """
-        offer_detail = models.Offer(**offer_config)
 
-        local_instance_types = {instance_type.name for instance_type in offer_detail.instance_types}
-        existing_instance_types = _get_existing_instance_types(self.product_id)
-        new_instance_types = list(local_instance_types - existing_instance_types)
-        removed_instance_types = list(existing_instance_types - local_instance_types)
-
-        changeset = changesets.get_ami_listing_update_instance_type_changesets(
-            self.product_id, self.offer_id, offer_detail, dimension_unit, new_instance_types, removed_instance_types
+        changeset, hourly_diff, annual_diff = self._get_instance_type_changeset_and_pricing_diff(
+            offer_config, dimension_unit
         )
-
-        # Checking pricing diff
-        hourly_diff, annual_diff = _get_pricing_diff(self.product_id, changeset)
         changeset_name = f"Product {self.product_id} instance type update"
+
+        if changeset is None:
+            return None
 
         if hourly_diff or annual_diff:
             if not price_change_allowed:
@@ -83,12 +77,6 @@ class AmiProduct:
                     f"Hourly: {hourly_diff}\nAnnual: {annual_diff}\n"
                 )
                 return None
-            return get_response(changeset, changeset_name)
-
-        if not new_instance_types and not removed_instance_types:
-            # There are nothing to update
-            logger.info("There is no instance information details to update.")
-            return None
 
         return get_response(changeset, changeset_name)
 
@@ -110,19 +98,72 @@ class AmiProduct:
 
         return get_response(changeset, changeset_name)
 
-    def update(self, configs: dict[str, Any]) -> ChangeSetReturnType:
+    def update(
+        self, configs: Dict[str, Any], dimension_unit: Literal["Hrs", "Units"], price_change_allowed: bool
+    ) -> Optional[ChangeSetReturnType]:
         """
-        Update AMI product details (Description, Region)
+        Update AMI product details (Description, Region, Instance type) and public offer pricing term
+        :prarm configs dict[str, Any]: Local configuration file
+        :param dimension_unit Literal["Hrs", "Units"]: Either hourly or units
+        :param bool price_change_allowed: Flag to indicate price change is allowed
+        :return: Response from the request
+        :rtype: ChangeSetReturnType
         """
         changeset = changesets.get_ami_listing_update_changesets(
             self.product_id, configs["product"]["description"], configs["product"]["region"]
         )
+        changeset_pricing, hourly_diff, annual_diff = self._get_instance_type_changeset_and_pricing_diff(
+            configs["offer"], dimension_unit
+        )
+
+        if hourly_diff or annual_diff:
+            if not price_change_allowed:
+                logger.error(
+                    "There are pricing changes but changing price flag is not set. Please check the pricing files or set the price flag.\nPrice change details:\nHourly: %s\nAnnual: %s\n"
+                    % (hourly_diff, annual_diff)
+                )
+                return None
+
+        if changeset_pricing is not None:
+            changeset.extend(changeset_pricing)
+
         changeset_name = f"Product {self.product_id} update product details"
 
         return get_response(changeset, changeset_name)
 
     def _get_product_title(self):
         return get_entity_details(self.product_id)["Description"]["ProductTitle"]
+
+    def _get_instance_type_changeset_and_pricing_diff(
+        self, offer_config: Dict[str, Any], dimension_unit: Literal["Hrs", "Units"]
+    ) -> Tuple[Optional[List[ChangeSetType]], List, List]:
+        """
+        Get the instance type and pricing term changeset and pricing diffs
+        :param offer_config Dict[str, Any]: offer configuration loaded from yaml file
+        :param dimension_unit Literal["Hrs", "Units"]: Either hourly or units
+        :return: Set of changesets, hourly pricing differences and annual pricing differences
+        :rtype: Tuple[Optional[List[ChangeSetType]], List, List]
+        """
+        offer_detail = models.Offer(**offer_config)
+
+        local_instance_types = {instance_type.name for instance_type in offer_detail.instance_types}
+        existing_instance_types = _get_existing_instance_types(self.product_id)
+        new_instance_types = list(local_instance_types - existing_instance_types)
+        removed_instance_types = list(existing_instance_types - local_instance_types)
+
+        changeset = changesets.get_ami_listing_update_instance_type_changesets(
+            self.product_id, self.offer_id, offer_detail, dimension_unit, new_instance_types, removed_instance_types
+        )
+
+        hourly_diff, annual_diff = _get_pricing_diff(self.product_id, changeset)
+
+        if not hourly_diff and not annual_diff:
+            if not new_instance_types and not removed_instance_types:
+                # There are nothing to update
+                logger.info("There is no instance information details to update.")
+                return None, [], []
+
+        return changeset, hourly_diff, annual_diff
 
 
 def get_client(service_name="marketplace-catalog", region_name="us-east-1"):

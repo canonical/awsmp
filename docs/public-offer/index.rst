@@ -60,10 +60,10 @@ To add/edit the product description, run:
 If a field value does not match the required format, it will show up as an error.
 
 
-Update/Add instance type
-------------------------
+Update instance types and pricing
+---------------------------------
 
-To update/add an instance type, you need to add offer field containing offer information of the listing. The sample config is described below.
+To update instance types and pricing, you need to add offer field containing offer information of the listing. The sample config is described below.
 
 #. For hourly pricing AMI Product:
 
@@ -113,12 +113,15 @@ Once offer field is ready, run the command:
 
          awsmp public-offer update-instance-type \
             --product-id prod-xwpv7txqxg55e \
-            --instance-type-file listing_configuration.yaml \
-            --dimension-unit Hrs
+            --config listing_configuration.yaml \
+            --dimension-unit Hrs \
+            --allow-price-change
 
 
 Different billing unit types are possible, but the currently supported types are ``Hrs`` and ``Units``.
 
+The CLI retrieves the added and removed instance types from the configuration by comparing it with the existing listing, then sends the appropriate add/restrict instance type requests.
+It also compares the pricing before sending a request to avoid unnecessary price changes (increases or decreases) in the listing. To update the price, pass the `--price_change-allowed` flag.
 
 Update/Add region
 -----------------
@@ -232,7 +235,7 @@ To publish drafted AMI listing to :guilabel:`Limited` state, product ID and publ
 Update AMI product listing details
 ----------------------------------
 
-To update AMI product listing with multiple requests for product details (Description and Region Availability), run the command below, passing the product ID and product configuration file:
+To update AMI product listing with multiple requests for product details (Description, Region Availability, Instance types and Pricing information), run the command below, passing the product ID and product configuration file:
 
 .. code-block:: sh
 
