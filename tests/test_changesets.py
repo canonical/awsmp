@@ -405,7 +405,7 @@ def test_get_ami_listing_update_instance_type_changesets_add_new_instance_type()
     }
     offer_detail = models.Offer(**offer_config)
     res: List[types.ChangeSetType] = changesets.get_ami_listing_update_instance_type_changesets(
-        "test-id", "test-offer_id", offer_detail, "Hrs", ["c4.large"], []
+        "test-id", "test-offer_id", offer_detail, ["c4.large"], []
     )
     details_document = [cast(Dict[str, Any], item["DetailsDocument"]) for item in res[:]]
     assert (
@@ -429,7 +429,7 @@ def test_get_ami_listing_update_instance_type_changesets_add_new_multiple_instan
     }
     offer_detail = models.Offer(**offer_config)
     res: List[types.ChangeSetType] = changesets.get_ami_listing_update_instance_type_changesets(
-        "test-id", "test-offer_id", offer_detail, "Hrs", ["c4.large", "c5.large"], []
+        "test-id", "test-offer_id", offer_detail, ["c4.large", "c5.large"], []
     )
     details_document = [cast(Dict[str, Any], item["DetailsDocument"]) for item in res[:]]
     assert (
@@ -453,7 +453,7 @@ def test_get_ami_listing_update_instance_type_changesets_add_new_instance_type_w
     }
     offer_detail = models.Offer(**offer_config)
     res: List[types.ChangeSetType] = changesets.get_ami_listing_update_instance_type_changesets(
-        "test-id", "test-offer_id", offer_detail, "Hrs", ["c4.large"], []
+        "test-id", "test-offer_id", offer_detail, ["c4.large"], []
     )
     details_document = [cast(Dict[str, Any], item["DetailsDocument"]) for item in res[:]]
     assert details_document[0]["Terms"][0]["RateCards"][0]["RateCard"][1] == {
@@ -477,7 +477,7 @@ def test_get_ami_listing_update_instance_type_changesets_restrict_instance_type(
     }
     offer_detail = models.Offer(**offer_config)
     res: List[types.ChangeSetType] = changesets.get_ami_listing_update_instance_type_changesets(
-        "test-id", "test-offer_id", offer_detail, "Hrs", [], ["c4.large"]
+        "test-id", "test-offer_id", offer_detail, [], ["c4.large"]
     )
     details_document = [cast(Any, item["DetailsDocument"]) for item in res[:]]
 
@@ -499,7 +499,7 @@ def test_get_ami_listing_update_instance_type_changesets_restrict_multiple_insta
     }
     offer_detail = models.Offer(**offer_config)
     res: List[types.ChangeSetType] = changesets.get_ami_listing_update_instance_type_changesets(
-        "test-id", "test-offer_id", offer_detail, "Hrs", [], ["c4.large", "c5.large"]
+        "test-id", "test-offer_id", offer_detail, [], ["c4.large", "c5.large"]
     )
     details_document = [cast(Any, item["DetailsDocument"]) for item in res[:]]
 
@@ -523,7 +523,7 @@ def test_get_ami_listing_update_instance_type_changesets_restrict_and_add_instan
     }
     offer_detail = models.Offer(**offer_config)
     res: List[types.ChangeSetType] = changesets.get_ami_listing_update_instance_type_changesets(
-        "test-id", "test-offer_id", offer_detail, "Hrs", ["c4.large"], ["c1.medium"]
+        "test-id", "test-offer_id", offer_detail, ["c4.large"], ["c1.medium"]
     )
     details_document = [cast(Any, item["DetailsDocument"]) for item in res[:]]
     assert (
@@ -546,7 +546,7 @@ def test_get_ami_listing_update_instance_type_changesets_no_restrict_and_add_ins
     }
     offer_detail = models.Offer(**offer_config)
     res: List[types.ChangeSetType] = changesets.get_ami_listing_update_instance_type_changesets(
-        "test-id", "test-offer_id", offer_detail, "Hrs", [], []
+        "test-id", "test-offer_id", offer_detail, [], []
     )
     assert (
         res[0]["ChangeType"] == "UpdatePricingTerms"

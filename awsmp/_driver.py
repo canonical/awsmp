@@ -1,6 +1,6 @@
 import csv
 import logging
-from typing import IO, Any, Dict, List, Literal, Optional, Tuple, cast
+from typing import IO, Any, Dict, List, Optional, Tuple, cast
 
 import boto3
 from botocore.exceptions import ClientError
@@ -50,20 +50,17 @@ class AmiProduct:
         return get_response(changeset, changeset_name)
 
     def update_instance_types(
-        self, offer_config: Dict[str, Any], dimension_unit: Literal["Hrs", "Units"], price_change_allowed: bool
+        self, offer_config: Dict[str, Any], price_change_allowed: bool
     ) -> Optional[ChangeSetReturnType]:
         """
         Update instance types and pricing term based on the offer config
         :param Dict[str, Any] offer_config: offer configuration loaded from yaml file
-        :param Literal["Hrs", "Units"] dimension_unit: Either hourly or units
         :param bool price_change_allowed: flag to indicate price change is allowed
         :return: Changeset for updating instance API request or None
         :rtype: ChangeSetReturnType or None
         """
 
-        changeset, hourly_diff, annual_diff = self._get_instance_type_changeset_and_pricing_diff(
-            offer_config, dimension_unit
-        )
+        changeset, hourly_diff, annual_diff = self._get_instance_type_changeset_and_pricing_diff(offer_config)
         changeset_name = f"Product {self.product_id} instance type update"
 
         if changeset is None:
@@ -98,13 +95,10 @@ class AmiProduct:
 
         return get_response(changeset, changeset_name)
 
-    def update(
-        self, configs: Dict[str, Any], dimension_unit: Literal["Hrs", "Units"], price_change_allowed: bool
-    ) -> Optional[ChangeSetReturnType]:
+    def update(self, configs: Dict[str, Any], price_change_allowed: bool) -> Optional[ChangeSetReturnType]:
         """
         Update AMI product details (Description, Region, Instance type) and public offer pricing term
         :prarm configs dict[str, Any]: Local configuration file
-        :param dimension_unit Literal["Hrs", "Units"]: Either hourly or units
         :param bool price_change_allowed: Flag to indicate price change is allowed
         :return: Response from the request
         :rtype: ChangeSetReturnType
@@ -113,7 +107,7 @@ class AmiProduct:
             self.product_id, configs["product"]["description"], configs["product"]["region"]
         )
         changeset_pricing, hourly_diff, annual_diff = self._get_instance_type_changeset_and_pricing_diff(
-            configs["offer"], dimension_unit
+            configs["offer"]
         )
 
         if hourly_diff or annual_diff:
@@ -135,12 +129,11 @@ class AmiProduct:
         return get_entity_details(self.product_id)["Description"]["ProductTitle"]
 
     def _get_instance_type_changeset_and_pricing_diff(
-        self, offer_config: Dict[str, Any], dimension_unit: Literal["Hrs", "Units"]
+        self, offer_config: Dict[str, Any]
     ) -> Tuple[Optional[List[ChangeSetType]], List, List]:
         """
         Get the instance type and pricing term changeset and pricing diffs
         :param offer_config Dict[str, Any]: offer configuration loaded from yaml file
-        :param dimension_unit Literal["Hrs", "Units"]: Either hourly or units
         :return: Set of changesets, hourly pricing differences and annual pricing differences
         :rtype: Tuple[Optional[List[ChangeSetType]], List, List]
         """
@@ -152,7 +145,7 @@ class AmiProduct:
         removed_instance_types = list(existing_instance_types - local_instance_types)
 
         changeset = changesets.get_ami_listing_update_instance_type_changesets(
-            self.product_id, self.offer_id, offer_detail, dimension_unit, new_instance_types, removed_instance_types
+            self.product_id, self.offer_id, offer_detail, new_instance_types, removed_instance_types
         )
 
         hourly_diff, annual_diff = _get_pricing_diff(self.product_id, changeset)

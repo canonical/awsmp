@@ -340,7 +340,7 @@ def test_public_offer_product_update_details(mock_get_client, mock_get_details, 
     runner = CliRunner()
     runner.invoke(
         cli.ami_product_update,
-        ["--product-id", "some-prod-id", "--config", "./tests/test_config.yaml", "--dimension-unit", "Hrs"],
+        ["--product-id", "some-prod-id", "--config", "./tests/test_config.yaml"],
     )
     mock_start_change_set = mock_get_client.return_value.start_change_set
     assert {"Regions": ["us-east-1", "us-east-2"]} == mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][1][
@@ -402,14 +402,7 @@ def test_public_offer_product_update_details_pricing_change(mock_get_client, moc
     with caplog.at_level("ERROR", logger="awsmp._driver"):
         runner.invoke(
             cli.ami_product_update,
-            [
-                "--product-id",
-                "some-prod-id",
-                "--config",
-                "./tests/test_config.yaml",
-                "--dimension-unit",
-                "Hrs",
-            ],
+            ["--product-id", "some-prod-id", "--config", "./tests/test_config.yaml"],
         )
 
     assert any(
@@ -458,14 +451,7 @@ def test_public_offer_product_update_details_raise_exception(mock_get_client, mo
     with pytest.raises(errors.AmiPriceChangeError) as excInfo:
         runner.invoke(
             cli.ami_product_update,
-            [
-                "--product-id",
-                "some-prod-id",
-                "--config",
-                "./tests/test_config.yaml",
-                "--dimension-unit",
-                "Hrs",
-            ],
+            ["--product-id", "some-prod-id", "--config", "./tests/test_config.yaml"],
             catch_exceptions=False,
         )
 
@@ -525,14 +511,7 @@ def test_public_offer_product_update_details_restrict_instance_types(mock_get_cl
 
     runner.invoke(
         cli.ami_product_update,
-        [
-            "--product-id",
-            "some-prod-id",
-            "--config",
-            "./tests/test_config.yaml",
-            "--dimension-unit",
-            "Hrs",
-        ],
+        ["--product-id", "some-prod-id", "--config", "./tests/test_config.yaml"],
     )
     mock_start_change_set = mock_get_client.return_value.start_change_set
     assert (
@@ -599,8 +578,6 @@ def test_public_offer_product_update_details_pricing_change_allowed(
             "some-prod-id",
             "--config",
             "./tests/test_config.yaml",
-            "--dimension-unit",
-            "Hrs",
             "--allow-price-change",
         ],
     )
@@ -668,8 +645,6 @@ def test_public_offer_product_update_instance_type(mock_get_client, mock_get_det
             "some-prod-id",
             "--config",
             "./tests/test_config.yaml",
-            "--dimension-unit",
-            "Hrs",
         ],
     )
     mock_start_change_set = mock_get_client.return_value.start_change_set
@@ -740,8 +715,6 @@ def test_public_offer_product_update_instance_type_restrict_instance_type(
             "some-prod-id",
             "--config",
             "./tests/test_config.yaml",
-            "--dimension-unit",
-            "Hrs",
         ],
     )
     mock_start_change_set = mock_get_client.return_value.start_change_set
@@ -808,8 +781,6 @@ def test_public_offer_product_update_instance_type_pricing_change(mock_get_clien
             "some-prod-id",
             "--config",
             "./tests/test_config.yaml",
-            "--dimension-unit",
-            "Hrs",
             "--allow-price-change",
         ],
     )
@@ -874,14 +845,7 @@ def test_public_offer_product_update_instance_type_pricing_change_not_allowed(
     runner = CliRunner()
     res = runner.invoke(
         cli.ami_product_update_instance_type,
-        [
-            "--product-id",
-            "some-prod-id",
-            "--config",
-            "./tests/test_config.yaml",
-            "--dimension-unit",
-            "Hrs",
-        ],
+        ["--product-id", "some-prod-id", "--config", "./tests/test_config.yaml"],
     )
     assert res.return_value == None
 
@@ -927,13 +891,6 @@ def test_public_offer_product_update_instance_type_pricing_change_exception(
     runner = CliRunner()
     res = runner.invoke(
         cli.ami_product_update_instance_type,
-        [
-            "--product-id",
-            "some-prod-id",
-            "--config",
-            "./tests/test_config.yaml",
-            "--dimension-unit",
-            "Hrs",
-        ],
+        ["--product-id", "some-prod-id", "--config", "./tests/test_config.yaml"],
     )
     assert res.exit_code == 1 and res.exc_info is not None and "Contact AWS" in res.exc_info[1].args[0]
