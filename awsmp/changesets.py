@@ -1,7 +1,7 @@
 import datetime
 import json
 from decimal import Decimal
-from typing import Any, Dict, List, Literal, Optional, TypedDict, Union
+from typing import Any, Dict, List, Optional, TypedDict, Union
 
 import boto3
 from pydantic import BaseModel, Field, HttpUrl, conlist, field_validator
@@ -296,7 +296,7 @@ def _changeset_update_ami_product_future_region(product_id: str, region_config: 
     }
 
 
-def _build_metered_instance_unit(instance_type: str, dimension_unit: Literal["Hrs", "Units"]) -> UpdateDimensionChange:
+def _build_metered_instance_unit(instance_type: str) -> UpdateDimensionChange:
     return {
         "Description": instance_type,
         "Key": instance_type,
@@ -304,16 +304,14 @@ def _build_metered_instance_unit(instance_type: str, dimension_unit: Literal["Hr
         "Types": [
             "Metered",
         ],
-        "Unit": dimension_unit,
+        "Unit": "Hrs",
     }
 
 
-def _changeset_update_ami_product_dimension(
-    product_id: str, dimension_unit: Literal["Hrs", "Units"], new_instance_types: List[str]
-):
+def _changeset_update_ami_product_dimension(product_id: str, new_instance_types: List[str]):
     # generate dimension list
     dimension_changeset: List[UpdateDimensionChange] = [
-        _build_metered_instance_unit(instance_type, dimension_unit) for instance_type in new_instance_types
+        _build_metered_instance_unit(instance_type) for instance_type in new_instance_types
     ]
 
     return {
@@ -457,7 +455,6 @@ def get_ami_listing_update_instance_type_changesets(
     product_id: str,
     offer_id: str,
     offer_detail: models.Offer,
-    dimension_unit: Literal["Hrs", "Units"],
     new_instance_types: List[str],
     removed_instance_types: List[str],
 ) -> List[ChangeSetType]:
@@ -466,7 +463,6 @@ def get_ami_listing_update_instance_type_changesets(
     :param str product_id: product id
     :param str offer_id: offer id
     :param models.Offer offer_detail: offer configuration in local confi file
-    :param Literal["Hrs", "Units"] dimension_unit: dimension unit of instance types
     :param List[str] new_instance_types: list of instance types to add to the listing
     :param List[str] removed_instance_types: list of instance types to remove from the listing
     :return: List of Changesets
@@ -483,7 +479,7 @@ def get_ami_listing_update_instance_type_changesets(
     if new_instance_types:
         changeset_list.extend(
             [
-                _changeset_update_ami_product_dimension(product_id, dimension_unit, new_instance_types),
+                _changeset_update_ami_product_dimension(product_id, new_instance_types),
                 _changeset_update_ami_product_instance_type(product_id, new_instance_types),
             ]
         )

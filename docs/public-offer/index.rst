@@ -114,11 +114,8 @@ Once offer field is ready, run the command:
          awsmp public-offer update-instance-type \
             --product-id prod-xwpv7txqxg55e \
             --config listing_configuration.yaml \
-            --dimension-unit Hrs \
             --allow-price-change
 
-
-Different billing unit types are possible, but the currently supported types are ``Hrs`` and ``Units``.
 
 The CLI retrieves the added and removed instance types from the configuration by comparing it with the existing listing, then sends the appropriate add/restrict instance type requests.
 It also compares the pricing before sending a request to avoid unnecessary price changes (increases or decreases) in the listing. To update the price, pass the `--price_change-allowed` flag.

@@ -4,7 +4,7 @@ import csv
 import json
 import logging
 import time
-from typing import Dict, List, Literal, Optional, TextIO
+from typing import Dict, List, Optional, TextIO
 
 import click
 import prettytable
@@ -277,7 +277,6 @@ def ami_product_update_description(product_id, config):
 @public_offer.command("update-instance-type")
 @click.option("--product-id", required=True, prompt=True)
 @click.option("--config", type=click.File("r"), required=True, prompt=True)
-@click.option("--dimension-unit", required=True, prompt=True, type=click.Choice(["Hrs", "Units"]))
 @click.option(
     "--allow-price-change",
     required=True,
@@ -286,21 +285,18 @@ def ami_product_update_description(product_id, config):
     is_flag=True,
     prompt="Is price update allowed? (y). Default is False.",
 )
-def ami_product_update_instance_type(
-    product_id: str, config: TextIO, dimension_unit: Literal["Hrs", "Units"], allow_price_change: bool
-) -> None:
+def ami_product_update_instance_type(product_id: str, config: TextIO, allow_price_change: bool) -> None:
     """
     Update AMI product instance type
     :param str product_id: Id of listing
     :param TextIO config: file path of local configuration file
-    :param Literal["Hrs", "Units"] dimension_unit: Unit of a instance type
     :param bool allow_price_change: flag of allowing pricing change to update instance type information
     :return: None
     :rtype: None
     """
     product = _driver.AmiProduct(product_id=product_id)
     offer_config = _load_configuration(config, [["offer"]])["offer"]
-    response = product.update_instance_types(offer_config, dimension_unit, allow_price_change)
+    response = product.update_instance_types(offer_config, allow_price_change)
     if response:
         print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
         print(f'https://aws.amazon.com/marketplace/management/requests/{response["ChangeSetId"]}')
@@ -420,7 +416,6 @@ def ami_product_release(product_id):
 @public_offer.command("update")
 @click.option("--product-id", required=True, prompt=True)
 @click.option("--config", type=click.File("r"), required=True, prompt=True)
-@click.option("--dimension-unit", required=True, prompt=True, type=click.Choice(["Hrs", "Units"]))
 @click.option(
     "--allow-price-change",
     required=True,
@@ -428,14 +423,11 @@ def ami_product_release(product_id):
     is_flag=True,
     prompt="Is price update allowed? (y/N). Default is False.",
 )
-def ami_product_update(
-    product_id: str, config: TextIO, dimension_unit: Literal["Hrs", "Units"], allow_price_change: bool
-) -> None:
+def ami_product_update(product_id: str, config: TextIO, allow_price_change: bool) -> None:
     """
     Update AMI product details (description, region, instnance type and pricing) in a single call
     :param str product_id: Id of listing
     :param TextIO config: file path of local configuration file
-    :param Literal["Hrs", "Units"] dimension_unit: Unit of a instance type
     :param bool allow_price_change: flag of allowing pricing change to update instance type information
     :return: None
     :rtype: None
@@ -444,7 +436,7 @@ def ami_product_update(
     # Load yaml file
     configs = _load_configuration(config, [["product", "description"], ["product", "region"], ["offer"]])
     product = _driver.AmiProduct(product_id=product_id)
-    response = product.update(configs, dimension_unit, allow_price_change)
+    response = product.update(configs, allow_price_change)
 
     if response:
         print(f'ChangeSet created (ID: {response["ChangeSetId"]})')

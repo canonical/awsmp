@@ -212,7 +212,7 @@ def test_ami_product_update_instance_type(mock_get_details, mock_get_client):
     mock_get_client.return_value.list_entities.return_value = {
         "EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]
     }
-    res = ap.update_instance_types(offer_config, "Hrs", False)
+    res = ap.update_instance_types(offer_config, False)
 
     assert mock_get_client.return_value.start_change_set.call_count == 1
     assert mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][2][
@@ -277,7 +277,7 @@ def test_ami_product_update_instance_type_restrict_instance_type(mock_get_detail
         "refund_policy": "refund_policy",
         "eula_document": [{"type": "StandardEula", "version": "2025-04-05"}],
     }
-    res = ap.update_instance_types(offer_config, "Hrs", False)
+    res = ap.update_instance_types(offer_config, False)
 
     assert mock_get_client.return_value.start_change_set.call_count == 1
     assert mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"][1][
@@ -333,7 +333,7 @@ def test_ami_product_update_instance_type_restrict_and_add_instance_type(mock_ge
         "refund_policy": "refund_policy",
         "eula_document": [{"type": "StandardEula", "version": "2025-04-05"}],
     }
-    res = ap.update_instance_types(offer_config, "Hrs", False)
+    res = ap.update_instance_types(offer_config, False)
 
     assert mock_get_client.return_value.start_change_set.call_count == 1
     assert (
@@ -402,7 +402,7 @@ def test_ami_product_update_instance_type_pricing_update(mock_get_details, mock_
     mock_get_client.return_value.list_entities.return_value = {
         "EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]
     }
-    res = ap.update_instance_types(offer_config, "Hrs", False)
+    res = ap.update_instance_types(offer_config, False)
     assert res == None
 
 
@@ -453,7 +453,7 @@ def test_ami_product_update_instance_type_restrict_and_add_instance_type_pricing
         "refund_policy": "refund_policy",
         "eula_document": [{"type": "StandardEula", "version": "2025-04-05"}],
     }
-    res = ap.update_instance_types(offer_config, "Hrs", True)
+    res = ap.update_instance_types(offer_config, True)
 
     assert mock_get_client.return_value.start_change_set.call_count == 1
     assert (
@@ -513,7 +513,7 @@ def test_ami_product_update_instance_type_pricing_update_exception(mock_get_deta
         "eula_document": [{"type": "StandardEula", "version": "2025-04-05"}],
     }
     with pytest.raises(AmiPriceChangeError) as excInfo:
-        ap.update_instance_types(offer_config, "Hrs", True)
+        ap.update_instance_types(offer_config, True)
     assert "Contact AWS Marketplace" in excInfo.value.args[0]
 
 
@@ -1371,7 +1371,7 @@ def test_ami_product_update(mock_boto3, mock_get_details, mock_get_client):
     }
 
     ap = _driver.AmiProduct(product_id="testing")
-    ap.update(config, "Hrs", False)
+    ap.update(config, False)
     mock_start_change_set = mock_get_client.return_value.start_change_set
 
     assert (
@@ -1433,7 +1433,7 @@ def test_ami_product_update_pricing_change(mock_boto3, mock_get_details, mock_ge
     }
 
     ap = _driver.AmiProduct(product_id="testing")
-    res = ap.update(config, "Hrs", False)
+    res = ap.update(config, False)
 
     assert res == None
 
@@ -1479,7 +1479,7 @@ def test_ami_product_update_pricing_exception_by_adding_yearly_price(mock_boto3,
     ap = _driver.AmiProduct(product_id="testing")
 
     with pytest.raises(AmiPriceChangeError) as excInfo:
-        ap.update(config, "Hrs", False)
+        ap.update(config, False)
 
     assert "Contact AWS Marketplace" in excInfo.value.args[0]
 
@@ -1536,7 +1536,7 @@ def test_ami_product_update_restrict_instance_types(mock_boto3, mock_get_details
     }
 
     ap = _driver.AmiProduct(product_id="testing")
-    ap.update(config, "Hrs", False)
+    ap.update(config, False)
     mock_start_change_set = mock_get_client.return_value.start_change_set
 
     assert mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][4][
