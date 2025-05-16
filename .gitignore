@@ -1,5 +1,6 @@
 # editors
 /.idea/
+/.vscode/
 
 # python
 /awsmp.egg-info/
