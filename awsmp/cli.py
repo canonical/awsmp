@@ -278,11 +278,10 @@ def ami_product_update_description(product_id, config):
 @click.option("--product-id", required=True, prompt=True)
 @click.option("--config", type=click.File("r"), required=True, prompt=True)
 @click.option(
-    "--allow-price-change",
+    "--allow-price-change/--no-allow-price-change",
     required=True,
     default=False,
     type=click.BOOL,
-    is_flag=True,
     prompt="Is price update allowed? (y). Default is False.",
 )
 def ami_product_update_instance_type(product_id: str, config: TextIO, allow_price_change: bool) -> None:
@@ -417,10 +416,9 @@ def ami_product_release(product_id):
 @click.option("--product-id", required=True, prompt=True)
 @click.option("--config", type=click.File("r"), required=True, prompt=True)
 @click.option(
-    "--allow-price-change",
+    "--allow-price-change/--no-allow-price-change",
     required=True,
     default=False,
-    is_flag=True,
     prompt="Is price update allowed? (y/N). Default is False.",
 )
 def ami_product_update(product_id: str, config: TextIO, allow_price_change: bool) -> None:

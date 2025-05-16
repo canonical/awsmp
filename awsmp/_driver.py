@@ -60,7 +60,9 @@ class AmiProduct:
         :rtype: ChangeSetReturnType or None
         """
 
-        changeset, hourly_diff, annual_diff = self._get_instance_type_changeset_and_pricing_diff(offer_config)
+        changeset, hourly_diff, annual_diff = self._get_instance_type_changeset_and_pricing_diff(
+            offer_config, price_change_allowed
+        )
         changeset_name = f"Product {self.product_id} instance type update"
 
         if changeset is None:
@@ -107,8 +109,11 @@ class AmiProduct:
             self.product_id, configs["product"]["description"], configs["product"]["region"]
         )
         changeset_pricing, hourly_diff, annual_diff = self._get_instance_type_changeset_and_pricing_diff(
-            configs["offer"]
+            configs["offer"], price_change_allowed
         )
+
+        if changeset is None:
+            return None
 
         if hourly_diff or annual_diff:
             if not price_change_allowed:
@@ -129,7 +134,7 @@ class AmiProduct:
         return get_entity_details(self.product_id)["Description"]["ProductTitle"]
 
     def _get_instance_type_changeset_and_pricing_diff(
-        self, offer_config: Dict[str, Any]
+        self, offer_config: Dict[str, Any], price_change_allowed: bool
     ) -> Tuple[Optional[List[ChangeSetType]], List, List]:
         """
         Get the instance type and pricing term changeset and pricing diffs
@@ -148,7 +153,7 @@ class AmiProduct:
             self.product_id, self.offer_id, offer_detail, new_instance_types, removed_instance_types
         )
 
-        hourly_diff, annual_diff = _get_pricing_diff(self.product_id, changeset)
+        hourly_diff, annual_diff = _get_pricing_diff(self.product_id, changeset, price_change_allowed)
 
         if not hourly_diff and not annual_diff:
             if not new_instance_types and not removed_instance_types:
@@ -303,7 +308,7 @@ def _build_pricing_diff(existing_prices: List, local_prices: List) -> List:
     return diffs
 
 
-def _get_pricing_diff(product_id: str, changeset: List[ChangeSetType]) -> Tuple[List, List]:
+def _get_pricing_diff(product_id: str, changeset: List[ChangeSetType], allow_price_update: bool) -> Tuple[List, List]:
     """
     Check if there are differences between the given changeset from the local configuration and the existing listing pricing terms
     :param str product_id: product id of existing/live listing
@@ -323,19 +328,26 @@ def _get_pricing_diff(product_id: str, changeset: List[ChangeSetType]) -> Tuple[
     diffs_hourly = _build_pricing_diff(existing_hourly, local_hourly)
     diffs_annual = _build_pricing_diff(existing_annual, local_annual)
 
-    if existing_listing_status != "Draft":
-        # Only staging listings are able to change pricing type
-        # e.g. hourly -> hourly + annual, hourly + annual -> hourly
-        pricing_type = (local_annual and not existing_annual) or (existing_annual and not local_annual)
+    if existing_listing_status == "Restricted":
+        # restricted instances do not support updating instance types
+        raise AmiPriceChangeError
 
-        def all_zero_to_paid(diffs):
-            # check if pricing request from free (0.0) to non-zero prices
-            return bool(diffs) and all(
-                float(item["Original Price"]) == 0.0 and float(item["New Price"]) != 0.0 for item in diffs
-            )
+    pricing_type = (local_annual and not existing_annual) or (existing_annual and not local_annual)
 
-        if pricing_type or all_zero_to_paid(diffs_hourly) or all_zero_to_paid(diffs_annual):
-            raise AmiPriceChangeError
+    def all_zero_to_paid(diffs):
+        # check if pricing request from free (0.0) to non-zero prices
+        return bool(diffs) and all(
+            float(item["Original Price"]) == 0.0 and float(item["New Price"]) != 0.0 for item in diffs
+        )
+
+    if (pricing_type or all_zero_to_paid(diffs_hourly) or all_zero_to_paid(diffs_annual)):
+        logger.error(
+            "There are instance type changes but allow price change flag is not set."
+            "Please check the pricing files or set the price flag.\n"
+            "Price change details:\n"
+            f"Local pricing updates: {local_annual}\Existing pricing in local: {existing_annual}\n"
+        )
+        raise AmiPriceChangeError
 
     return diffs_hourly, diffs_annual
 

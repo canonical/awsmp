@@ -485,7 +485,7 @@ def test_ami_product_update_instance_type_pricing_update_exception(mock_get_deta
     ap = _driver.AmiProduct(product_id="testing")
     mock_get_details.side_effect = [
         {"Dimensions": [{"Name": "c3.2xlarge"}, {"Name": "c3.4xlarge"}, {"Name": "c3.8xlarge"}]},
-        {"Description": {"Visibility": "Limited"}},
+        {"Description": {"Visibility": "Restricted"}},
         {
             "Terms": [
                 {
@@ -898,14 +898,14 @@ def test_get_pricing_diff(mock_get_entity_details, mock_get_client, visibility, 
     mock_get_client.return_value.list_entities.return_value = {
         "EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]
     }
-    assert _driver._get_pricing_diff("prod-id", changeset) == expected_output
+    assert _driver._get_pricing_diff("prod-id", changeset, True) == expected_output
 
 
 @patch("awsmp._driver.get_client")
 @patch("awsmp._driver.get_entity_details")
 def test_get_pricing_diff_exception(mock_get_entity_details, mock_get_client):
     mock_get_entity_details.side_effect = [
-        {"Description": {"Visibility": "Limited"}},
+        {"Description": {"Visibility": "Restricted"}},
         {
             "Terms": [
                 {
@@ -969,13 +969,13 @@ def test_get_pricing_diff_exception(mock_get_entity_details, mock_get_client):
         ],
     )
     with pytest.raises(AmiPriceChangeError) as excInfo:
-        _driver._get_pricing_diff("prod-id", changeset)
+        _driver._get_pricing_diff("prod-id", changeset, True)
     assert "Contact AWS Marketplace" in excInfo.value.args[0]
 
 
 @patch("awsmp._driver.get_client")
 @patch("awsmp._driver.get_entity_details")
-def test_get_pricing_diff_exception_no_yearly(mock_get_entity_details, mock_get_client):
+def test_get_pricing_diff_no_yearly(mock_get_entity_details, mock_get_client):
     mock_get_entity_details.side_effect = [
         {"Description": {"Visibility": "Limited"}},
         {
@@ -1040,9 +1040,7 @@ def test_get_pricing_diff_exception_no_yearly(mock_get_entity_details, mock_get_
             }
         ],
     )
-    with pytest.raises(AmiPriceChangeError) as excInfo:
-        _driver._get_pricing_diff("prod-id", changeset)
-    assert "Contact AWS Marketplace" in excInfo.value.args[0]
+    assert _driver._get_pricing_diff("prod-id", changeset, True) == ([], [])
 
 
 @patch("awsmp._driver.get_client")
@@ -1130,7 +1128,7 @@ def test_get_pricing_diff_exception_free_to_paid(mock_get_entity_details, mock_g
         ],
     )
     with pytest.raises(AmiPriceChangeError) as excInfo:
-        _driver._get_pricing_diff("prod-id", changeset)
+        _driver._get_pricing_diff("prod-id", changeset, False)
     assert "Contact AWS Marketplace" in excInfo.value.args[0]
 
 
@@ -1371,7 +1369,7 @@ def test_ami_product_update(mock_boto3, mock_get_details, mock_get_client):
     }
 
     ap = _driver.AmiProduct(product_id="testing")
-    ap.update(config, False)
+    ap.update(config, True)
     mock_start_change_set = mock_get_client.return_value.start_change_set
 
     assert (
