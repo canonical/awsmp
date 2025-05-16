@@ -393,7 +393,7 @@ def test_ami_product_update_instance_type_pricing_update(mock_get_details, mock_
         "instance_types": [
             {"name": "c3.2xlarge", "hourly": 0.03, "yearly": 12.00},
             {"name": "c3.4xlarge", "hourly": 0.12, "yearly": 24.00},
-            {"name": "c3.8xlarge", "hourly": 0.50, "yearly": 78.00},
+            {"name": "c3.8xlarge", "hourly": 0.50, "yearly": 90.00},
         ],
         "refund_policy": "refund_policy",
         "eula_document": [{"type": "StandardEula", "version": "2025-04-05"}],
@@ -481,6 +481,34 @@ def test_ami_product_update_instance_type_restrict_and_add_instance_type_pricing
 
 @patch("awsmp._driver.get_client")
 @patch("awsmp._driver.get_entity_details")
+def test_ami_product_update_instance_type_pricing_raise_on_restricted(mock_get_details, mock_get_client):
+    ap = _driver.AmiProduct(product_id="testing")
+    mock_get_details.side_effect = [
+        {"Dimensions": []},
+        {"Description": {"Visibility": "Limited"}},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [{"RateCard": []}],
+                },
+            ]
+        },
+    ]
+    offer_config = {
+        "instance_types": [
+            {"name": "c3.2xlarge", "hourly": 0.03, "yearly": 12.00},
+        ],
+        "refund_policy": "refund_policy",
+        "eula_document": [{"type": "StandardEula", "version": "2025-04-05"}],
+    }
+    with pytest.raises(AmiPriceChangeError) as excInfo:
+        ap.update_instance_types(offer_config, False)
+    assert "hourly or annual prices." in excInfo.value.args[0]
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_entity_details")
 def test_ami_product_update_instance_type_pricing_update_exception(mock_get_details, mock_get_client):
     ap = _driver.AmiProduct(product_id="testing")
     mock_get_details.side_effect = [
@@ -513,8 +541,8 @@ def test_ami_product_update_instance_type_pricing_update_exception(mock_get_deta
         "eula_document": [{"type": "StandardEula", "version": "2025-04-05"}],
     }
     with pytest.raises(AmiPriceChangeError) as excInfo:
-        ap.update_instance_types(offer_config, True)
-    assert "Contact AWS Marketplace" in excInfo.value.args[0]
+        ap.update_instance_types(offer_config, False)
+    assert "hourly or annual prices." in excInfo.value.args[0]
 
 
 @pytest.mark.parametrize(
@@ -898,7 +926,7 @@ def test_get_pricing_diff(mock_get_entity_details, mock_get_client, visibility, 
     mock_get_client.return_value.list_entities.return_value = {
         "EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]
     }
-    assert _driver._get_pricing_diff("prod-id", changeset) == expected_output
+    assert _driver._get_pricing_diff("prod-id", changeset, True) == expected_output
 
 
 @patch("awsmp._driver.get_client")
@@ -969,13 +997,13 @@ def test_get_pricing_diff_exception(mock_get_entity_details, mock_get_client):
         ],
     )
     with pytest.raises(AmiPriceChangeError) as excInfo:
-        _driver._get_pricing_diff("prod-id", changeset)
-    assert "Contact AWS Marketplace" in excInfo.value.args[0]
+        _driver._get_pricing_diff("prod-id", changeset, False)
+    assert "hourly or annual prices." in excInfo.value.args[0]
 
 
 @patch("awsmp._driver.get_client")
 @patch("awsmp._driver.get_entity_details")
-def test_get_pricing_diff_exception_no_yearly(mock_get_entity_details, mock_get_client):
+def test_get_pricing_diff_no_yearly(mock_get_entity_details, mock_get_client):
     mock_get_entity_details.side_effect = [
         {"Description": {"Visibility": "Limited"}},
         {
@@ -1040,9 +1068,7 @@ def test_get_pricing_diff_exception_no_yearly(mock_get_entity_details, mock_get_
             }
         ],
     )
-    with pytest.raises(AmiPriceChangeError) as excInfo:
-        _driver._get_pricing_diff("prod-id", changeset)
-    assert "Contact AWS Marketplace" in excInfo.value.args[0]
+    assert _driver._get_pricing_diff("prod-id", changeset, True) == ([], [])
 
 
 @patch("awsmp._driver.get_client")
@@ -1130,8 +1156,8 @@ def test_get_pricing_diff_exception_free_to_paid(mock_get_entity_details, mock_g
         ],
     )
     with pytest.raises(AmiPriceChangeError) as excInfo:
-        _driver._get_pricing_diff("prod-id", changeset)
-    assert "Contact AWS Marketplace" in excInfo.value.args[0]
+        _driver._get_pricing_diff("prod-id", changeset, False)
+    assert "Free product was attempted to be converted to paid product." in excInfo.value.args[0]
 
 
 @pytest.mark.parametrize(
@@ -1371,7 +1397,7 @@ def test_ami_product_update(mock_boto3, mock_get_details, mock_get_client):
     }
 
     ap = _driver.AmiProduct(product_id="testing")
-    ap.update(config, False)
+    ap.update(config, True)
     mock_start_change_set = mock_get_client.return_value.start_change_set
 
     assert (
@@ -1386,7 +1412,7 @@ def test_ami_product_update(mock_boto3, mock_get_details, mock_get_client):
 @patch("awsmp._driver.get_client")
 @patch("awsmp._driver.get_entity_details")
 @patch("awsmp._driver.changesets.models.boto3")
-def test_ami_product_update_pricing_change(mock_boto3, mock_get_details, mock_get_client):
+def test_ami_product_update_no_pricing_change(mock_boto3, mock_get_details, mock_get_client):
     with open("./tests/test_config.yaml", "r") as f:
         config = yaml.safe_load(f)
 
@@ -1419,7 +1445,7 @@ def test_ami_product_update_pricing_change(mock_boto3, mock_get_details, mock_ge
                         {
                             "RateCard": [
                                 {"DimensionKey": "a1.large", "Price": "24.528"},
-                                {"DimensionKey": "a1.xlarge", "Price": "50.00"},
+                                {"DimensionKey": "a1.xlarge", "Price": "49.056"},
                             ]
                         }
                     ],
@@ -1436,7 +1462,6 @@ def test_ami_product_update_pricing_change(mock_boto3, mock_get_details, mock_ge
     res = ap.update(config, False)
 
     assert res == None
-
 
 @patch("awsmp._driver.get_client")
 @patch("awsmp._driver.get_entity_details")
@@ -1481,7 +1506,7 @@ def test_ami_product_update_pricing_exception_by_adding_yearly_price(mock_boto3,
     with pytest.raises(AmiPriceChangeError) as excInfo:
         ap.update(config, False)
 
-    assert "Contact AWS Marketplace" in excInfo.value.args[0]
+    assert "hourly or annual prices." in excInfo.value.args[0]
 
 
 @patch("awsmp._driver.get_client")

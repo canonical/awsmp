@@ -278,7 +278,7 @@ def ami_product_update_description(product_id, config):
 @click.option("--product-id", required=True, prompt=True)
 @click.option("--config", type=click.File("r"), required=True, prompt=True)
 @click.option(
-    "--allow-price-change",
+    "--allow-price-change/--no-allow-price-change",
     required=True,
     default=False,
     type=click.BOOL,
@@ -417,7 +417,7 @@ def ami_product_release(product_id):
 @click.option("--product-id", required=True, prompt=True)
 @click.option("--config", type=click.File("r"), required=True, prompt=True)
 @click.option(
-    "--allow-price-change",
+    "--allow-price-change/--no-allow-price-change",
     required=True,
     default=False,
     is_flag=True,

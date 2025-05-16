@@ -60,20 +60,13 @@ class AmiProduct:
         :rtype: ChangeSetReturnType or None
         """
 
-        changeset, hourly_diff, annual_diff = self._get_instance_type_changeset_and_pricing_diff(offer_config)
+        changeset, hourly_diff, annual_diff = self._get_instance_type_changeset_and_pricing_diff(
+            offer_config, price_change_allowed
+        )
         changeset_name = f"Product {self.product_id} instance type update"
 
         if changeset is None:
             return None
-
-        if hourly_diff or annual_diff:
-            if not price_change_allowed:
-                logger.error(
-                    "There are pricing changes but changing price flag is not set. Please check the pricing files or set the price flag.\n"
-                    "Price change details:\n"
-                    f"Hourly: {hourly_diff}\nAnnual: {annual_diff}\n"
-                )
-                return None
 
         return get_response(changeset, changeset_name)
 
@@ -106,8 +99,9 @@ class AmiProduct:
         changeset = changesets.get_ami_listing_update_changesets(
             self.product_id, configs["product"]["description"], configs["product"]["region"]
         )
+
         changeset_pricing, hourly_diff, annual_diff = self._get_instance_type_changeset_and_pricing_diff(
-            configs["offer"]
+            configs["offer"], price_change_allowed
         )
 
         if hourly_diff or annual_diff:
@@ -117,6 +111,8 @@ class AmiProduct:
                     % (hourly_diff, annual_diff)
                 )
                 return None
+        elif not changeset_pricing:
+            return None
 
         if changeset_pricing is not None:
             changeset.extend(changeset_pricing)
@@ -129,7 +125,7 @@ class AmiProduct:
         return get_entity_details(self.product_id)["Description"]["ProductTitle"]
 
     def _get_instance_type_changeset_and_pricing_diff(
-        self, offer_config: Dict[str, Any]
+        self, offer_config: Dict[str, Any], price_change_allowed: bool
     ) -> Tuple[Optional[List[ChangeSetType]], List, List]:
         """
         Get the instance type and pricing term changeset and pricing diffs
@@ -148,7 +144,7 @@ class AmiProduct:
             self.product_id, self.offer_id, offer_detail, new_instance_types, removed_instance_types
         )
 
-        hourly_diff, annual_diff = _get_pricing_diff(self.product_id, changeset)
+        hourly_diff, annual_diff = _get_pricing_diff(self.product_id, changeset, price_change_allowed)
 
         if not hourly_diff and not annual_diff:
             if not new_instance_types and not removed_instance_types:
@@ -303,7 +299,7 @@ def _build_pricing_diff(existing_prices: List, local_prices: List) -> List:
     return diffs
 
 
-def _get_pricing_diff(product_id: str, changeset: List[ChangeSetType]) -> Tuple[List, List]:
+def _get_pricing_diff(product_id: str, changeset: List[ChangeSetType], allow_price_update: bool) -> Tuple[List, List]:
     """
     Check if there are differences between the given changeset from the local configuration and the existing listing pricing terms
     :param str product_id: product id of existing/live listing
@@ -323,19 +319,37 @@ def _get_pricing_diff(product_id: str, changeset: List[ChangeSetType]) -> Tuple[
     diffs_hourly = _build_pricing_diff(existing_hourly, local_hourly)
     diffs_annual = _build_pricing_diff(existing_annual, local_annual)
 
-    if existing_listing_status != "Draft":
-        # Only staging listings are able to change pricing type
-        # e.g. hourly -> hourly + annual, hourly + annual -> hourly
-        pricing_type = (local_annual and not existing_annual) or (existing_annual and not local_annual)
+    if existing_listing_status == "Restricted":
+        # restricted instances do not support updating instance types
+        error_message = "Restricted listings may not have instance types updated."
+        raise AmiPriceChangeError(error_message)
 
-        def all_zero_to_paid(diffs):
-            # check if pricing request from free (0.0) to non-zero prices
-            return bool(diffs) and all(
-                float(item["Original Price"]) == 0.0 and float(item["New Price"]) != 0.0 for item in diffs
-            )
+    def any_zero_to_paid(diffs):
+        # check if pricing request from free (0.0) to non-zero prices
+        return bool(diffs) and any(
+            float(item["Original Price"]) == 0.0 and float(item["New Price"]) != 0.0 for item in diffs
+        )
 
-        if pricing_type or all_zero_to_paid(diffs_hourly) or all_zero_to_paid(diffs_annual):
-            raise AmiPriceChangeError
+    instance_configuration_changed = any(
+        [local_annual and not existing_annual, existing_annual and not local_annual, diffs_annual, diffs_hourly]
+    )
+
+    if (any_zero_to_paid(diffs_hourly) or any_zero_to_paid(diffs_annual)) and not allow_price_update:
+        error_msg = f"""Free product was attempted to be converted to paid product.
+            Please check the pricing files or set the price flag.\n
+            Price change details:\n
+            Local pricing updates: {local_annual}\Existing pricing in local: {existing_annual}\n"
+            """
+        logger.error(error_msg)
+        raise AmiPriceChangeError(error_msg)
+    elif instance_configuration_changed and not allow_price_update:
+        error_message = f"""There are pricing changes in either hourly or annual prices.
+        Please check the pricing files or allow price change.
+        Price change details:\n
+        Local pricing updates: {local_annual}\Existing pricing in local: {existing_annual}\n"
+        """
+        logger.error(error_message)
+        raise AmiPriceChangeError(error_message)
 
     return diffs_hourly, diffs_annual
 
