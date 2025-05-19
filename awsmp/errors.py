@@ -85,3 +85,7 @@ No product ids are provided. Please pass at least one product id for using this 
 
 class AmiPriceChangeError(Exception):
     pass
+
+
+class AmiPricingModelChangeError(Exception):
+    pass

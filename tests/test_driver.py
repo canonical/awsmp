@@ -11,6 +11,7 @@ from awsmp import _driver
 from awsmp.errors import (
     AccessDeniedException,
     AmiPriceChangeError,
+    AmiPricingModelChangeError,
     MissingInstanceTypeError,
     ResourceNotFoundException,
     UnrecognizedClientException,
@@ -485,7 +486,7 @@ def test_ami_product_update_instance_type_pricing_raise_on_restricted(mock_get_d
     ap = _driver.AmiProduct(product_id="testing")
     mock_get_details.side_effect = [
         {"Dimensions": []},
-        {"Description": {"Visibility": "Limited"}},
+        {"Description": {"Visibility": "Restricted"}},
         {
             "Terms": [
                 {
@@ -504,7 +505,7 @@ def test_ami_product_update_instance_type_pricing_raise_on_restricted(mock_get_d
     }
     with pytest.raises(AmiPriceChangeError) as excInfo:
         ap.update_instance_types(offer_config, False)
-    assert "hourly or annual prices." in excInfo.value.args[0]
+    assert "Restricted listings" in excInfo.value.args[0]
 
 
 @patch("awsmp._driver.get_client")
@@ -540,9 +541,9 @@ def test_ami_product_update_instance_type_pricing_update_exception(mock_get_deta
         "refund_policy": "refund_policy",
         "eula_document": [{"type": "StandardEula", "version": "2025-04-05"}],
     }
-    with pytest.raises(AmiPriceChangeError) as excInfo:
+    with pytest.raises(AmiPricingModelChangeError) as excInfo:
         ap.update_instance_types(offer_config, False)
-    assert "hourly or annual prices." in excInfo.value.args[0]
+    assert "Listing is published." in excInfo.value.args[0]
 
 
 @pytest.mark.parametrize(
@@ -931,149 +932,7 @@ def test_get_pricing_diff(mock_get_entity_details, mock_get_client, visibility, 
 
 @patch("awsmp._driver.get_client")
 @patch("awsmp._driver.get_entity_details")
-def test_get_pricing_diff_exception(mock_get_entity_details, mock_get_client):
-    mock_get_entity_details.side_effect = [
-        {"Description": {"Visibility": "Limited"}},
-        {
-            "Terms": [
-                {
-                    "Type": "UsageBasedPricingTerm",
-                    "RateCards": [
-                        {
-                            "RateCard": [
-                                {"DimensionKey": "c3.4xlarge", "Price": "0.028"},
-                                {"DimensionKey": "c3.8xlarge", "Price": "0.056"},
-                            ]
-                        }
-                    ],
-                },
-            ]
-        },
-    ]
-    mock_get_client.return_value.list_entities.return_value = {
-        "EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]
-    }
-    changeset = cast(
-        List[ChangeSetType],
-        [
-            {
-                "ChangeType": "UpdatePricingTerms",
-                "Entity": {"Type": "Offer@1.0", "Identifier": "test-offer"},
-                "DetailsDocument": {
-                    "PricingModel": "Usage",
-                    "Terms": [
-                        {
-                            "Type": "UsageBasedPricingTerm",
-                            "CurrencyCode": "USD",
-                            "RateCards": [
-                                {
-                                    "RateCard": [
-                                        {"DimensionKey": "c3.4xlarge", "Price": "0.028"},
-                                        {"DimensionKey": "c3.8xlarge", "Price": "0.056"},
-                                    ]
-                                }
-                            ],
-                        },
-                        {
-                            "Type": "ConfigurableUpfrontPricingTerm",
-                            "CurrencyCode": "USD",
-                            "RateCards": [
-                                {
-                                    "Selector": {"Type": "Duration", "Value": "P365D"},
-                                    "Constraints": {
-                                        "MultipleDimensionSelection": "Allowed",
-                                        "QuantityConfiguration": "Allowed",
-                                    },
-                                    "RateCard": [
-                                        {"DimensionKey": "c3.4xlarge", "Price": "196.224"},
-                                        {"DimensionKey": "c3.8xlarge", "Price": "392.448"},
-                                    ],
-                                }
-                            ],
-                        },
-                    ],
-                },
-            }
-        ],
-    )
-    with pytest.raises(AmiPriceChangeError) as excInfo:
-        _driver._get_pricing_diff("prod-id", changeset, False)
-    assert "hourly or annual prices." in excInfo.value.args[0]
-
-
-@patch("awsmp._driver.get_client")
-@patch("awsmp._driver.get_entity_details")
-def test_get_pricing_diff_no_yearly(mock_get_entity_details, mock_get_client):
-    mock_get_entity_details.side_effect = [
-        {"Description": {"Visibility": "Limited"}},
-        {
-            "Terms": [
-                {
-                    "Type": "UsageBasedPricingTerm",
-                    "RateCards": [
-                        {
-                            "RateCard": [
-                                {"DimensionKey": "c3.4xlarge", "Price": "0.028"},
-                                {"DimensionKey": "c3.8xlarge", "Price": "0.056"},
-                            ]
-                        }
-                    ],
-                },
-                {
-                    "Type": "ConfigurableUpfrontPricingTerm",
-                    "CurrencyCode": "USD",
-                    "RateCards": [
-                        {
-                            "Selector": {"Type": "Duration", "Value": "P365D"},
-                            "Constraints": {
-                                "MultipleDimensionSelection": "Allowed",
-                                "QuantityConfiguration": "Allowed",
-                            },
-                            "RateCard": [
-                                {"DimensionKey": "c3.4xlarge", "Price": "196.224"},
-                                {"DimensionKey": "c3.8xlarge", "Price": "392.448"},
-                            ],
-                        }
-                    ],
-                },
-            ]
-        },
-    ]
-    mock_get_client.return_value.list_entities.return_value = {
-        "EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]
-    }
-    changeset = cast(
-        List[ChangeSetType],
-        [
-            {
-                "ChangeType": "UpdatePricingTerms",
-                "Entity": {"Type": "Offer@1.0", "Identifier": "test-offer"},
-                "DetailsDocument": {
-                    "PricingModel": "Usage",
-                    "Terms": [
-                        {
-                            "Type": "UsageBasedPricingTerm",
-                            "CurrencyCode": "USD",
-                            "RateCards": [
-                                {
-                                    "RateCard": [
-                                        {"DimensionKey": "c3.4xlarge", "Price": "0.028"},
-                                        {"DimensionKey": "c3.8xlarge", "Price": "0.056"},
-                                    ]
-                                }
-                            ],
-                        },
-                    ],
-                },
-            }
-        ],
-    )
-    assert _driver._get_pricing_diff("prod-id", changeset, True) == ([], [])
-
-
-@patch("awsmp._driver.get_client")
-@patch("awsmp._driver.get_entity_details")
-def test_get_pricing_diff_exception_free_to_paid(mock_get_entity_details, mock_get_client):
+def test_get_pricing_should_raise_on_change_from_zero_to_paid(mock_get_entity_details, mock_get_client):
     mock_get_entity_details.side_effect = [
         {"Description": {"Visibility": "Public"}},
         {
@@ -1158,6 +1017,85 @@ def test_get_pricing_diff_exception_free_to_paid(mock_get_entity_details, mock_g
     with pytest.raises(AmiPriceChangeError) as excInfo:
         _driver._get_pricing_diff("prod-id", changeset, False)
     assert "Free product was attempted to be converted to paid product." in excInfo.value.args[0]
+
+
+@pytest.mark.parametrize(
+    "existing_terms,local_terms",
+    [
+        (["UsageBasedPricingTerm"], ["UsageBasedPricingTerm", "ConfigurableUpfrontPricingTerm"]),
+        (["UsageBasedPricingTerm", "ConfigurableUpfrontPricingTerm"], ["UsageBasedPricingTerm"]),
+        (["UsageBasedPricingTerm", "RecurringPricingTerm"], ["UsageBasedPricingTerm"]),
+        (["UsageBasedPricingTerm"], ["UsageBasedPricingTerm", "RecurringPricingTerm"]),
+    ],
+)
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_entity_details")
+def test_get_pricing_should_raise_on_change_in_pricing_model(
+    mock_get_entity_details, mock_get_client, existing_terms, local_terms
+):
+    def _build_pricing_terms(term_types):
+        terms = []
+        if "UsageBasedPricingTerm" in term_types:
+            terms.append(
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.0"},
+                            ]
+                        }
+                    ],
+                }
+            )
+
+        if "ConfigurableUpfrontPricingTerm" in term_types:
+            terms.append(
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "CurrencyCode": "USD",
+                    "RateCards": [
+                        {
+                            "Selector": {"Type": "Duration", "Value": "P365D"},
+                            "Constraints": {
+                                "MultipleDimensionSelection": "Allowed",
+                                "QuantityConfiguration": "Allowed",
+                            },
+                            "RateCard": [
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.0"},
+                            ],
+                        }
+                    ],
+                }
+            )
+
+        if "RecurringPricingTerm" in term_types:
+            terms.append(
+                {"Type": "RecurringPaymentTerm", "CurrencyCode": "USD", "BillingPeriod": "Monthly", "Price": "15.0"}
+            )
+        return terms
+
+    mock_get_entity_details.side_effect = [
+        {"Description": {"Visibility": "Public"}},
+        {"Terms": _build_pricing_terms(existing_terms)},
+    ]
+    mock_get_client.return_value.list_entities.return_value = {
+        "EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]
+    }
+    changeset = cast(
+        List[ChangeSetType],
+        [
+            {
+                "ChangeType": "UpdatePricingTerms",
+                "Entity": {"Type": "Offer@1.0", "Identifier": "test-offer"},
+                "DetailsDocument": {"PricingModel": "Usage", "Terms": _build_pricing_terms(local_terms)},
+            }
+        ],
+    )
+    with pytest.raises(AmiPricingModelChangeError) as excInfo:
+        _driver._get_pricing_diff("prod-id", changeset, True)
+
+    assert "Listing is published. Contact AWS Marketplace to change the pricing type." in excInfo.value.args[0]
 
 
 @pytest.mark.parametrize(
@@ -1463,6 +1401,7 @@ def test_ami_product_update_no_pricing_change(mock_boto3, mock_get_details, mock
 
     assert res == None
 
+
 @patch("awsmp._driver.get_client")
 @patch("awsmp._driver.get_entity_details")
 @patch("awsmp._driver.changesets.models.boto3")
@@ -1503,10 +1442,10 @@ def test_ami_product_update_pricing_exception_by_adding_yearly_price(mock_boto3,
 
     ap = _driver.AmiProduct(product_id="testing")
 
-    with pytest.raises(AmiPriceChangeError) as excInfo:
+    with pytest.raises(AmiPricingModelChangeError) as excInfo:
         ap.update(config, False)
 
-    assert "hourly or annual prices." in excInfo.value.args[0]
+    assert "Listing is published" in excInfo.value.args[0]
 
 
 @patch("awsmp._driver.get_client")

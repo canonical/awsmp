@@ -270,6 +270,55 @@ class TestOffer:
 
         assert "must have at most 3 decimal places" in str(e.value)
 
+    @pytest.mark.parametrize(
+        "instance_types,monthly_fee,expected_type",
+        [
+            ([{"name": "c1.large", "hourly": 0.0, "yearly": None}], None, models.AmiProductPricingType.HOURLY),
+            (
+                [{"name": "c2.large", "hourly": 0.0, "yearly": 0.0}],
+                None,
+                models.AmiProductPricingType.HOURLY_WITH_ANNUAL,
+            ),
+            (
+                [{"name": "c3.xlarge", "hourly": 0.0, "yearly": 0.0}],
+                0.0,
+                models.AmiProductPricingType.HOURLY_WITH_MONTHLY_SUBSCRIPTION_FEE,
+            ),
+        ],
+    )
+    def test_should_be_able_to_get_offer_type_from_offer(
+        self, instance_types: list[dict], monthly_fee: float, expected_type: models.AmiProductPricingType
+    ):
+        offer_item = {
+            "eula_document": [{"type": "CustomEula", "url": "https://example.com"}],
+            "refund_policy": "no refund",
+            "instance_types": instance_types,
+            "monthly_subscription_fee": monthly_fee,
+        }
+        o = models.Offer(**offer_item)  # type: ignore
+        assert o.get_offer_type() == expected_type
+
+    @pytest.mark.parametrize(
+        "offer_details, expected_type",
+        [
+            (
+                [{"Type": "UsageBasedPricingTerm"}],
+                models.AmiProductPricingType.HOURLY,
+            ),
+            (
+                [{"Type": "UsageBasedPricingTerm"}, {"Type": "ConfigurableUpfrontPricingTerm"}],
+                models.AmiProductPricingType.HOURLY_WITH_ANNUAL,
+            ),
+            (
+                [{"Type": "UsageBasedPricingTerm"}, {"Type": "RecurringPaymentTerm"}],
+                models.AmiProductPricingType.HOURLY_WITH_MONTHLY_SUBSCRIPTION_FEE,
+            ),
+        ],
+    )
+    def test_should_be_able_to_get_offer_type_from_offer_terms(self, offer_details, expected_type):
+        o = models.Offer.get_offer_type_from_offer_terms(offer_details)
+        assert o == expected_type
+
 
 class TestPricingTermModel:
     def test_pricing_term_model_hourly(self):

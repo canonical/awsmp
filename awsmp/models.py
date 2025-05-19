@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from decimal import Decimal
+from enum import Enum
 from typing import (
     Annotated,
     Any,
@@ -16,6 +17,7 @@ from typing import (
 
 import boto3
 from pydantic import (
+    AfterValidator,
     BaseModel,
     Field,
     HttpUrl,
@@ -76,6 +78,18 @@ class EulaDocumentItem(BaseModel):
         return values
 
 
+class AmiProductPricingTerm(Enum):
+    HOURLY = "UsageBasedPricingTerm"
+    UPFRONT_PRICING = "ConfigurableUpfrontPricingTerm"
+    RECURRING_MONTHLY = "RecurringPaymentTerm"
+
+
+class AmiProductPricingType(Enum):
+    HOURLY = 1
+    HOURLY_WITH_ANNUAL = 2
+    HOURLY_WITH_MONTHLY_SUBSCRIPTION_FEE = 3
+
+
 class Offer(BaseModel):
     """
     Offer model
@@ -93,6 +107,37 @@ class Offer(BaseModel):
                 raise ValueError(f"price must have at most 3 decimal places, got {value}")
 
         return value
+
+    def get_offer_type(self) -> AmiProductPricingType:
+        """Inspect offer and translate to the appropriate AmiProductOfferType"""
+        t = None
+        if self.monthly_subscription_fee is not None:
+            t = AmiProductPricingType.HOURLY_WITH_MONTHLY_SUBSCRIPTION_FEE
+        elif any(i for i in self.instance_types if i.price_annual is not None):
+            t = AmiProductPricingType.HOURLY_WITH_ANNUAL
+        else:
+            t = AmiProductPricingType.HOURLY
+
+        return t
+
+    @classmethod
+    def get_offer_type_from_offer_terms(cls, terms: list[Dict[str, Any]]) -> AmiProductPricingType:
+        """Inspect offer details and translate to the appropriate AmiProductOfferType
+
+        :param Dict[str, Any]: offer details from AWS API
+        """
+
+        configured_types = {i["Type"] for i in terms}
+
+        def offer_has_types(target_types: list[AmiProductPricingTerm]):
+            return all(t.value in configured_types for t in target_types)
+
+        if offer_has_types([AmiProductPricingTerm.HOURLY, AmiProductPricingTerm.UPFRONT_PRICING]):
+            return AmiProductPricingType.HOURLY_WITH_ANNUAL
+        elif offer_has_types([AmiProductPricingTerm.HOURLY, AmiProductPricingTerm.RECURRING_MONTHLY]):
+            return AmiProductPricingType.HOURLY_WITH_MONTHLY_SUBSCRIPTION_FEE
+        else:
+            return AmiProductPricingType.HOURLY
 
 
 class Region(BaseModel):

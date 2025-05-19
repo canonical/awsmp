@@ -9,6 +9,7 @@ from . import changesets, models
 from .errors import (
     AccessDeniedException,
     AmiPriceChangeError,
+    AmiPricingModelChangeError,
     MissingInstanceTypeError,
     ResourceNotFoundException,
     UnrecognizedClientException,
@@ -308,7 +309,8 @@ def _get_pricing_diff(product_id: str, changeset: List[ChangeSetType], allow_pri
     :rtype: Tuple[List, List]
     """
     change = cast(dict[str, Any], changeset[0])
-    local_pricing_changesets = change["DetailsDocument"]["Terms"]
+    local_details_document = change["DetailsDocument"]
+    local_pricing_changesets = local_details_document["Terms"]
     local_hourly, local_annual = _get_full_ratecard_info(local_pricing_changesets)
 
     # existing pricing information from the listing
@@ -319,10 +321,19 @@ def _get_pricing_diff(product_id: str, changeset: List[ChangeSetType], allow_pri
     diffs_hourly = _build_pricing_diff(existing_hourly, local_hourly)
     diffs_annual = _build_pricing_diff(existing_annual, local_annual)
 
+    def _has_different_pricing_model():
+        return models.Offer.get_offer_type_from_offer_terms(
+            local_pricing_changesets
+        ) != models.Offer.get_offer_type_from_offer_terms(existing_terms)
+
     if existing_listing_status == "Restricted":
         # restricted instances do not support updating instance types
         error_message = "Restricted listings may not have instance types updated."
         raise AmiPriceChangeError(error_message)
+    elif existing_listing_status != "Draft" and _has_different_pricing_model():
+        raise AmiPricingModelChangeError("Listing is published. Contact AWS Marketplace to change the pricing type.")
+
+    existing_hourly, existing_annual = _get_full_ratecard_info(existing_terms)
 
     def any_zero_to_paid(diffs):
         # check if pricing request from free (0.0) to non-zero prices
@@ -338,15 +349,16 @@ def _get_pricing_diff(product_id: str, changeset: List[ChangeSetType], allow_pri
         error_msg = f"""Free product was attempted to be converted to paid product.
             Please check the pricing files or set the price flag.\n
             Price change details:\n
-            Local pricing updates: {local_annual}\Existing pricing in local: {existing_annual}\n"
+            Local pricing updates: {local_annual}\nExisting pricing in local: {existing_annual}\n"
             """
         logger.error(error_msg)
         raise AmiPriceChangeError(error_msg)
+
     elif instance_configuration_changed and not allow_price_update:
         error_message = f"""There are pricing changes in either hourly or annual prices.
         Please check the pricing files or allow price change.
         Price change details:\n
-        Local pricing updates: {local_annual}\Existing pricing in local: {existing_annual}\n"
+        Local pricing updates: {local_annual}\nExisting pricing in local: {existing_annual}\n"
         """
         logger.error(error_message)
         raise AmiPriceChangeError(error_message)
