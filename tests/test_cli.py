@@ -402,11 +402,11 @@ def test_public_offer_product_update_details_pricing_change(mock_get_client, moc
     with caplog.at_level("ERROR", logger="awsmp._driver"):
         runner.invoke(
             cli.ami_product_update,
-            ["--product-id", "some-prod-id", "--config", "./tests/test_config.yaml"],
+            ["--product-id", "some-prod-id", "--config", "./tests/test_config.yaml", "--no-allow-price-change"],
         )
 
     assert any(
-        "There are pricing changes but changing price flag is not set" in record.message for record in caplog.records
+        "There are pricing changes in either hourly or annual prices." in record.message for record in caplog.records
     )
 
 
@@ -423,7 +423,7 @@ def test_public_offer_product_update_details_raise_exception(mock_get_client, mo
 
     mock_get_details.side_effect = [
         {"Dimensions": [{"Name": "a1.large"}, {"Name": "a1.xlarge"}]},
-        {"Description": {"Visibility": "Limited"}},
+        {"Description": {"Visibility": "Restricted"}},
         {
             "Terms": [
                 {
@@ -451,11 +451,11 @@ def test_public_offer_product_update_details_raise_exception(mock_get_client, mo
     with pytest.raises(errors.AmiPriceChangeError) as excInfo:
         runner.invoke(
             cli.ami_product_update,
-            ["--product-id", "some-prod-id", "--config", "./tests/test_config.yaml"],
+            ["--product-id", "some-prod-id", "--config", "./tests/test_config.yaml", "--no-allow-price-change"],
             catch_exceptions=False,
         )
 
-    assert "Contact AWS Marketplace" in excInfo.value.args[0]
+    assert "Restricted listings may not have instance types updated." in excInfo.value.args[0]
 
 
 @patch("awsmp._driver.changesets.models.boto3")
@@ -865,7 +865,7 @@ def test_public_offer_product_update_instance_type_pricing_change_exception(
 
     mock_get_details.side_effect = [
         {"Dimensions": [{"Name": "a1.large"}, {"Name": "a1.xlarge"}]},
-        {"Description": {"Visibility": "Limited"}},
+        {"Description": {"Visibility": "Restricted"}},
         {
             "Terms": [
                 {
@@ -891,6 +891,6 @@ def test_public_offer_product_update_instance_type_pricing_change_exception(
     runner = CliRunner()
     res = runner.invoke(
         cli.ami_product_update_instance_type,
-        ["--product-id", "some-prod-id", "--config", "./tests/test_config.yaml"],
+        ["--product-id", "some-prod-id", "--config", "./tests/test_config.yaml", "--no-allow-price-change"],
     )
-    assert res.exit_code == 1 and res.exc_info is not None and "Contact AWS" in res.exc_info[1].args[0]
+    assert res.exit_code == 1 and res.exc_info is not None and "Restricted listings" in res.exc_info[1].args[0]
