@@ -1,5 +1,5 @@
 import json
-from typing import Any, cast
+from typing import Any, Optional, cast
 from unittest.mock import patch
 
 import pytest
@@ -297,6 +297,39 @@ class TestOffer:
         }
         o = models.Offer(**offer_item)  # type: ignore
         assert o.get_offer_type() == expected_type
+
+    @pytest.mark.parametrize(
+        "instance_types,monthly_fee",
+        [
+            (
+                [
+                    {"name": "c1.large", "hourly": 0.0, "yearly": 0.0},
+                    {"name": "c1.xlarge", "hourly": 0.0},
+                ],
+                None,
+            ),
+            ([{"name": "c2.large", "hourly": 0.0}], 0.0),
+            ([{"name": "c3.large", "hourly": 0.0}, {"name": "c3.xlarge", "hourly": 0.0, "yearly": 0.0}], 0.0),
+        ],
+    )
+    def test_should_prevent_mixed_pricing_types(self, instance_types: list[dict], monthly_fee: Optional[str]):
+        """
+        ensures instance types cannot have pricing
+        set in a way that leaves ambiguity on if the
+        configuration is intended to be one of:
+        1. hourly
+        2. hourly + annual
+        3. hourly + annual + monthly sub
+        """
+        offer_item = {
+            "eula_document": [{"type": "CustomEula", "url": "https://example.com"}],
+            "refund_policy": "no refund",
+            "instance_types": instance_types,
+            "monthly_subscription_fee": monthly_fee,
+        }
+
+        with pytest.raises(ValidationError) as e:
+            models.Offer(**offer_item)  # type: ignore
 
     @pytest.mark.parametrize(
         "offer_details, expected_type",

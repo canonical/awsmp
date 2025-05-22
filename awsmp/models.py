@@ -139,6 +139,24 @@ class Offer(BaseModel):
         else:
             return AmiProductPricingType.HOURLY
 
+    @model_validator(mode="after")
+    def check_pricing_type_alignment(cls, offer: Offer):
+        if offer.monthly_subscription_fee is not None:
+            missing = [i.name for i in offer.instance_types if i.price_annual is None]
+            if missing:
+                error_message = f"""Offer has monthly_subscription fee but some instances are missing yearly key:
+                {'\n'.join(missing)}
+                """
+                raise ValueError(error_message)
+        elif any(i.price_annual is not None for i in offer.instance_types):
+            missing = [i.name for i in offer.instance_types if i.price_annual is None]
+            raise ValueError(
+                f"""Offer has at least one annual price but some instances are missing yearly key:
+            {'\n'.join(missing)}
+            """
+            )
+        return offer
+
 
 class Region(BaseModel):
     commercial_regions: conlist(str)  # type:ignore
