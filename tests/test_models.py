@@ -257,6 +257,9 @@ class TestOffer:
 
     def test_monthly_subscription_fee(self):
         offer_detail = self._get_offer_details()
+        for i in offer_detail["instance_types"]:
+            del i["yearly"]
+
         offer_detail["monthly_subscription_fee"] = 50.04
 
         model = models.Offer(**offer_detail)
@@ -280,7 +283,7 @@ class TestOffer:
                 models.AmiProductPricingType.HOURLY_WITH_ANNUAL,
             ),
             (
-                [{"name": "c3.xlarge", "hourly": 0.0, "yearly": 0.0}],
+                [{"name": "c3.xlarge", "hourly": 0.0, "yearly": None}],
                 0.0,
                 models.AmiProductPricingType.HOURLY_WITH_MONTHLY_SUBSCRIPTION_FEE,
             ),
@@ -308,7 +311,6 @@ class TestOffer:
                 ],
                 None,
             ),
-            ([{"name": "c2.large", "hourly": 0.0}], 0.0),
             ([{"name": "c3.large", "hourly": 0.0}, {"name": "c3.xlarge", "hourly": 0.0, "yearly": 0.0}], 0.0),
         ],
     )
@@ -319,7 +321,7 @@ class TestOffer:
         configuration is intended to be one of:
         1. hourly
         2. hourly + annual
-        3. hourly + annual + monthly sub
+        3. hourly + monthly sub
         """
         offer_item = {
             "eula_document": [{"type": "CustomEula", "url": "https://example.com"}],
