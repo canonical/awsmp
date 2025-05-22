@@ -197,6 +197,21 @@ class Offer(BaseModel):
                 """
             )
 
+    @model_validator(mode="after")
+    def ensure_pricing_ordering_enforced(cls, offer):
+        def hourly_greater_than_annual(i: InstanceTypePricing):
+            return i.price_annual and (i.price_hourly > i.price_annual)
+
+        misconfigured_hourly = "\n".join(i.name for i in offer.instance_types if hourly_greater_than_annual(i))
+        error = ""
+        if misconfigured_hourly:
+            error += "Hourly pricing cannot be greater than yearly pricing. Misconfigured instance types: {misconfigured_hourly}"
+
+        if error:
+            raise ValueError(error)
+
+        return offer
+
 
 class Region(BaseModel):
     commercial_regions: conlist(str)  # type:ignore
