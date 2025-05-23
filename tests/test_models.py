@@ -591,7 +591,7 @@ class TestEntity:
                 {
                     "PromotionalResources": models.PromotionalResourcesModel(
                         LogoUrl="https://test-logourl",
-                        Videos=["https://video-url"],
+                        Videos=[{"Type": "Link", "Title": "Product Video", "Url": "https://video-url"}],
                         AdditionalResources=[{"Text": "test-link", "Url": "https://test-url/"}],
                     ),
                 },
@@ -772,3 +772,35 @@ class TestEntity:
         entity1, entity2 = get_entity
         entity2.Terms[index] = custom_config
         assert entity1.get_diff(entity2) == expected_diff
+
+
+class PromotionalResourcesModelTest:
+    def test_get_promotional_resources_videos(self):
+        res = models.PromotionalResourcesModel(
+            LogoUrl=HttpUrl(
+                "https://test-logourl"
+            ),  # mypy error since it doesn't recognize the pydantic convert at runtime
+            Videos=[{"Type": "Link", "Title": "Product Video", "Url": "https://video-url"}],
+            AdditionalResources=[{"Text": "test-link", "Url": "https://test-url/"}],
+        )
+        assert res.Videos == HttpUrl("https://video-url")
+
+    def test_get_promotional_resources_videos_empty(self):
+        res = models.PromotionalResourcesModel(
+            LogoUrl=HttpUrl(
+                "https://test-logourl"
+            ),  # mypy error since it doesn't recognize the pydantic convert at runtime
+            Videos=[],
+            AdditionalResources=[{"Text": "test-link", "Url": "https://test-url/"}],
+        )
+        assert res.Videos == []
+
+    def test_get_promotional_resources_invalid_videos(self):
+        with pytest.raises(ValidationError):
+            models.PromotionalResourcesModel(
+                LogoUrl=HttpUrl(
+                    "https://test-logourl"
+                ),  # mypy error since it doesn't recognize the pydantic convert at runtime
+                Videos=["url"],  # type: ignore
+                AdditionalResources=[{"Text": "test-link", "Url": "https://test-url/"}],
+            )

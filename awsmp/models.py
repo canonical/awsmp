@@ -297,7 +297,7 @@ class PromotionalResourcesModel(BaseModel):
     """
 
     LogoUrl: HttpUrl
-    Videos: List[HttpUrl]
+    Videos: List[dict[str, str]]
     AdditionalResources: YamlSupportResources
 
     @field_validator("AdditionalResources")
@@ -307,6 +307,14 @@ class PromotionalResourcesModel(BaseModel):
         # To compare values correctly, the link value from entity's AdditionalResources field also
         # needs to be converted to an HttpUrl and then back to string format.
         return [{"Text": resource["Text"], "Url": str(HttpUrl(resource["Url"]))} for resource in value]
+
+    @field_validator("Videos")
+    def videos_validator(cls, value) -> List:
+        # The Ami class takes url as HttpUrl and converts it to string format for API request.
+        # And HttpUrl adds a trailing slash to the end of a URL.
+        # To compare values correctly, the link value from entity's Videos field also
+        # needs to be converted to an HttpUrl and then back to string format.
+        return [HttpUrl(value[0]["Url"])] if value else []
 
 
 class SupportInformationModel(BaseModel):
