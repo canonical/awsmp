@@ -139,6 +139,79 @@ class Offer(BaseModel):
         else:
             return AmiProductPricingType.HOURLY
 
+    @model_validator(mode="after")
+    def check_pricing_type_alignment(cls, offer):
+        """
+        ensures instance types cannot have pricing set in a way that leaves
+        ambiguity on if the configuration is intended to be one of:
+
+        1. hourly
+        2. hourly + annual
+        3. hourly + monthly sub
+
+        :param Offer offer: current offer to validate
+        """
+        if offer.monthly_subscription_fee is not None:
+            cls._raise_on_missing_monthly_subscription_fields(offer)
+        else:
+            cls._raise_on_hourly_yearly_mismatch(offer)
+        return offer
+
+    @classmethod
+    def _raise_on_missing_monthly_subscription_fields(cls, offer: Offer):
+        misconfigured = "\n".join({i.name for i in offer.instance_types if i.price_annual is not None})
+        if misconfigured:
+            error_message = f"""Offer has monthly_subscription_fee but some instances have yearly key:
+                {misconfigured}
+                """
+            raise ValueError(error_message)
+
+    @classmethod
+    def _raise_on_hourly_yearly_mismatch(cls, offer: Offer):
+        yearly_count = 0
+        hourly_count = 0
+        hourly = set()
+        yearly = set()
+        all_types = set()
+        for i in offer.instance_types:
+            all_types.add(i.name)
+            if i.price_annual is not None:
+                yearly.add(i.name)
+                yearly_count += 1
+            if i.price_hourly is not None:
+                hourly.add(i.name)
+                hourly_count += 1
+
+        if yearly_count != 0 and yearly_count < hourly_count:
+            missing = "\n".join(all_types - yearly)
+            raise ValueError(
+                f"""Offer has at least one yearly price but some instances are missing yearly key:
+                {missing}
+                """
+            )
+        elif hourly_count < yearly_count:
+            missing = "\n".join(all_types - hourly)
+            raise ValueError(
+                f"""Offer has at least one yearly price but some instances are missing yearly key:
+                {missing}
+                """
+            )
+
+    @model_validator(mode="after")
+    def ensure_pricing_ordering_enforced(cls, offer):
+        def hourly_greater_than_annual(i: InstanceTypePricing):
+            return i.price_annual and (i.price_hourly > i.price_annual)
+
+        misconfigured_hourly = "\n".join(i.name for i in offer.instance_types if hourly_greater_than_annual(i))
+        error = ""
+        if misconfigured_hourly:
+            error += "Hourly pricing cannot be greater than yearly pricing. Misconfigured instance types: {misconfigured_hourly}"
+
+        if error:
+            raise ValueError(error)
+
+        return offer
+
 
 class Region(BaseModel):
     commercial_regions: conlist(str)  # type:ignore

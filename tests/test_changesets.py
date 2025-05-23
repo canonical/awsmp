@@ -444,8 +444,8 @@ def test_get_ami_listing_update_instance_type_changesets_add_new_multiple_instan
 def test_get_ami_listing_update_instance_type_changesets_add_new_instance_type_with_monthly_subscription():
     offer_config: Dict[str, Any] = {
         "instance_types": [
-            {"name": "c3.xlarge", "yearly": 123.44, "hourly": 0.12},
-            {"name": "c4.large", "yearly": 78.56, "hourly": 0.55},
+            {"name": "c3.xlarge", "yearly": None, "hourly": 0.12},
+            {"name": "c4.large", "yearly": None, "hourly": 0.55},
         ],
         "eula_document": [{"type": "StandardEula", "version": "2025-05-05"}],
         "refund_policy": "refund_policy",

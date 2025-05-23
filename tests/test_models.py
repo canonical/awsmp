@@ -1,5 +1,5 @@
 import json
-from typing import Any, cast
+from typing import Any, Optional, cast
 from unittest.mock import patch
 
 import pytest
@@ -257,6 +257,9 @@ class TestOffer:
 
     def test_monthly_subscription_fee(self):
         offer_detail = self._get_offer_details()
+        for i in offer_detail["instance_types"]:
+            del i["yearly"]
+
         offer_detail["monthly_subscription_fee"] = 50.04
 
         model = models.Offer(**offer_detail)
@@ -280,7 +283,7 @@ class TestOffer:
                 models.AmiProductPricingType.HOURLY_WITH_ANNUAL,
             ),
             (
-                [{"name": "c3.xlarge", "hourly": 0.0, "yearly": 0.0}],
+                [{"name": "c3.xlarge", "hourly": 0.0, "yearly": None}],
                 0.0,
                 models.AmiProductPricingType.HOURLY_WITH_MONTHLY_SUBSCRIPTION_FEE,
             ),
@@ -297,6 +300,38 @@ class TestOffer:
         }
         o = models.Offer(**offer_item)  # type: ignore
         assert o.get_offer_type() == expected_type
+
+    @pytest.mark.parametrize(
+        "instance_types,monthly_fee",
+        [
+            (
+                [
+                    {"name": "c1.large", "hourly": 0.0, "yearly": 0.0},
+                    {"name": "c1.xlarge", "hourly": 0.0},
+                ],
+                None,
+            ),
+            ([{"name": "c3.large", "hourly": 0.0}, {"name": "c3.xlarge", "hourly": 0.0, "yearly": 0.0}], 0.0),
+        ],
+    )
+    def test_should_prevent_mixed_pricing_types(self, instance_types: list[dict], monthly_fee: Optional[str]):
+        """
+        ensures instance types cannot have pricing
+        set in a way that leaves ambiguity on if the
+        configuration is intended to be one of:
+        1. hourly
+        2. hourly + annual
+        3. hourly + monthly sub
+        """
+        offer_item = {
+            "eula_document": [{"type": "CustomEula", "url": "https://example.com"}],
+            "refund_policy": "no refund",
+            "instance_types": instance_types,
+            "monthly_subscription_fee": monthly_fee,
+        }
+
+        with pytest.raises(ValidationError) as e:
+            models.Offer(**offer_item)  # type: ignore
 
     @pytest.mark.parametrize(
         "offer_details, expected_type",
@@ -318,6 +353,32 @@ class TestOffer:
     def test_should_be_able_to_get_offer_type_from_offer_terms(self, offer_details, expected_type):
         o = models.Offer.get_offer_type_from_offer_terms(offer_details)
         assert o == expected_type
+
+    @pytest.mark.parametrize(
+        "instance_types",
+        [
+            ([{"name": "c1.large", "hourly": 5.0, "yearly": 0.5}]),
+            [{"name": "c3.xlarge", "hourly": 5.0, "yearly": 0.5}],
+            [{"name": "c3.xlarge", "hourly": 5.0, "yearly": 0.5}, {"name": "c3.xlarge", "hourly": 5.0, "yearly": 0.3}],
+            [{"name": "c3.xlarge", "hourly": 5.0, "yearly": 0.5}, {"name": "c3.xlarge", "hourly": 0.5, "yearly": 0.6}],
+        ],
+    )
+    def test_should_enforce_hourly_cannot_be_greater_than_yearly(self, instance_types: list[dict]):
+        """
+        This validates that:
+         1. hourly cannot be greater than annual
+         2. yearly cannot be less than hourly
+        """
+        offer_item = {
+            "eula_document": [{"type": "CustomEula", "url": "https://example.com"}],
+            "refund_policy": "no refund",
+            "instance_types": instance_types,
+        }
+
+        with pytest.raises(ValidationError) as e:
+            models.Offer(**offer_item)  # type: ignore
+
+        assert e.match("Hourly pricing cannot be greater than yearly pricing.")
 
 
 class TestPricingTermModel:
