@@ -849,7 +849,7 @@ class TestEntity:
         assert entity1.get_diff(entity2) == expected_diff
 
 
-class PromotionalResourcesModelTest:
+class TestPromotionalResourcesModel:
     def test_get_promotional_resources_videos(self):
         res = models.PromotionalResourcesModel(
             LogoUrl=HttpUrl(
@@ -858,7 +858,7 @@ class PromotionalResourcesModelTest:
             Videos=[{"Type": "Link", "Title": "Product Video", "Url": "https://video-url"}],
             AdditionalResources=[{"Text": "test-link", "Url": "https://test-url/"}],
         )
-        assert res.Videos == HttpUrl("https://video-url")
+        assert res.Videos[0] == HttpUrl("https://video-url")
 
     def test_get_promotional_resources_videos_empty(self):
         res = models.PromotionalResourcesModel(
