@@ -874,6 +874,25 @@ class TestEntity:
         entity2.Terms[index] = custom_config
         assert entity1.get_diff(entity2) == expected_diff
 
+    @pytest.mark.parametrize(
+        "key, value",
+        [
+            ("refund_policy", "test_refund_policy_term\n"),
+            (
+                "instance_types",
+                [
+                    {"name": "a1.large", "hourly": "0.004", "yearly": "24.528"},
+                    {"name": "a1.xlarge", "hourly": "0.007", "yearly": "49.056"},
+                ],
+            ),
+            ("eula_document", [{"type": ""}]),
+        ],
+    )
+    def test_convert_terms_to_dict(self, mock_boto3, get_entity, key, value):
+        entity, _ = get_entity
+        yaml_config = entity._convert_terms_to_dict()
+        assert yaml_config[key] == value
+
 
 class TestPromotionalResourcesModel:
     def test_get_promotional_resources_videos(self):

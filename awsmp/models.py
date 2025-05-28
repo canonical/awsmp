@@ -709,6 +709,37 @@ class EntityModel(BaseModel):
     Versions: VersionModel
     Terms: List[Annotated[Union[SupportTermModel, PricingTermModel], Field(discriminator="Type")]]
 
+    def _convert_terms_to_dict(self) -> dict[str, Any]:
+        """
+        Convert terms JSON format to dict with local configuration field names.
+        """
+        yaml_config: dict[str, Any] = {}
+        hourly, yearly = {}, {}
+        pricings: List[dict] = []
+
+        for term in self.Terms:
+            if term.Type == "SupportTerm":
+                yaml_config["refund_policy"] = term.RefundPolicy
+            else:
+                # Pricing term
+                if term.Type == "UsageBasedPricingTerm":
+                    for card in term.RateCards[0].RateCard:
+                        hourly[card.DimensionKey] = card.Price
+                if term.Type == "ConfigurableUpfrontPricingTerm":
+                    for card in term.RateCards[0].RateCard:
+                        yearly[card.DimensionKey] = card.Price
+
+        for key in hourly:
+            pricing = {"name": key, "hourly": hourly[key]}
+            if key in yearly:
+                pricing["yearly"] = yearly[key]
+            pricings.append(pricing)
+        yaml_config["instance_types"] = pricings
+
+        yaml_config["eula_document"] = [{"type": ""}]
+
+        return yaml_config
+
     @staticmethod
     def get_entity(response: dict[str, Any]) -> EntityModel:
         """
