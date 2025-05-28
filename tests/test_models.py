@@ -381,6 +381,32 @@ class TestOffer:
         assert e.match("Hourly pricing cannot be greater than yearly pricing.")
 
 
+class TestDescriptionModel:
+    @pytest.mark.parametrize(
+        "key, value",
+        [
+            ("product_title", "test title"),
+            ("short_description", "test short description"),
+            ("long_description", "test long description\n"),
+            ("sku", "test sku"),
+            ("highlights", ["test highlight1"]),
+            ("search_keywords", ["ubuntu"]),
+            ("categories", ["test categories"]),
+        ],
+    )
+    def test_to_dict(self, key, value):
+        yaml_config = models.DescriptionModel(
+            ProductTitle="test title",
+            ShortDescription="test short description",
+            LongDescription="test long description\n",
+            Sku="test sku",
+            Highlights=["test highlight1"],
+            SearchKeywords=["ubuntu"],
+            Categories=["test categories"],
+        ).to_dict()
+        assert yaml_config[key] == value
+
+
 class TestPricingTermModel:
     def test_pricing_term_model_hourly(self):
         data = {
@@ -880,6 +906,123 @@ class TestPromotionalResourcesModel:
                 AdditionalResources=[{"Text": "test-link", "Url": "https://test-url/"}],
             )
 
+    @pytest.mark.parametrize(
+        "key, value",
+        [
+            ("logo_url", "https://test.logo.url/"),
+            ("video_urls", ["https://test.video.url/"]),
+            ("additional_resources", [{"test": "https://resources.url/"}]),
+        ],
+    )
+    def test_to_dict(self, key, value):
+        yaml_config = models.PromotionalResourcesModel(
+            LogoUrl=HttpUrl(
+                "https://test.logo.url/"
+            ),  # mypy error since it doesn't recognize the pydantic convert at runtime
+            Videos=[{"Type": "Link", "Title": "Product Video", "Url": "https://test.video.url/"}],
+            AdditionalResources=[{"Text": "test", "Url": "https://resources.url"}],
+        ).to_dict()
+        assert yaml_config[key] == value
+
+
+class TestOperatingSystemModel:
+    @pytest.mark.parametrize(
+        "key, value",
+        [
+            ("os_system_name", "UBUNTU"),
+            ("os_user_name", "ubuntu"),
+            ("os_system_version", "22.04 - Jammy"),
+            ("scanning_port", 22),
+        ],
+    )
+    def test_to_dict(self, key, value):
+        yaml_config = models.OperatingSystemModel(
+            Name="UBUNTU", Version="22.04 - Jammy", Username="ubuntu", ScanningPort=22
+        ).to_dict()
+        assert yaml_config[key] == value
+
+
+class TestSourcesModel:
+    @pytest.mark.parametrize(
+        "key, value",
+        [
+            ("ami_id", "ami-123456789"),
+            ("os_system_name", "UBUNTU"),
+            ("os_user_name", "ubuntu"),
+            ("os_system_version", "22.04 - Jammy"),
+            ("scanning_port", 22),
+        ],
+    )
+    def test_to_dict(self, key, value):
+        yaml_config = models.SourcesModel(
+            Image="ami-123456789",
+            OperatingSystem=models.OperatingSystemModel(
+                Name="UBUNTU", Version="22.04 - Jammy", Username="ubuntu", ScanningPort=22
+            ),
+        ).to_dict()
+        assert yaml_config[key] == value
+
+
+class TestSecurityGroupsModel:
+    @pytest.mark.parametrize(
+        "key, value",
+        [
+            ("ip_protocol", "tcp"),
+            ("ip_ranges", ["0.0.0.0/0"]),
+            ("from_port", 22),
+            ("to_port", 22),
+        ],
+    )
+    def test_to_dict(self, key, value):
+        yaml_config = models.SecurityGroupsModel(
+            Protocol="tcp", FromPort=22, ToPort=22, CidrIps=["0.0.0.0/0"]
+        ).to_dict()
+        assert yaml_config[key] == value
+
+
+class TestRecommendationsModel:
+    @pytest.mark.parametrize(
+        "key, value",
+        [
+            ("recommended_instance_types", "t1.micro"),
+            ("ip_protocol", "tcp"),
+            ("ip_ranges", ["0.0.0.0/0"]),
+            ("from_port", 22),
+            ("to_port", 22),
+        ],
+    )
+    def test_to_dict(self, key, value):
+        yaml_config = models.RecommendationsModel(
+            InstanceType="t1.micro",
+            SecurityGroups=[models.SecurityGroupsModel(Protocol="tcp", FromPort=22, ToPort=22, CidrIps=["0.0.0.0/0"])],
+        ).to_dict()
+        assert yaml_config[key] == value
+
+
+class TestDeliveryMethodsModel:
+    @pytest.mark.parametrize(
+        "key, value",
+        [
+            ("usage_instructions", "test usage instruction"),
+            ("recommended_instance_types", "t1.micro"),
+            ("ip_protocol", "tcp"),
+            ("ip_ranges", ["0.0.0.0/0"]),
+            ("from_port", 22),
+            ("to_port", 22),
+        ],
+    )
+    def test_to_dict(self, key, value):
+        yaml_config = models.DeliveryMethodsModel(
+            Instructions={"Usage": "test usage instruction"},
+            Recommendations=models.RecommendationsModel(
+                InstanceType="t1.micro",
+                SecurityGroups=[
+                    models.SecurityGroupsModel(Protocol="tcp", FromPort=22, ToPort=22, CidrIps=["0.0.0.0/0"])
+                ],
+            ),
+        ).to_dict()
+        assert yaml_config[key] == value
+
 
 class TestVersionModel:
     @pytest.fixture
@@ -934,3 +1077,68 @@ class TestVersionModel:
 
         with pytest.raises(ValidationError):
             models.VersionModel(**get_versions)
+
+    @pytest.mark.parametrize(
+        "key, value",
+        [
+            ("version_title", "Test Ubuntu AMI"),
+            ("release_notes", "test release notes"),
+            ("usage_instructions", "test_usage_instruction\n"),
+            ("recommended_instance_types", "t3.medium"),
+            ("ip_protocol", "tcp"),
+            ("ip_ranges", ["0.0.0.0/0"]),
+            ("from_port", 22),
+            ("to_port", 22),
+            ("ami_id", "ami-12345678910"),
+            ("os_system_name", "UBUNTU"),
+            ("os_user_name", "ubuntu"),
+            ("os_system_version", "22.04 - Jammy"),
+            ("scanning_port", 22),
+        ],
+    )
+    def test_to_dict(self, get_versions, key, value):
+        yaml_config = models.VersionModel(**get_versions).to_dict()
+        assert yaml_config[key] == value
+
+
+class TestSupportInformationModel:
+    @pytest.mark.parametrize(
+        "key, value",
+        [
+            ("support_description", "test description"),
+            ("support_resources", ["test support resources"]),
+        ],
+    )
+    def test_to_dict(self, key, value):
+        yaml_config = models.SupportInformationModel(
+            Description="test description", Resources=["test support resources"]
+        ).to_dict()
+        assert yaml_config[key] == value
+
+
+class TestRegionAvailabilityModel:
+    @pytest.mark.parametrize(
+        "key, value",
+        [
+            ("commercial_regions", ["us-east-1", "us-west-2"]),
+            ("future_region_support", True),
+        ],
+    )
+    def test_to_dict(self, key, value):
+        yaml_config = models.RegionAvailabilityModel(
+            Regions=["us-east-1", "us-west-2"], FutureRegionSupport="All"
+        ).to_dict()
+        assert yaml_config[key] == value
+
+    @pytest.mark.parametrize(
+        "key, value",
+        [
+            ("commercial_regions", ["us-east-1", "us-west-2"]),
+            ("future_region_support", False),
+        ],
+    )
+    def test_to_dict_future_region_not_enabled(self, key, value):
+        yaml_config = models.RegionAvailabilityModel(
+            Regions=["us-east-1", "us-west-2"], FutureRegionSupport="None"
+        ).to_dict()
+        assert yaml_config[key] == value

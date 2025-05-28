@@ -363,6 +363,23 @@ class DescriptionModel(BaseModel):
     SearchKeywords: List[str]
     Categories: List[str]
 
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Return dictionary of description information with local configuration field names
+
+        :return: Dictionary of description information
+        :rtype: dict[str, Any]
+        """
+        return {
+            "product_title": self.ProductTitle,
+            "short_description": self.ShortDescription,
+            "long_description": self.LongDescription,
+            "sku": self.Sku,
+            "highlights": self.Highlights,
+            "search_keywords": self.SearchKeywords,
+            "categories": self.Categories,
+        }
+
 
 class PromotionalResourcesModel(BaseModel):
     """
@@ -389,6 +406,23 @@ class PromotionalResourcesModel(BaseModel):
         # needs to be converted to an HttpUrl and then back to string format.
         return [HttpUrl(value[0]["Url"])] if value else []
 
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Return dictionary of promotional resource information with local configuration field names
+
+        :return: Dictionary of promotional resource information
+        :rtype: dict[str, Any]
+        """
+        resources = []
+        for resource in self.AdditionalResources:
+            resources.append({resource["Text"]: resource["Url"]})
+
+        return {
+            "logo_url": str(self.LogoUrl),
+            "video_urls": [str(video) for video in self.Videos],
+            "additional_resources": resources,
+        }
+
 
 class SupportInformationModel(BaseModel):
     """
@@ -398,6 +432,15 @@ class SupportInformationModel(BaseModel):
     Description: str
     Resources: List[str]
 
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Return dictionary of support information with local configuration field names.
+
+        :return: Dictionary of support information
+        :rtype: dict[str, Any]
+        """
+        return {"support_description": self.Description, "support_resources": self.Resources}
+
 
 class RegionAvailabilityModel(BaseModel):
     """
@@ -406,6 +449,16 @@ class RegionAvailabilityModel(BaseModel):
 
     Regions: List[str]
     FutureRegionSupport: str
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Return dictionary of region availability with local configuration field names.
+
+        :return: Dictionary of region availability information
+        :rtype: dict[str, Any]
+        """
+        future_region_support = True if self.FutureRegionSupport == "All" else False
+        return {"commercial_regions": self.Regions, "future_region_support": future_region_support}
 
 
 class SupportTermModel(BaseModel):
@@ -474,6 +527,20 @@ class OperatingSystemModel(BaseModel):
     Username: str
     ScanningPort: int
 
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Return dictionary of operating system with local configuration field names.
+
+        :return: Dictionary of operating system information
+        :rtype: dict[str, Any]
+        """
+        return {
+            "os_system_name": self.Name,
+            "os_user_name": self.Username,
+            "os_system_version": self.Version,
+            "scanning_port": self.ScanningPort,
+        }
+
 
 class SourcesModel(BaseModel):
     """
@@ -482,6 +549,15 @@ class SourcesModel(BaseModel):
 
     Image: str
     OperatingSystem: OperatingSystemModel
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Return dictionary of source information with local configuration field names.
+
+        :return: Dictionary of source information
+        :rtype: dict[str, Any]
+        """
+        return {**{"ami_id": self.Image}, **self.OperatingSystem.to_dict()}
 
 
 class SecurityGroupsModel(BaseModel):
@@ -494,6 +570,20 @@ class SecurityGroupsModel(BaseModel):
     ToPort: int
     CidrIps: List[str]
 
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Return dictionary of security group information with local configuration field names.
+
+        :return: Dictionary of security group information
+        :rtype: dict[str, Any]
+        """
+        return {
+            "ip_protocol": self.Protocol,
+            "ip_ranges": self.CidrIps,
+            "from_port": self.FromPort,
+            "to_port": self.ToPort,
+        }
+
 
 class RecommendationsModel(BaseModel):
     """
@@ -503,6 +593,17 @@ class RecommendationsModel(BaseModel):
     SecurityGroups: List[SecurityGroupsModel]
     InstanceType: str
 
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Return dictionary of version information with local configuration field names.
+
+        Local config file only have the initial security group information of the version
+
+        :return: Dictionary of recommendation information
+        :rtype: dict[str, Any]
+        """
+        return {**{"recommended_instance_types": self.InstanceType}, **self.SecurityGroups[0].to_dict()}
+
 
 class DeliveryMethodsModel(BaseModel):
     """
@@ -511,6 +612,15 @@ class DeliveryMethodsModel(BaseModel):
 
     Instructions: dict[str, str]
     Recommendations: RecommendationsModel
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Return dictionary of delivery method information with local configuration field names.
+
+        :return: Dictionary of version information
+        :rtype: dict[str, Any]
+        """
+        return {**{"usage_instructions": self.Instructions["Usage"]}, **self.Recommendations.to_dict()}
 
 
 class VersionModel(BaseModel):
@@ -522,6 +632,28 @@ class VersionModel(BaseModel):
     ReleaseNotes: str
     Sources: List[SourcesModel]
     DeliveryMethods: List[DeliveryMethodsModel]
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Return dictionary of version information with local configuration field names.
+
+        Only first sources and delivery method will be returned for the version.
+
+        :return: Dictionary of version information
+        :rtype: dict[str, Any]
+        """
+        sources = self.Sources[0].to_dict()
+        delivery_methods = self.DeliveryMethods[0].to_dict()
+
+        return {
+            **{
+                "version_title": self.VersionTitle,
+                "release_notes": self.ReleaseNotes,
+                "access_role_arn": "",
+            },
+            **self.DeliveryMethods[0].to_dict(),
+            **self.Sources[0].to_dict(),
+        }
 
 
 class DiffAddedModel(BaseModel):
