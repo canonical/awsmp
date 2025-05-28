@@ -574,6 +574,7 @@ class EntityModel(BaseModel):
     PromotionalResources: PromotionalResourcesModel
     SupportInformation: SupportInformationModel
     RegionAvailability: RegionAvailabilityModel
+    Versions: VersionModel
     Terms: List[Annotated[Union[SupportTermModel, PricingTermModel], Field(discriminator="Type")]]
 
     @staticmethod
@@ -647,6 +648,37 @@ class EntityModel(BaseModel):
             "RegionAvailability": {
                 "Regions": ami_product.region.commercial_regions,
                 "FutureRegionSupport": ami_product.region.future_region_supported()[-1],
+            },
+            "Versions": {
+                "ReleaseNotes": ami_product.version.release_notes,
+                "VersionTitle": ami_product.version.version_title,
+                "Sources": [
+                    {
+                        "Image": ami_product.version.ami_id,
+                        "OperatingSystem": {
+                            "Name": ami_product.version.os_system_name,
+                            "Version": ami_product.version.os_system_version,
+                            "Username": ami_product.version.os_user_name,
+                            "ScanningPort": ami_product.version.scanning_port,
+                        },
+                    }
+                ],
+                "DeliveryMethods": [
+                    {
+                        "Instructions": {"Usage": ami_product.version.usage_instructions},
+                        "Recommendations": {
+                            "SecurityGroups": [
+                                {
+                                    "Protocol": ami_product.version.ip_protocol,
+                                    "FromPort": ami_product.version.from_port,
+                                    "ToPort": ami_product.version.to_port,
+                                    "CidrIps": ami_product.version.ip_ranges,
+                                }
+                            ],
+                            "InstanceType": ami_product.version.recommended_instance_type,
+                        },
+                    }
+                ],
             },
             "Terms": [
                 {"Type": "SupportTerm", "RefundPolicy": ami_offer.refund_policy},
@@ -795,6 +827,7 @@ class EntityModel(BaseModel):
         :rtype DiffModel
         """
         non_dict_fields = ["Terms"]  # Terms contain different offer details with list format
+        skip_fields = ["Versions"]
         diff_added: List[DiffAddedModel] = []
         diff_removed: List[DiffRemovedModel] = []
         diff_changed: List[DiffChangedModel] = []
@@ -806,6 +839,8 @@ class EntityModel(BaseModel):
         entity_model = self.model_dump()
 
         for entity_key, entity_value in local_entity.model_dump().items():
+            if entity_key in skip_fields:
+                continue
             if entity_key not in non_dict_fields:
                 for model_key, model_value in entity_value.items():
                     EntityModel._add_diff(

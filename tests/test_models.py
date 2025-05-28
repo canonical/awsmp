@@ -465,6 +465,13 @@ class TestEntity:
         entity_model = models.EntityModel(**response_json)
         assert entity_model.Description.ProductTitle == "test"
 
+    def test_valid_response_version(self):
+        with open("./tests/test_config.json", "r") as f:
+            response_json = json.load(f)
+
+        entity_model = models.EntityModel(**response_json)
+        assert entity_model.Versions.ReleaseNotes == "test release notes"
+
     def test_valid_response_pricing_term(self):
         with open("./tests/test_config.json", "r") as f:
             response_json = json.load(f)
@@ -479,6 +486,13 @@ class TestEntity:
 
         entity_model = models.EntityModel.get_entity_from_yaml(local_config)
         assert entity_model.Description.ProductTitle == "test"
+
+    def test_yaml_to_entity_version(self, mock_boto3):
+        with open("./tests/test_config.yaml", "r") as f:
+            local_config = yaml.safe_load(f)
+
+        entity_model = models.EntityModel.get_entity_from_yaml(local_config)
+        assert entity_model.Versions.ReleaseNotes == "test_release_notes\n"
 
     def test_yaml_to_entity_term(self, mock_boto3):
         with open("./tests/test_config.yaml", "r") as f:
