@@ -29,6 +29,10 @@
                 "Constraints": {"MultipleDimensionSelection": "Allowed","QuantityConfiguration": "Allowed"},
                 "RateCard": [{"DimensionKey": "a1.large","Price": "24.528"},
                     {"DimensionKey": "a1.xlarge","Price": "49.056"}]
-            }]}]
+            }]}],
+        "Versions": {"ReleaseNotes": "test release notes", 
+            "VersionTitle": "Test Ubuntu AMI", 
+            "Sources": [{"Type": "AmazonMachineImage", "Image": "ami-12345678910", "Architecture": "x86_64", "VirtualizationType": "hvm", "OperatingSystem": {"Name": "UBUNTU", "Version": "22.04 - Jammy", "Username": "ubuntu", "ScanningPort": 22}, "Compatibility": {"AvailableInstanceTypes": ["t2.nano", "t3.medium"], "RestrictedInstanceTypes": []}}], "DeliveryMethods": [{"Type": "AmazonMachineImage", "ShortDescription": "No description provided for this delivery method", "Instructions": {"Usage": "test_usage_instruction\n"}, "Recommendations": {"SecurityGroups": [{"Protocol": "tcp", "FromPort": 22, 
+                "ToPort": 22, "CidrIps": ["0.0.0.0/0"]}], "InstanceType": "t3.medium"}, "Visibility": "Public", "Title": "(x86_64) Amazon Machine Image"}], "DeliveryOptions": [{"Instructions": {"Usage": "test usage instruction\n"}, "Recommendations": {"SecurityGroups": [{"Protocol": "tcp", "FromPort": 22, "ToPort": 22, "CidrIps": ["0.0.0.0/0"]}], "InstanceType": "t3.medium"}, "Visibility": "Public", "Title": "(x86_64) Amazon Machine Image"}]}
 }
 
