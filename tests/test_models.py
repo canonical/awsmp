@@ -865,3 +865,58 @@ class PromotionalResourcesModelTest:
                 Videos=["url"],  # type: ignore
                 AdditionalResources=[{"Text": "test-link", "Url": "https://test-url/"}],
             )
+
+
+class TestVersionModel:
+    @pytest.fixture
+    def get_versions(self):
+        with open("./tests/test_config.json", "r") as f:
+            response_json = json.load(f)
+        return response_json["Versions"]
+
+    def test_get_version_title(self, get_versions):
+        version = models.VersionModel(**get_versions)
+        assert version.VersionTitle == "Test Ubuntu AMI"
+
+    def test_get_release_notes(self, get_versions):
+        version = models.VersionModel(**get_versions)
+        assert version.ReleaseNotes == "test release notes"
+
+    def test_get_sources(self, get_versions):
+        version = models.VersionModel(**get_versions)
+        assert version.Sources[0].Image == "ami-12345678910"
+
+    def test_get_sources_operating_system(self, get_versions):
+        version = models.VersionModel(**get_versions)
+        assert version.Sources[0].OperatingSystem.Name == "UBUNTU"
+        assert version.Sources[0].OperatingSystem.Version == "22.04 - Jammy"
+        assert version.Sources[0].OperatingSystem.Username == "ubuntu"
+        assert version.Sources[0].OperatingSystem.ScanningPort == 22
+
+    def test_get_delivery_methods(self, get_versions):
+        version = models.VersionModel(**get_versions)
+        assert version.DeliveryMethods[0].Instructions["Usage"] == "test_usage_instruction\n"
+
+    def test_get_delivery_methods_recommendations_instance_type(self, get_versions):
+        version = models.VersionModel(**get_versions)
+        assert version.DeliveryMethods[0].Recommendations.InstanceType == "t3.medium"
+
+    def test_get_delivery_methods_recommendations_security_groups(self, get_versions):
+        version = models.VersionModel(**get_versions)
+        assert version.DeliveryMethods[0].Recommendations.SecurityGroups[0].Protocol == "tcp"
+        assert version.DeliveryMethods[0].Recommendations.SecurityGroups[0].FromPort == 22
+        assert version.DeliveryMethods[0].Recommendations.SecurityGroups[0].ToPort == 22
+        assert version.DeliveryMethods[0].Recommendations.SecurityGroups[0].CidrIps == ["0.0.0.0/0"]
+
+    def test_invallid_operating_system_version(self, get_versions):
+        get_versions["Sources"][0]["OperatingSystem"]["Version"] = 22.04
+        with pytest.raises(ValidationError):
+            models.VersionModel(**get_versions)
+
+    def test_invallid_security_group_protocol(self, get_versions):
+        get_versions["DeliveryMethods"][0]["Recommendations"]["SecurityGroups"][0] = "smtp"
+        with pytest.raises(ValidationError):
+            models.VersionModel(**get_versions)
+
+        with pytest.raises(ValidationError):
+            models.VersionModel(**get_versions)

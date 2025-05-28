@@ -464,6 +464,66 @@ class PricingTermModel(BaseModel):
     RateCards: List[RateCardItemsModel]
 
 
+class OperatingSystemModel(BaseModel):
+    """
+    Model for Operating system
+    """
+
+    Name: str
+    Version: str
+    Username: str
+    ScanningPort: int
+
+
+class SourcesModel(BaseModel):
+    """
+    Model for sources
+    """
+
+    Image: str
+    OperatingSystem: OperatingSystemModel
+
+
+class SecurityGroupsModel(BaseModel):
+    """
+    Model for security groups
+    """
+
+    Protocol: Literal["tcp", "udp"]
+    FromPort: int
+    ToPort: int
+    CidrIps: List[str]
+
+
+class RecommendationsModel(BaseModel):
+    """
+    Model for recommendations
+    """
+
+    SecurityGroups: List[SecurityGroupsModel]
+    InstanceType: str
+
+
+class DeliveryMethodsModel(BaseModel):
+    """
+    Model for delivery method
+    """
+
+    Instructions: dict[str, str]
+    Recommendations: RecommendationsModel
+
+
+class VersionModel(BaseModel):
+    """
+    Model for version from entity details
+    """
+
+    VersionTitle: str
+    ReleaseNotes: str
+    Sources: List[SourcesModel]
+    DeliveryMethods: List[DeliveryMethodsModel]
+
+
 class DiffAddedModel(BaseModel):
     """
     Model for fields that have been added in a diff comparison
