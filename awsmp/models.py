@@ -709,6 +709,29 @@ class EntityModel(BaseModel):
     Versions: VersionModel
     Terms: List[Annotated[Union[SupportTermModel, PricingTermModel], Field(discriminator="Type")]]
 
+    def get_yaml_from_entity(self) -> dict[str, Any]:
+        """
+        Convert a entity object to dict with local config file field names
+
+        :return: Dictionary of local configuration information
+        :rtype: dcit[str, Any]
+        """
+        description_configs = {
+            **self.Description._to_yaml(),
+            **self.PromotionalResources._to_yaml(),
+            **self.SupportInformation._to_yaml(),
+        }
+        config = {
+            "product": {
+                "description": description_configs,
+                "region": self.RegionAvailability._to_yaml(),
+                "version": self.Versions._to_yaml()
+            },
+            "offer": self._convert_terms_to_yaml(),
+        }
+
+        return config
+
     def _convert_terms_to_dict(self) -> dict[str, Any]:
         """
         Convert terms JSON format to dict with local configuration field names.
