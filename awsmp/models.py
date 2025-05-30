@@ -363,6 +363,23 @@ class DescriptionModel(BaseModel):
     SearchKeywords: List[str]
     Categories: List[str]
 
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Return dictionary of description information with local configuration field names
+
+        :return: Dictionary of description information
+        :rtype: dict[str, Any]
+        """
+        return {
+            "product_title": self.ProductTitle,
+            "short_description": self.ShortDescription,
+            "long_description": self.LongDescription,
+            "sku": self.Sku,
+            "highlights": self.Highlights,
+            "search_keywords": self.SearchKeywords,
+            "categories": self.Categories,
+        }
+
 
 class PromotionalResourcesModel(BaseModel):
     """
@@ -389,6 +406,23 @@ class PromotionalResourcesModel(BaseModel):
         # needs to be converted to an HttpUrl and then back to string format.
         return [HttpUrl(value[0]["Url"])] if value else []
 
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Return dictionary of promotional resource information with local configuration field names
+
+        :return: Dictionary of promotional resource information
+        :rtype: dict[str, Any]
+        """
+        resources = []
+        for resource in self.AdditionalResources:
+            resources.append({resource["Text"]: resource["Url"]})
+
+        return {
+            "logo_url": str(self.LogoUrl),
+            "video_urls": [str(video) for video in self.Videos],
+            "additional_resources": resources,
+        }
+
 
 class SupportInformationModel(BaseModel):
     """
@@ -398,6 +432,15 @@ class SupportInformationModel(BaseModel):
     Description: str
     Resources: List[str]
 
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Return dictionary of support information with local configuration field names.
+
+        :return: Dictionary of support information
+        :rtype: dict[str, Any]
+        """
+        return {"support_description": self.Description, "support_resources": self.Resources}
+
 
 class RegionAvailabilityModel(BaseModel):
     """
@@ -406,6 +449,16 @@ class RegionAvailabilityModel(BaseModel):
 
     Regions: List[str]
     FutureRegionSupport: str
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Return dictionary of region availability with local configuration field names.
+
+        :return: Dictionary of region availability information
+        :rtype: dict[str, Any]
+        """
+        future_region_support = True if self.FutureRegionSupport == "All" else False
+        return {"commercial_regions": self.Regions, "future_region_support": future_region_support}
 
 
 class SupportTermModel(BaseModel):
@@ -474,6 +527,20 @@ class OperatingSystemModel(BaseModel):
     Username: str
     ScanningPort: int
 
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Return dictionary of operating system with local configuration field names.
+
+        :return: Dictionary of operating system information
+        :rtype: dict[str, Any]
+        """
+        return {
+            "os_system_name": self.Name,
+            "os_user_name": self.Username,
+            "os_system_version": self.Version,
+            "scanning_port": self.ScanningPort,
+        }
+
 
 class SourcesModel(BaseModel):
     """
@@ -482,6 +549,15 @@ class SourcesModel(BaseModel):
 
     Image: str
     OperatingSystem: OperatingSystemModel
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Return dictionary of source information with local configuration field names.
+
+        :return: Dictionary of source information
+        :rtype: dict[str, Any]
+        """
+        return {**{"ami_id": self.Image}, **self.OperatingSystem.to_dict()}
 
 
 class SecurityGroupsModel(BaseModel):
@@ -494,6 +570,20 @@ class SecurityGroupsModel(BaseModel):
     ToPort: int
     CidrIps: List[str]
 
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Return dictionary of security group information with local configuration field names.
+
+        :return: Dictionary of security group information
+        :rtype: dict[str, Any]
+        """
+        return {
+            "ip_protocol": self.Protocol,
+            "ip_ranges": self.CidrIps,
+            "from_port": self.FromPort,
+            "to_port": self.ToPort,
+        }
+
 
 class RecommendationsModel(BaseModel):
     """
@@ -503,6 +593,17 @@ class RecommendationsModel(BaseModel):
     SecurityGroups: List[SecurityGroupsModel]
     InstanceType: str
 
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Return dictionary of version information with local configuration field names.
+
+        Local config file only have the initial security group information of the version
+
+        :return: Dictionary of recommendation information
+        :rtype: dict[str, Any]
+        """
+        return {**{"recommended_instance_types": self.InstanceType}, **self.SecurityGroups[0].to_dict()}
+
 
 class DeliveryMethodsModel(BaseModel):
     """
@@ -511,6 +612,15 @@ class DeliveryMethodsModel(BaseModel):
 
     Instructions: dict[str, str]
     Recommendations: RecommendationsModel
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Return dictionary of delivery method information with local configuration field names.
+
+        :return: Dictionary of version information
+        :rtype: dict[str, Any]
+        """
+        return {**{"usage_instructions": self.Instructions["Usage"]}, **self.Recommendations.to_dict()}
 
 
 class VersionModel(BaseModel):
@@ -522,6 +632,28 @@ class VersionModel(BaseModel):
     ReleaseNotes: str
     Sources: List[SourcesModel]
     DeliveryMethods: List[DeliveryMethodsModel]
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Return dictionary of version information with local configuration field names.
+
+        Only first sources and delivery method will be returned for the version.
+
+        :return: Dictionary of version information
+        :rtype: dict[str, Any]
+        """
+        sources = self.Sources[0].to_dict()
+        delivery_methods = self.DeliveryMethods[0].to_dict()
+
+        return {
+            **{
+                "version_title": self.VersionTitle,
+                "release_notes": self.ReleaseNotes,
+                "access_role_arn": "",
+            },
+            **self.DeliveryMethods[0].to_dict(),
+            **self.Sources[0].to_dict(),
+        }
 
 
 class DiffAddedModel(BaseModel):
@@ -574,7 +706,39 @@ class EntityModel(BaseModel):
     PromotionalResources: PromotionalResourcesModel
     SupportInformation: SupportInformationModel
     RegionAvailability: RegionAvailabilityModel
+    Versions: VersionModel
     Terms: List[Annotated[Union[SupportTermModel, PricingTermModel], Field(discriminator="Type")]]
+
+    def _convert_terms_to_dict(self) -> dict[str, Any]:
+        """
+        Convert terms JSON format to dict with local configuration field names.
+        """
+        yaml_config: dict[str, Any] = {}
+        hourly, yearly = {}, {}
+        pricings: List[dict] = []
+
+        for term in self.Terms:
+            if term.Type == "SupportTerm":
+                yaml_config["refund_policy"] = term.RefundPolicy
+            else:
+                # Pricing term
+                if term.Type == "UsageBasedPricingTerm":
+                    for card in term.RateCards[0].RateCard:
+                        hourly[card.DimensionKey] = card.Price
+                if term.Type == "ConfigurableUpfrontPricingTerm":
+                    for card in term.RateCards[0].RateCard:
+                        yearly[card.DimensionKey] = card.Price
+
+        for key in hourly:
+            pricing = {"name": key, "hourly": hourly[key]}
+            if key in yearly:
+                pricing["yearly"] = yearly[key]
+            pricings.append(pricing)
+        yaml_config["instance_types"] = pricings
+
+        yaml_config["eula_document"] = [{"type": ""}]
+
+        return yaml_config
 
     @staticmethod
     def get_entity(response: dict[str, Any]) -> EntityModel:
@@ -647,6 +811,37 @@ class EntityModel(BaseModel):
             "RegionAvailability": {
                 "Regions": ami_product.region.commercial_regions,
                 "FutureRegionSupport": ami_product.region.future_region_supported()[-1],
+            },
+            "Versions": {
+                "ReleaseNotes": ami_product.version.release_notes,
+                "VersionTitle": ami_product.version.version_title,
+                "Sources": [
+                    {
+                        "Image": ami_product.version.ami_id,
+                        "OperatingSystem": {
+                            "Name": ami_product.version.os_system_name,
+                            "Version": ami_product.version.os_system_version,
+                            "Username": ami_product.version.os_user_name,
+                            "ScanningPort": ami_product.version.scanning_port,
+                        },
+                    }
+                ],
+                "DeliveryMethods": [
+                    {
+                        "Instructions": {"Usage": ami_product.version.usage_instructions},
+                        "Recommendations": {
+                            "SecurityGroups": [
+                                {
+                                    "Protocol": ami_product.version.ip_protocol,
+                                    "FromPort": ami_product.version.from_port,
+                                    "ToPort": ami_product.version.to_port,
+                                    "CidrIps": ami_product.version.ip_ranges,
+                                }
+                            ],
+                            "InstanceType": ami_product.version.recommended_instance_type,
+                        },
+                    }
+                ],
             },
             "Terms": [
                 {"Type": "SupportTerm", "RefundPolicy": ami_offer.refund_policy},
@@ -795,6 +990,7 @@ class EntityModel(BaseModel):
         :rtype DiffModel
         """
         non_dict_fields = ["Terms"]  # Terms contain different offer details with list format
+        skip_fields = ["Versions"]
         diff_added: List[DiffAddedModel] = []
         diff_removed: List[DiffRemovedModel] = []
         diff_changed: List[DiffChangedModel] = []
@@ -806,6 +1002,8 @@ class EntityModel(BaseModel):
         entity_model = self.model_dump()
 
         for entity_key, entity_value in local_entity.model_dump().items():
+            if entity_key in skip_fields:
+                continue
             if entity_key not in non_dict_fields:
                 for model_key, model_value in entity_value.items():
                     EntityModel._add_diff(
