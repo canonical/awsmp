@@ -11,7 +11,7 @@ import prettytable
 import yaml
 from botocore.exceptions import ClientError
 
-from . import _driver, models
+from . import _driver, models, yaml_utils
 from .errors import (
     AccessDeniedException,
     NoProductIdProvidedException,
@@ -441,6 +441,46 @@ def ami_product_update(product_id: str, config: TextIO, allow_price_change: bool
     if response:
         print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
         print(f'https://aws.amazon.com/marketplace/management/requests/{response["ChangeSetId"]}')
+
+
+@public_offer.command("download")
+@click.option("--product-id", required=True, prompt=True, help="Product id of the listing")
+@click.option(
+    "--config", type=click.File("w+"), required=True, prompt=True, help="File path of local configuration file"
+)
+def ami_product_download(product_id: str, config: TextIO) -> None:
+    """
+    Download YAML local configuration from AWS Marketplace live listing.
+    :prarm str product_id: Id of listing
+    :param TextIO config: file path of local configuration file to download
+    :return: None
+    :rtype: None
+    """
+
+    # Get product specific details
+    listing_resp = _driver.get_entity_details(product_id)
+    # Remove version output except latest version
+    # Since local yaml file only store one version information
+    versions = listing_resp["Versions"]
+    latest_version = sorted(versions, key=lambda x: x["CreationDate"])[-1]
+    listing_resp["Versions"] = latest_version
+
+    # Get offer specific details
+    offer_id = _driver.get_public_offer_id(product_id)
+    listing_offer_resp = _driver.get_entity_details(offer_id)
+
+    # filtering required term details only
+    listing_resp["Terms"] = []
+    term_order = {"SupportTerm": 0, "UsageBasedPricingTerm": 1, "ConfigurableUpfrontPricingTerm": 2}
+    if "Terms" in listing_offer_resp:
+        listing_resp["Terms"] = sorted(
+            [term for term in listing_offer_resp.get("Terms", []) if term["Type"] in term_order],
+            key=lambda x: term_order.get(x["Type"], 3),
+        )
+
+    yaml_config = models.EntityModel(**listing_resp).get_yaml_from_entity()
+    yaml_utils.dump_yaml(yaml_config, config)
+    print(f"{config.name} has been successfully written")
 
 
 def _load_configuration(config_path: TextIO, required_fields: List[List[str]]) -> Dict:
