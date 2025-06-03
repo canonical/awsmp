@@ -11,7 +11,7 @@ import prettytable
 import yaml
 from botocore.exceptions import ClientError
 
-from . import _driver, models
+from . import _driver, models, yaml_utils
 from .errors import (
     AccessDeniedException,
     NoProductIdProvidedException,
@@ -425,6 +425,25 @@ def ami_product_update(product_id: str, config: TextIO, allow_price_change: bool
     if response:
         print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
         print(f'https://aws.amazon.com/marketplace/management/requests/{response["ChangeSetId"]}')
+
+
+@public_offer.command("download")
+@click.option("--product-id", required=True, prompt=True, help="Product id of the listing")
+@click.option(
+    "--config", type=click.File("w+"), required=True, prompt=True, help="File path of local configuration file"
+)
+def ami_product_download(product_id: str, config: TextIO) -> None:
+    """
+    Download YAML local configuration from AWS Marketplace live listing.
+    :param str product_id: Id of listing
+    :param TextIO config: file path of local configuration file to download
+    :return: None
+    :rtype: None
+    """
+
+    yaml_config = models.EntityModel(**_driver.get_full_response(product_id)).to_dict()
+    yaml_utils.dump(yaml_config, config)
+    print(f"{config.name} has been successfully written")
 
 
 def _load_configuration(config_path: TextIO, required_fields: List[List[str]]) -> Dict:

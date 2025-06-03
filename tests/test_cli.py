@@ -1,5 +1,6 @@
 import json
 import tempfile
+from io import StringIO
 from typing import Any, List
 from unittest.mock import MagicMock, patch
 
@@ -130,6 +131,7 @@ def test_entity_get_diff_no_diff(mock_boto3, mock_get_entity_details, mock_get_p
     with open("./tests/test_config.json") as f:
         mock_prod_resp = json.load(f)
         mock_prod_resp.pop("Terms")
+        mock_prod_resp["Versions"] = [mock_prod_resp["Versions"]]
 
     with open("./tests/test_config.json") as f:
         mock_offer_resp = {"Terms": json.load(f)["Terms"]}
@@ -158,6 +160,7 @@ def test_entity_get_diff(mock_boto3, mock_get_entity_details, mock_get_public_of
     with open("./tests/test_config.json") as f:
         mock_prod_resp = json.load(f)
         mock_prod_resp.pop("Terms")
+        mock_prod_resp["Versions"] = [mock_prod_resp["Versions"]]
 
     with open("./tests/test_config.json") as f:
         mock_offer_resp = {"Terms": json.load(f)["Terms"]}
@@ -204,6 +207,7 @@ def test_entity_get_diff_terms(mock_boto3, mock_get_entity_details, mock_get_pub
     with open("./tests/test_config.json") as f:
         mock_prod_resp = json.load(f)
         mock_prod_resp.pop("Terms")
+        mock_prod_resp["Versions"] = [mock_prod_resp["Versions"]]
 
     with open("./tests/test_config.json") as f:
         mock_offer_resp = {"Terms": json.load(f)["Terms"]}
@@ -273,6 +277,7 @@ def test_entity_get_diff_pricing_terms(
     with open("./tests/test_config.json") as f:
         mock_prod_resp = json.load(f)
         mock_prod_resp.pop("Terms")
+        mock_prod_resp["Versions"] = [mock_prod_resp["Versions"]]
 
     with open("./tests/test_config.json") as f:
         mock_offer_resp = {"Terms": json.load(f)["Terms"]}
@@ -894,3 +899,90 @@ def test_public_offer_product_update_instance_type_pricing_change_exception(
         ["--product-id", "some-prod-id", "--config", "./tests/test_config.yaml", "--no-allow-price-change"],
     )
     assert res.exit_code == 1 and res.exc_info is not None and "Restricted listings" in res.exc_info[1].args[0]
+
+
+@pytest.mark.parametrize(
+    "key1, key2, value",
+    [
+        ("description", "product_title", "test"),
+        ("description", "categories", ["Migration"]),
+        ("description", "long_description", "test_long_description\n"),
+        ("version", "version_title", "Test Ubuntu AMI"),
+        ("version", "usage_instructions", "test_usage_instruction\n"),
+        ("version", "ami_id", "ami-12345678910"),
+        ("description", "support_description", "test_support_description\n"),
+        ("region", "commercial_regions", ["us-east-1", "us-east-2"]),
+        ("region", "future_region_support", True),
+    ],
+)
+@patch("awsmp._driver.get_entity_details")
+@patch("awsmp._driver.get_public_offer_id")
+def test_public_offer_product_download_product(mock_get_public_offer_id, mock_get_entity_details, key1, key2, value):
+    with open("./tests/test_config.json") as f:
+        mock_prod_resp = json.load(f)
+        mock_prod_resp.pop("Terms")
+
+    mock_prod_resp["Versions"]["CreationDate"] = "2025-01-01"
+    mock_prod_resp["Versions"] = [mock_prod_resp["Versions"]]
+
+    with open("./tests/test_config.json") as f:
+        mock_offer_resp = {"Terms": json.load(f)["Terms"]}
+
+    mock_get_entity_details.side_effect = [mock_prod_resp, mock_offer_resp]
+    mock_get_public_offer_id.return_value = "test-offer-id"
+
+    runner = CliRunner()
+    config_file = tempfile.NamedTemporaryFile()
+    res = runner.invoke(
+        cli.ami_product_download,
+        ["--product-id", "some-prod-id", "--config", config_file.name],
+    )
+
+    with open(config_file.name, "r") as f:
+        config = yaml.safe_load(f)
+
+    assert config["product"][key1][key2] == value
+
+
+@pytest.mark.parametrize(
+    "key1, key2, value",
+    [
+        ("offer", "refund_policy", "test_refund_policy_term\n"),
+        (
+            "offer",
+            "instance_types",
+            [
+                {"name": "a1.large", "hourly": "0.004", "yearly": "24.528"},
+                {"name": "a1.xlarge", "hourly": "0.007", "yearly": "49.056"},
+            ],
+        ),
+        ("offer", "eula_document", [{"type": ""}]),
+    ],
+)
+@patch("awsmp._driver.get_entity_details")
+@patch("awsmp._driver.get_public_offer_id")
+def test_public_offer_product_download_offer(mock_get_public_offer_id, mock_get_entity_details, key1, key2, value):
+    with open("./tests/test_config.json") as f:
+        mock_prod_resp = json.load(f)
+        mock_prod_resp.pop("Terms")
+
+    mock_prod_resp["Versions"]["CreationDate"] = "2025-01-01"
+    mock_prod_resp["Versions"] = [mock_prod_resp["Versions"]]
+
+    with open("./tests/test_config.json") as f:
+        mock_offer_resp = {"Terms": json.load(f)["Terms"]}
+
+    mock_get_entity_details.side_effect = [mock_prod_resp, mock_offer_resp]
+    mock_get_public_offer_id.return_value = "test-offer-id"
+
+    runner = CliRunner()
+    config_file = tempfile.NamedTemporaryFile()
+    res = runner.invoke(
+        cli.ami_product_download,
+        ["--product-id", "some-prod-id", "--config", config_file.name],
+    )
+
+    with open(config_file.name, "r") as f:
+        config = yaml.safe_load(f)
+
+    assert config[key1][key2] == value
