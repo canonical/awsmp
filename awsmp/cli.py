@@ -116,26 +116,10 @@ def entity_get_diff(entity_id: str, config: TextIO):
     :rtype None
     """
 
-    # Get product specific details
-    listing_resp = _driver.get_entity_details(entity_id)
-
-    # Get offer specific details
-    offer_id = _driver.get_public_offer_id(entity_id)
-    listing_offer_resp = _driver.get_entity_details(offer_id)
-
-    # filtering required term details only
-    listing_resp["Terms"] = []
-    term_order = {"SupportTerm": 0, "UsageBasedPricingTerm": 1, "ConfigurableUpfrontPricingTerm": 2}
-    if "Terms" in listing_offer_resp:
-        listing_resp["Terms"] = sorted(
-            [term for term in listing_offer_resp.get("Terms", []) if term["Type"] in term_order],
-            key=lambda x: term_order.get(x["Type"], 3),
-        )
-    entity_from_listing = models.EntityModel(**listing_resp)
+    entity_from_listing = models.EntityModel(**_driver.get_full_response(entity_id))
 
     with open(config.name, "r") as f:
         yaml_config = yaml.safe_load(f)
-
     local_config_entity = models.EntityModel.get_entity_from_yaml(yaml_config)
 
     diff = entity_from_listing.get_diff(local_config_entity)

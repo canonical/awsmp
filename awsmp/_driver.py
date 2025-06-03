@@ -11,6 +11,7 @@ from .errors import (
     AmiPriceChangeError,
     AmiPricingModelChangeError,
     MissingInstanceTypeError,
+    NoVersionException,
     ResourceNotFoundException,
     UnrecognizedClientException,
     ValidationException,
@@ -438,3 +439,36 @@ def create_offer_name(product_id: str, buyer_accounts: List[str], with_support: 
     support_part = " wSupport" if with_support else ""
 
     return f"Offer - {account_part} - {title_part}{support_part} - {customer_name}"[:150]
+
+
+def get_full_response(product_id: str) -> dict[str, Any]:
+    """
+    Return the full response details from `entity_describe` output
+
+    :param dict[str, Any] product_id: Product id of the listing
+    :return: Dictionary of response details
+    :rtype: dict
+    """
+
+    listing_resp = get_entity_details(product_id)
+    # keep the only latest version
+    if "Versions" in listing_resp:
+        if listing_resp["Versions"]:
+            listing_resp["Versions"] = listing_resp["Versions"][-1]
+        else:
+            raise NoVersionException("Version information is empty. No version details are available.")
+    else:
+        raise NoVersionException("Version is not found. Listing does not have version information")
+
+    offer_id = get_public_offer_id(product_id)
+    listing_offer_resp = get_entity_details(offer_id)
+
+    # filtering required term details only
+    listing_resp["Terms"] = []
+    term_order = {"SupportTerm": 0, "UsageBasedPricingTerm": 1, "ConfigurableUpfrontPricingTerm": 2}
+    if "Terms" in listing_offer_resp:
+        listing_resp["Terms"] = sorted(
+            [term for term in listing_offer_resp.get("Terms", []) if term["Type"] in term_order],
+            key=lambda x: term_order.get(x["Type"], 3),
+        )
+    return listing_resp

@@ -1,5 +1,7 @@
 import io
-from typing import List, cast
+import json
+import random
+from typing import Any, List, cast
 from unittest.mock import patch
 
 import pytest
@@ -13,6 +15,7 @@ from awsmp.errors import (
     AmiPriceChangeError,
     AmiPricingModelChangeError,
     MissingInstanceTypeError,
+    NoVersionException,
     ResourceNotFoundException,
     UnrecognizedClientException,
 )
@@ -1558,3 +1561,247 @@ t2.large,0.034,800
     assert mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][5]["DetailsDocument"]["Terms"][0]["Documents"][
         0
     ] == {"Type": "CustomEula", "Url": "https://test"}
+
+
+@pytest.mark.parametrize(
+    "key, value",
+    [
+        ("ProductTitle", "test"),
+        ("Categories", ["Migration"]),
+        ("LongDescription", "test_long_description"),
+        ("ShortDescription", "test_short_description"),
+        ("Highlights", ["test_highlight_1"]),
+        ("Categories", ["Migration"]),
+    ],
+)
+@patch("awsmp._driver.get_public_offer_id")
+@patch("awsmp._driver.get_entity_details")
+def test_get_full_response_description(mock_get_details, mock_get_public_offer_id, key, value):
+    with open("./tests/test_config.json", "r") as f:
+        response_json = json.load(f)
+
+    response_json["Versions"] = [response_json["Versions"]]
+
+    # Shuffle the order of terms
+    random.shuffle(response_json["Terms"])
+    term_resp: dict[str, Any] = {}
+    term_resp["Terms"] = response_json["Terms"]
+
+    # only product details
+    response_json.pop("Terms")
+    mock_get_details.side_effect = [response_json, term_resp]
+    mock_get_public_offer_id.return_value = "test-offer-id"
+
+    res = _driver.get_full_response("test_prod_id")
+
+    assert res["Description"][key] == value
+
+
+@pytest.mark.parametrize(
+    "key, value",
+    [
+        ("FutureRegionSupport", "All"),
+        ("Regions", ["us-east-1", "us-east-2"]),
+    ],
+)
+@patch("awsmp._driver.get_public_offer_id")
+@patch("awsmp._driver.get_entity_details")
+def test_get_full_response_region_avaliability(mock_get_details, mock_get_public_offer_id, key, value):
+    with open("./tests/test_config.json", "r") as f:
+        response_json = json.load(f)
+
+    response_json["Versions"] = [response_json["Versions"]]
+
+    # Shuffle the order of terms
+    random.shuffle(response_json["Terms"])
+    term_resp: dict[str, Any] = {}
+    term_resp["Terms"] = response_json["Terms"]
+
+    # only product details
+    response_json.pop("Terms")
+    mock_get_details.side_effect = [response_json, term_resp]
+    mock_get_public_offer_id.return_value = "test-offer-id"
+
+    res = _driver.get_full_response("test_prod_id")
+
+    assert res["RegionAvailability"][key] == value
+
+
+@pytest.mark.parametrize(
+    "key, value",
+    [
+        ("LogoUrl", "https://test-logourl"),
+        ("Videos", []),
+        ("AdditionalResources", [{"Type": "Link", "Text": "test-link", "Url": "https://test-url"}]),
+    ],
+)
+@patch("awsmp._driver.get_public_offer_id")
+@patch("awsmp._driver.get_entity_details")
+def test_get_full_response_promotioanl_resources(mock_get_details, mock_get_public_offer_id, key, value):
+    with open("./tests/test_config.json", "r") as f:
+        response_json = json.load(f)
+
+    response_json["Versions"] = [response_json["Versions"]]
+
+    # Shuffle the order of terms
+    random.shuffle(response_json["Terms"])
+    term_resp: dict[str, Any] = {}
+    term_resp["Terms"] = response_json["Terms"]
+
+    # only product details
+    response_json.pop("Terms")
+    mock_get_details.side_effect = [response_json, term_resp]
+    mock_get_public_offer_id.return_value = "test-offer-id"
+
+    res = _driver.get_full_response("test_prod_id")
+    assert res["PromotionalResources"][key] == value
+
+
+@pytest.mark.parametrize(
+    "key, value",
+    [
+        ("ReleaseNotes", "test release notes"),
+        ("VersionTitle", "Test Ubuntu AMI"),
+    ],
+)
+@patch("awsmp._driver.get_public_offer_id")
+@patch("awsmp._driver.get_entity_details")
+def test_get_full_response_version(mock_get_details, mock_get_public_offer_id, key, value):
+    with open("./tests/test_config.json", "r") as f:
+        response_json = json.load(f)
+
+    response_json["Versions"] = [response_json["Versions"]]
+
+    # Shuffle the order of terms
+    random.shuffle(response_json["Terms"])
+    term_resp: dict[str, Any] = {}
+    term_resp["Terms"] = response_json["Terms"]
+
+    # only product details
+    response_json.pop("Terms")
+    mock_get_details.side_effect = [response_json, term_resp]
+    mock_get_public_offer_id.return_value = "test-offer-id"
+
+    res = _driver.get_full_response("test_prod_id")
+    assert res["Versions"][key] == value
+
+
+@patch("awsmp._driver.get_public_offer_id")
+@patch("awsmp._driver.get_entity_details")
+def test_get_full_response_version_sources(mock_get_details, mock_get_public_offer_id):
+    with open("./tests/test_config.json", "r") as f:
+        response_json = json.load(f)
+
+    response_json["Versions"] = [response_json["Versions"]]
+
+    # Shuffle the order of terms
+    random.shuffle(response_json["Terms"])
+    term_resp: dict[str, Any] = {}
+    term_resp["Terms"] = response_json["Terms"]
+
+    # only product details
+    response_json.pop("Terms")
+    mock_get_details.side_effect = [response_json, term_resp]
+    mock_get_public_offer_id.return_value = "test-offer-id"
+
+    res = _driver.get_full_response("test_prod_id")
+    assert res["Versions"]["Sources"][0]["Image"] == "ami-12345678910"
+    assert res["Versions"]["Sources"][0]["OperatingSystem"]["Version"] == "22.04 - Jammy"
+
+
+@patch("awsmp._driver.get_public_offer_id")
+@patch("awsmp._driver.get_entity_details")
+def test_get_full_response_version_delivery_methods(mock_get_details, mock_get_public_offer_id):
+    with open("./tests/test_config.json", "r") as f:
+        response_json = json.load(f)
+
+    response_json["Versions"] = [response_json["Versions"]]
+
+    # Shuffle the order of terms
+    random.shuffle(response_json["Terms"])
+    term_resp: dict[str, Any] = {}
+    term_resp["Terms"] = response_json["Terms"]
+
+    # only product details
+    response_json.pop("Terms")
+    mock_get_details.side_effect = [response_json, term_resp]
+    mock_get_public_offer_id.return_value = "test-offer-id"
+
+    res = _driver.get_full_response("test_prod_id")
+    assert res["Versions"]["DeliveryMethods"][0]["Instructions"] == {"Usage": "test_usage_instruction\n"}
+    assert res["Versions"]["DeliveryMethods"][0]["Recommendations"]["InstanceType"] == "t3.medium"
+
+
+@patch("awsmp._driver.get_public_offer_id")
+@patch("awsmp._driver.get_entity_details")
+def test_get_full_response_version_raise_exception(mock_get_details, mock_get_public_offer_id):
+    with open("./tests/test_config.json", "r") as f:
+        response_json = json.load(f)
+
+    response_json["Versions"] = []
+
+    # Shuffle the order of terms
+    random.shuffle(response_json["Terms"])
+    term_resp: dict[str, Any] = {}
+    term_resp["Terms"] = response_json["Terms"]
+
+    # only product details
+    response_json.pop("Terms")
+    mock_get_details.side_effect = [response_json, term_resp]
+    mock_get_public_offer_id.return_value = "test-offer-id"
+
+    with pytest.raises(NoVersionException):
+        _driver.get_full_response("test_prod_id")
+
+
+@pytest.mark.parametrize(
+    "index, pricing",
+    [
+        (1, {"DimensionKey": "a1.large", "Price": "0.004"}),
+        (1, {"DimensionKey": "a1.xlarge", "Price": "0.007"}),
+        (2, {"DimensionKey": "a1.large", "Price": "24.528"}),
+        (2, {"DimensionKey": "a1.xlarge", "Price": "49.056"}),
+    ],
+)
+@patch("awsmp._driver.get_public_offer_id")
+@patch("awsmp._driver.get_entity_details")
+def test_get_full_response_term_pricing(mock_get_details, mock_get_public_offer_id, index, pricing):
+    with open("./tests/test_config.json", "r") as f:
+        response_json = json.load(f)
+
+    response_json["Versions"] = [response_json["Versions"]]
+
+    # Shuffle the order of terms
+    random.shuffle(response_json["Terms"])
+    term_resp: dict[str, Any] = {}
+    term_resp["Terms"] = response_json["Terms"]
+
+    # only product details
+    response_json.pop("Terms")
+    mock_get_details.side_effect = [response_json, term_resp]
+    mock_get_public_offer_id.return_value = "test-offer-id"
+
+    res = _driver.get_full_response("test_prod_id")
+    assert pricing in res["Terms"][index]["RateCards"][0]["RateCard"]
+
+
+@patch("awsmp._driver.get_public_offer_id")
+@patch("awsmp._driver.get_entity_details")
+def test_get_full_response_term_refund_policy(mock_get_details, mock_get_public_offer_id):
+    with open("./tests/test_config.json", "r") as f:
+        response_json = json.load(f)
+
+    response_json["Versions"] = [response_json["Versions"]]
+
+    # Shuffle the order of terms
+    random.shuffle(response_json["Terms"])
+    term_resp: dict[str, Any] = {}
+    term_resp["Terms"] = response_json["Terms"]
+
+    # only product details
+    response_json.pop("Terms")
+    mock_get_details.side_effect = [response_json, term_resp]
+    mock_get_public_offer_id.return_value = "test-offer-id"
+
+    res = _driver.get_full_response("test_prod_id")
+    assert res["Terms"][0]["RefundPolicy"] == "test_refund_policy_term\n"

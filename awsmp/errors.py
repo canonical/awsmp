@@ -89,3 +89,7 @@ class AmiPriceChangeError(Exception):
 
 class AmiPricingModelChangeError(Exception):
     pass
+
+
+class NoVersionException(Exception):
+    pass
