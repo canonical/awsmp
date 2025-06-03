@@ -893,6 +893,45 @@ class TestEntity:
         yaml_config = entity._convert_terms_to_dict()
         assert yaml_config[key] == value
 
+    @pytest.mark.parametrize(
+        "key1, key2, value",
+        [
+            ("offer", "refund_policy", "test_refund_policy_term\n"),
+            (
+                "offer",
+                "instance_types",
+                [
+                    {"name": "a1.large", "hourly": "0.004", "yearly": "24.528"},
+                    {"name": "a1.xlarge", "hourly": "0.007", "yearly": "49.056"},
+                ],
+            ),
+            ("offer", "eula_document", [{"type": ""}]),
+        ],
+    )
+    def test_get_yaml_from_entity_offer(self, mock_boto3, get_entity, key1, key2, value):
+        entity, _ = get_entity
+        yaml_config = entity.to_dict()
+        assert yaml_config[key1][key2] == value
+
+    @pytest.mark.parametrize(
+        "key1, key2, value",
+        [
+            ("description", "product_title", "test"),
+            ("description", "categories", ["Migration"]),
+            ("description", "long_description", "test_long_description"),
+            ("version", "version_title", "Test Ubuntu AMI"),
+            ("version", "usage_instructions", "test_usage_instruction\n"),
+            ("version", "ami_id", "ami-12345678910"),
+            ("description", "support_description", "test_support_description"),
+            ("region", "commercial_regions", ["us-east-1", "us-east-2"]),
+            ("region", "future_region_support", True),
+        ],
+    )
+    def test_get_yaml_from_entity_product(self, mock_boto3, get_entity, key1, key2, value):
+        entity, _ = get_entity
+        yaml_config = entity.to_dict()
+        assert yaml_config["product"][key1][key2] == value
+
 
 class TestPromotionalResourcesModel:
     def test_get_promotional_resources_videos(self):

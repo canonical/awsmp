@@ -29,6 +29,7 @@ from pydantic import (
 )
 
 from .constants import CATEGORIES
+from .yaml_utils import LiteralString
 
 
 class InstanceTypePricing(BaseModel):
@@ -372,8 +373,8 @@ class DescriptionModel(BaseModel):
         """
         return {
             "product_title": self.ProductTitle,
-            "short_description": self.ShortDescription,
-            "long_description": self.LongDescription,
+            "short_description": LiteralString(self.ShortDescription),
+            "long_description": LiteralString(self.LongDescription),
             "sku": self.Sku,
             "highlights": self.Highlights,
             "search_keywords": self.SearchKeywords,
@@ -439,7 +440,7 @@ class SupportInformationModel(BaseModel):
         :return: Dictionary of support information
         :rtype: dict[str, Any]
         """
-        return {"support_description": self.Description, "support_resources": self.Resources}
+        return {"support_description": LiteralString(self.Description), "support_resources": self.Resources}
 
 
 class RegionAvailabilityModel(BaseModel):
@@ -620,7 +621,7 @@ class DeliveryMethodsModel(BaseModel):
         :return: Dictionary of version information
         :rtype: dict[str, Any]
         """
-        return {**{"usage_instructions": self.Instructions["Usage"]}, **self.Recommendations.to_dict()}
+        return {**{"usage_instructions": LiteralString(self.Instructions["Usage"])}, **self.Recommendations.to_dict()}
 
 
 class VersionModel(BaseModel):
@@ -709,6 +710,29 @@ class EntityModel(BaseModel):
     Versions: VersionModel
     Terms: List[Annotated[Union[SupportTermModel, PricingTermModel], Field(discriminator="Type")]]
 
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Convert a entity object to dict with local config file field names
+
+        :return: Dictionary of local configuration information
+        :rtype: dcit[str, Any]
+        """
+        description_configs = {
+            **self.Description.to_dict(),
+            **self.PromotionalResources.to_dict(),
+            **self.SupportInformation.to_dict(),
+        }
+        config = {
+            "product": {
+                "description": description_configs,
+                "region": self.RegionAvailability.to_dict(),
+                "version": self.Versions.to_dict(),
+            },
+            "offer": self._convert_terms_to_dict(),
+        }
+
+        return config
+
     def _convert_terms_to_dict(self) -> dict[str, Any]:
         """
         Convert terms JSON format to dict with local configuration field names.
@@ -719,7 +743,7 @@ class EntityModel(BaseModel):
 
         for term in self.Terms:
             if term.Type == "SupportTerm":
-                yaml_config["refund_policy"] = term.RefundPolicy
+                yaml_config["refund_policy"] = LiteralString(term.RefundPolicy)
             else:
                 # Pricing term
                 if term.Type == "UsageBasedPricingTerm":
