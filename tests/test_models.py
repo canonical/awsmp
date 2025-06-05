@@ -967,7 +967,7 @@ class TestPromotionalResourcesModel:
     @pytest.mark.parametrize(
         "key, value",
         [
-            ("logo_url", "https://test.logo.url/"),
+            ("logourl", "https://test.logo.url/"),
             ("video_urls", ["https://test.video.url/"]),
             ("additional_resources", [{"test": "https://resources.url/"}]),
         ],
