@@ -419,7 +419,7 @@ class PromotionalResourcesModel(BaseModel):
             resources.append({resource["Text"]: resource["Url"]})
 
         return {
-            "logo_url": str(self.LogoUrl),
+            "logourl": str(self.LogoUrl),
             "video_urls": [str(video) for video in self.Videos],
             "additional_resources": resources,
         }
