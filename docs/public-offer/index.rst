@@ -241,5 +241,17 @@ To update AMI product listing with multiple requests for product details (Descri
       --config listing_configuration.yaml
 
 
+Download AMI product listing details
+------------------------------------
+
+To download the AMI product listing information as a YAML file, run the command below, providing the product ID and the output file path where the file will be saved:
+
+.. code-block:: sh
+
+   awsmp public-offer download \
+      --product-id prod-fwu3xsqup23cs
+      --config listing.yaml
+
+
 .. _`AWS marketplace management portal`: https://aws.amazon.com/marketplace/management/
 .. _`AWS Marketplace update legal resources API reference`: https://docs.aws.amazon.com/marketplace/latest/APIReference/work-with-private-offers.html#update-legal-terms
