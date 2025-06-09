@@ -373,7 +373,7 @@ class DescriptionModel(BaseModel):
         """
         return {
             "product_title": self.ProductTitle,
-            "short_description": LiteralString(self.ShortDescription),
+            "short_description": self.ShortDescription,
             "long_description": LiteralString(self.LongDescription),
             "sku": self.Sku,
             "highlights": self.Highlights,
