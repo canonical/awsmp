@@ -1042,7 +1042,7 @@ class TestRecommendationsModel:
     @pytest.mark.parametrize(
         "key, value",
         [
-            ("recommended_instance_types", "t1.micro"),
+            ("recommended_instance_type", "t1.micro"),
             ("ip_protocol", "tcp"),
             ("ip_ranges", ["0.0.0.0/0"]),
             ("from_port", 22),
@@ -1062,7 +1062,7 @@ class TestDeliveryMethodsModel:
         "key, value",
         [
             ("usage_instructions", "test usage instruction"),
-            ("recommended_instance_types", "t1.micro"),
+            ("recommended_instance_type", "t1.micro"),
             ("ip_protocol", "tcp"),
             ("ip_ranges", ["0.0.0.0/0"]),
             ("from_port", 22),
@@ -1142,7 +1142,7 @@ class TestVersionModel:
             ("version_title", "Test Ubuntu AMI"),
             ("release_notes", "test release notes"),
             ("usage_instructions", "test_usage_instruction\n"),
-            ("recommended_instance_types", "t3.medium"),
+            ("recommended_instance_type", "t3.medium"),
             ("ip_protocol", "tcp"),
             ("ip_ranges", ["0.0.0.0/0"]),
             ("from_port", 22),
