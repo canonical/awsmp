@@ -373,7 +373,7 @@ class DescriptionModel(BaseModel):
         """
         return {
             "product_title": self.ProductTitle,
-            "short_description": LiteralString(self.ShortDescription),
+            "short_description": self.ShortDescription,
             "long_description": LiteralString(self.LongDescription),
             "sku": self.Sku,
             "highlights": self.Highlights,
@@ -603,7 +603,7 @@ class RecommendationsModel(BaseModel):
         :return: Dictionary of recommendation information
         :rtype: dict[str, Any]
         """
-        return {**{"recommended_instance_types": self.InstanceType}, **self.SecurityGroups[0].to_dict()}
+        return {**{"recommended_instance_type": self.InstanceType}, **self.SecurityGroups[0].to_dict()}
 
 
 class DeliveryMethodsModel(BaseModel):
