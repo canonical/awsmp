@@ -912,6 +912,7 @@ def test_public_offer_product_update_instance_type_pricing_change_exception(
         ("version", "ami_id", "ami-12345678910"),
         ("description", "support_description", "test_support_description\n"),
         ("region", "commercial_regions", ["us-east-1", "us-east-2"]),
+        ("region", "gov_regions", ["us-gov-east-1", "us-gov-west-1"]),
         ("region", "future_region_support", True),
     ],
 )
@@ -924,6 +925,7 @@ def test_public_offer_product_download_product(mock_get_public_offer_id, mock_ge
 
     mock_prod_resp["Versions"]["CreationDate"] = "2025-01-01"
     mock_prod_resp["Versions"] = [mock_prod_resp["Versions"]]
+    mock_prod_resp["RegionAvailability"]["Regions"] += ["us-gov-east-1", "us-gov-west-1"]
 
     with open("./tests/test_config.json") as f:
         mock_offer_resp = {"Terms": json.load(f)["Terms"]}

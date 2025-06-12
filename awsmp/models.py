@@ -216,6 +216,7 @@ class Offer(BaseModel):
 
 class Region(BaseModel):
     commercial_regions: conlist(str)  # type:ignore
+    gov_regions: Optional[List[str]] = Field(default=[])
     future_region_support: bool
 
     @field_validator("commercial_regions")
@@ -229,6 +230,14 @@ class Region(BaseModel):
             if invalid_regions:
                 raise ValueError(f"{invalid_regions} are not valid for commercial regions")
             return value
+
+    @field_validator("gov_regions")
+    def gov_region_validator(cls, value):
+        gov_region_lists = ["us-gov-east-1", "us-gov-west-1"]
+        invalid_gov_regions = set(value) - set(gov_region_lists)
+        if invalid_gov_regions:
+            raise ValueError(f"{invalid_gov_regions} are not valid for gov regions")
+        return value
 
     def future_region_supported(self) -> List[str]:
         return ["All" if self.future_region_support else "None"]
@@ -458,8 +467,20 @@ class RegionAvailabilityModel(BaseModel):
         :return: Dictionary of region availability information
         :rtype: dict[str, Any]
         """
+        commercial_regions, gov_regions = [], []
+
+        for region in self.Regions:
+            if "-gov-" in region:
+                gov_regions.append(region)
+            else:
+                commercial_regions.append(region)
+
         future_region_support = True if self.FutureRegionSupport == "All" else False
-        return {"commercial_regions": self.Regions, "future_region_support": future_region_support}
+        return {
+            "commercial_regions": commercial_regions,
+            "gov_regions": gov_regions,
+            "future_region_support": future_region_support,
+        }
 
 
 class SupportTermModel(BaseModel):
@@ -881,7 +902,7 @@ class EntityModel(BaseModel):
                 "Resources": ami_product.description.support_resources,
             },
             "RegionAvailability": {
-                "Regions": ami_product.region.commercial_regions,
+                "Regions": ami_product.region.commercial_regions + ami_product.region.gov_regions,
                 "FutureRegionSupport": ami_product.region.future_region_supported()[-1],
             },
             "Versions": {

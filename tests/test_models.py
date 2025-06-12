@@ -73,6 +73,20 @@ class TestRegion:
         with pytest.raises(ValidationError):
             models.Region(commercial_regions=["us-east-1", "us-west-1"], future_region_support=True)
 
+    def test_region_availability_gov_region(self, mock_boto3):
+        region = models.Region(
+            commercial_regions=["us-east-1", "us-east-2"], gov_regions=["us-gov-west-1"], future_region_support=True
+        )
+        assert region.gov_regions == ["us-gov-west-1"]
+
+    def test_region_availability_invalid_gov_region(self, mock_boto3):
+        with pytest.raises(ValidationError):
+            models.Region(
+                commercial_regions=["us-east-1", "us-east-2"],
+                gov_regions=["us-gov-west-1", "us-gov-east-2"],
+                future_region_support=True,
+            )
+
     def test_region_availability_future_region_supported(self, mock_boto3):
         region = models.Region(commercial_regions=["us-east-1", "us-east-2"], future_region_support=False)
         assert region.future_region_supported() == ["None"]
@@ -520,6 +534,15 @@ class TestEntity:
         entity_model = models.EntityModel.get_entity_from_yaml(local_config)
         assert entity_model.Versions.ReleaseNotes == "temp"
 
+    def test_yaml_to_entity_gov_region(self, mock_boto3):
+        with open("./tests/test_config.yaml", "r") as f:
+            local_config = yaml.safe_load(f)
+
+        local_config["product"]["region"]["gov_regions"] = ["us-gov-east-1"]
+
+        entity_model = models.EntityModel.get_entity_from_yaml(local_config)
+        assert "us-gov-east-1" in entity_model.RegionAvailability.Regions
+
     def test_yaml_to_entity_term(self, mock_boto3):
         with open("./tests/test_config.yaml", "r") as f:
             local_config = yaml.safe_load(f)
@@ -665,6 +688,25 @@ class TestEntity:
                     changed=[
                         models.DiffChangedModel(
                             name="Regions", old_value=["us-east-1", "us-east-2"], new_value=["us-east-1"]
+                        )
+                    ],
+                ),
+            ),
+            (
+                {
+                    "RegionAvailability": models.RegionAvailabilityModel(
+                        Regions=["us-east-1", "us-gov-east-1"],
+                        FutureRegionSupport="All",
+                    ),
+                },
+                models.DiffModel(
+                    added=[],
+                    removed=[],
+                    changed=[
+                        models.DiffChangedModel(
+                            name="Regions",
+                            old_value=["us-east-1", "us-east-2"],
+                            new_value=["us-east-1", "us-gov-east-1"],
                         )
                     ],
                 ),
@@ -1210,5 +1252,19 @@ class TestRegionAvailabilityModel:
     def test_to_dict_future_region_not_enabled(self, key, value):
         yaml_config = models.RegionAvailabilityModel(
             Regions=["us-east-1", "us-west-2"], FutureRegionSupport="None"
+        ).to_dict()
+        assert yaml_config[key] == value
+
+    @pytest.mark.parametrize(
+        "key, value",
+        [
+            ("commercial_regions", ["us-east-1", "us-west-2"]),
+            ("gov_regions", ["us-gov-east-1"]),
+            ("future_region_support", False),
+        ],
+    )
+    def test_to_dict_gov_regions(self, key, value):
+        yaml_config = models.RegionAvailabilityModel(
+            Regions=["us-east-1", "us-west-2", "us-gov-east-1"], FutureRegionSupport="None"
         ).to_dict()
         assert yaml_config[key] == value
