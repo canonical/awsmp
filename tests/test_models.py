@@ -518,7 +518,7 @@ class TestEntity:
             local_config = yaml.safe_load(f)
 
         entity_model = models.EntityModel.get_entity_from_yaml(local_config)
-        assert entity_model.Versions.ReleaseNotes == "test_release_notes\n"
+        assert entity_model.Versions.ReleaseNotes == "temp"
 
     def test_yaml_to_entity_term(self, mock_boto3):
         with open("./tests/test_config.yaml", "r") as f:
@@ -543,6 +543,18 @@ class TestEntity:
         }
         with pytest.raises(ValidationError):
             models.EntityModel(**non_valid_response)
+
+    def test_masking_unchecked_fields(self, mock_boto3):
+        with open("./tests/test_config.yaml", "r") as f:
+            local_config = yaml.safe_load(f)
+
+        if "version" in local_config["product"]:
+            local_config["product"].pop("version")
+        if "eula_document" in local_config["offer"]:
+            local_config["offer"].pop("eula_document")
+
+        entity_model = models.EntityModel.get_entity_from_yaml(local_config)
+        assert entity_model.Description.ProductTitle == "test"
 
     @pytest.mark.parametrize(
         "name, value1, value2, expected",

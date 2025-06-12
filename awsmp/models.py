@@ -765,6 +765,51 @@ class EntityModel(BaseModel):
         return yaml_config
 
     @staticmethod
+    def _mask_unchecked_fields(yaml_config: dict[str, Any]) -> dict[str, Any]:
+        """
+        Insert stub values for fields that are itrnoed during diffing.
+
+        The `diff` command skips the `version` and `eula_docuemnt` keys,
+        but the data mdel still checks those fields. This helper
+        put placeholder data for those keys so the config passes validation
+        without changing the real local config file.
+
+        :param dict[str, Any] yaml_config: dictionary data from loading local yaml config file
+        :return: dictionary data with stub values in unchecked fields
+        :rtype: dict[str, Any]
+        """
+
+        if "version" in yaml_config["product"]:
+            yaml_config["product"].pop("version")
+        if "eula_document" in yaml_config["offer"]:
+            yaml_config["offer"].pop("eula_document")
+
+        stub_value = {
+            "eula_document": [{"type": "CustomEula", "url": "https://temp.com"}],
+            "version": {
+                "version_title": "temp",
+                "release_notes": "temp",
+                "access_role_arn": "arn:aws:iam::123456789123",
+                "usage_instructions": "temp",
+                "recommended_instance_type": "m5.large",
+                "ip_protocol": "tcp",
+                "ip_ranges": ["0.0.0.0/0"],
+                "from_port": 22,
+                "to_port": 22,
+                "ami_id": "ami-12345678912345678",
+                "os_system_name": "temp",
+                "os_user_name": "temp",
+                "os_system_version": "temp-version",
+                "scanning_port": 22,
+            },
+        }
+
+        yaml_config["product"]["version"] = stub_value["version"]
+        yaml_config["offer"]["eula_document"] = stub_value["eula_document"]
+
+        return yaml_config
+
+    @staticmethod
     def get_entity(response: dict[str, Any]) -> EntityModel:
         """
         Convert a dictionary response into an EntityModel object
@@ -808,6 +853,9 @@ class EntityModel(BaseModel):
         :return: An instance of `EntityModel` create from the yaml_config
         :rtype: EntityModel
         """
+
+        yaml_config = EntityModel._mask_unchecked_fields(yaml_config)
+
         ami_product = AmiProduct(**yaml_config["product"])
         ami_offer = Offer(**yaml_config["offer"])
 
