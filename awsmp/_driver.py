@@ -171,6 +171,9 @@ def get_response(changeset: List[ChangeSetType], changeset_name: str) -> ChangeS
     :rtype: ChangeSetReturnType
     """
     changeset_name = changeset_name.replace(",", "_").replace("(", "").replace(")", "")
+    logger.info(
+        "Requesting changes to marketplace listing", extra={"ChangeSetName": changeset_name, "ChangeSet": changeset}
+    )
     try:
         response = get_client().start_change_set(
             Catalog="AWSMarketplace",
