@@ -956,7 +956,7 @@ def test_public_offer_product_download_product(mock_get_public_offer_id, mock_ge
                 {"name": "a1.xlarge", "hourly": "0.007", "yearly": "49.056"},
             ],
         ),
-        ("offer", "eula_document", [{"type": ""}]),
+        ("offer", "eula_document", [{"type": "CustomEula", "url": "https://stub-for-diff.com"}]),
     ],
 )
 @patch("awsmp._driver.get_entity_details")
