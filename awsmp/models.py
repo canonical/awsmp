@@ -221,14 +221,13 @@ class Region(BaseModel):
     @field_validator("commercial_regions")
     def commercial_region_validator(cls, value):
         client = boto3.client("ec2")
-        available_regions = [region["RegionName"] for region in client.describe_regions()["Regions"]]
-        if value[0] == "all":
-            return available_regions
-        else:
-            invalid_regions = set(value) - set(available_regions)
-            if invalid_regions:
-                raise ValueError(f"{invalid_regions} are not valid for commercial regions")
-            return value
+        gov_regions = ["us-gov-east-1", "us-gov-west-1"]
+        available_regions = [region["RegionName"] for region in client.describe_regions()["Regions"]] + gov_regions
+
+        invalid_regions = set(value) - set(available_regions)
+        if invalid_regions:
+            raise ValueError(f"{invalid_regions} are not valid for commercial regions")
+        return value
 
     def future_region_supported(self) -> List[str]:
         return ["All" if self.future_region_support else "None"]
