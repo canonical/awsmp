@@ -650,7 +650,7 @@ class VersionModel(BaseModel):
             **{
                 "version_title": self.VersionTitle,
                 "release_notes": self.ReleaseNotes,
-                "access_role_arn": "",
+                "access_role_arn": "arn:aws:iam::stub_policy",
             },
             **self.DeliveryMethods[0].to_dict(),
             **self.Sources[0].to_dict(),
@@ -760,7 +760,7 @@ class EntityModel(BaseModel):
             pricings.append(pricing)
         yaml_config["instance_types"] = pricings
 
-        yaml_config["eula_document"] = [{"type": ""}]
+        yaml_config["eula_document"] = [{"type": "CustomEula", "url": "https://example.com"}]
 
         return yaml_config
 
@@ -808,6 +808,7 @@ class EntityModel(BaseModel):
         :return: An instance of `EntityModel` create from the yaml_config
         :rtype: EntityModel
         """
+
         ami_product = AmiProduct(**yaml_config["product"])
         ami_offer = Offer(**yaml_config["offer"])
 

@@ -885,7 +885,7 @@ class TestEntity:
                     {"name": "a1.xlarge", "hourly": "0.007", "yearly": "49.056"},
                 ],
             ),
-            ("eula_document", [{"type": ""}]),
+            ("eula_document", [{"type": "CustomEula", "url": "https://example.com"}]),
         ],
     )
     def test_convert_terms_to_dict(self, mock_boto3, get_entity, key, value):
@@ -905,7 +905,7 @@ class TestEntity:
                     {"name": "a1.xlarge", "hourly": "0.007", "yearly": "49.056"},
                 ],
             ),
-            ("offer", "eula_document", [{"type": ""}]),
+            ("offer", "eula_document", [{"type": "CustomEula", "url": "https://example.com"}]),
         ],
     )
     def test_get_yaml_from_entity_offer(self, mock_boto3, get_entity, key1, key2, value):
@@ -1152,6 +1152,7 @@ class TestVersionModel:
             ("os_user_name", "ubuntu"),
             ("os_system_version", "22.04 - Jammy"),
             ("scanning_port", 22),
+            ("access_role_arn", "arn:aws:iam::stub_policy"),
         ],
     )
     def test_to_dict(self, get_versions, key, value):
