@@ -77,6 +77,18 @@ class TestRegion:
         region = models.Region(commercial_regions=["us-east-1", "us-east-2"], future_region_support=False)
         assert region.future_region_supported() == ["None"]
 
+    def test_region_availability_regions(self, mock_boto3):
+        region = models.Region(commercial_regions=["us-east-1", "us-east-2"], future_region_support=True)
+        assert region.commercial_regions == ["us-east-1", "us-east-2"]
+
+    def test_region_availability_gov_regions(self, mock_boto3):
+        region = models.Region(commercial_regions=["us-east-1", "us-gov-east-1"], future_region_support=True)
+        assert region.commercial_regions == ["us-east-1", "us-gov-east-1"]
+
+    def test_region_availability_only_gov_regions(self, mock_boto3):
+        region = models.Region(commercial_regions=["us-gov-west-1", "us-gov-east-1"], future_region_support=True)
+        assert region.commercial_regions == ["us-gov-west-1", "us-gov-east-1"]
+
 
 class TestAmiVersion:
     def _get_version_details(self):
