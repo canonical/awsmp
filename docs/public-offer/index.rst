@@ -143,7 +143,10 @@ Update the region using:
       --product-id prod-xwpv7txqxg55e \
       --config listing_configuration.yaml
 
-GovCloud regions can't be enabled using the API. You'll need to contact a marketplace representative for gov region enablement
+.. note::
+
+        For the `commercial_regions` field, each region name must be specified explicitly. GovCloud regions can be included in `commercial_regions`.
+
 
 Add new version
 ---------------
