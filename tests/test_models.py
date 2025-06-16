@@ -77,6 +77,18 @@ class TestRegion:
         region = models.Region(commercial_regions=["us-east-1", "us-east-2"], future_region_support=False)
         assert region.future_region_supported() == ["None"]
 
+    def test_region_availability_regions(self, mock_boto3):
+        region = models.Region(commercial_regions=["us-east-1", "us-east-2"], future_region_support=True)
+        assert region.commercial_regions == ["us-east-1", "us-east-2"]
+
+    def test_region_availability_gov_regions(self, mock_boto3):
+        region = models.Region(commercial_regions=["us-east-1", "us-gov-east-1"], future_region_support=True)
+        assert region.commercial_regions == ["us-east-1", "us-gov-east-1"]
+
+    def test_region_availability_only_gov_regions(self, mock_boto3):
+        region = models.Region(commercial_regions=["us-gov-west-1", "us-gov-east-1"], future_region_support=True)
+        assert region.commercial_regions == ["us-gov-west-1", "us-gov-east-1"]
+
 
 class TestAmiVersion:
     def _get_version_details(self):
@@ -885,7 +897,7 @@ class TestEntity:
                     {"name": "a1.xlarge", "hourly": "0.007", "yearly": "49.056"},
                 ],
             ),
-            ("eula_document", [{"type": ""}]),
+            ("eula_document", [{"type": "CustomEula", "url": "https://example.com"}]),
         ],
     )
     def test_convert_terms_to_dict(self, mock_boto3, get_entity, key, value):
@@ -905,7 +917,7 @@ class TestEntity:
                     {"name": "a1.xlarge", "hourly": "0.007", "yearly": "49.056"},
                 ],
             ),
-            ("offer", "eula_document", [{"type": ""}]),
+            ("offer", "eula_document", [{"type": "CustomEula", "url": "https://example.com"}]),
         ],
     )
     def test_get_yaml_from_entity_offer(self, mock_boto3, get_entity, key1, key2, value):
@@ -1152,6 +1164,7 @@ class TestVersionModel:
             ("os_user_name", "ubuntu"),
             ("os_system_version", "22.04 - Jammy"),
             ("scanning_port", 22),
+            ("access_role_arn", "arn:aws:iam::stub_policy"),
         ],
     )
     def test_to_dict(self, get_versions, key, value):
