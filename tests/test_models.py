@@ -532,6 +532,22 @@ class TestEntity:
         entity_model = models.EntityModel.get_entity_from_yaml(local_config)
         assert entity_model.Versions.ReleaseNotes == "test_release_notes\n"
 
+    def test_yaml_to_entity_video_urls(self, mock_boto3):
+        with open("./tests/test_config.yaml", "r") as f:
+            local_config = yaml.safe_load(f)
+        local_config["product"]["description"]["video_urls"] = ["https://test.com"]
+
+        entity_model = models.EntityModel.get_entity_from_yaml(local_config)
+        assert entity_model.PromotionalResources.Videos == [HttpUrl("https://test.com")]
+
+    def test_yaml_to_entity_video_urls_empty(self, mock_boto3):
+        with open("./tests/test_config.yaml", "r") as f:
+            local_config = yaml.safe_load(f)
+        local_config["product"]["description"]["video_urls"] = []
+
+        entity_model = models.EntityModel.get_entity_from_yaml(local_config)
+        assert entity_model.PromotionalResources.Videos == []
+
     def test_yaml_to_entity_term(self, mock_boto3):
         with open("./tests/test_config.yaml", "r") as f:
             local_config = yaml.safe_load(f)

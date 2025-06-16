@@ -387,7 +387,7 @@ class PromotionalResourcesModel(BaseModel):
     """
 
     LogoUrl: HttpUrl
-    Videos: List[dict[str, str]]
+    Videos: List[dict[str, Any]]
     AdditionalResources: YamlSupportResources
 
     @field_validator("AdditionalResources")
@@ -825,7 +825,9 @@ class EntityModel(BaseModel):
             },
             "PromotionalResources": {
                 "LogoUrl": ami_product.description.logourl,
-                "Videos": ami_product.description.video_urls,
+                "Videos": (
+                    [{"Url": ami_product.description.video_urls[-1]}] if ami_product.description.video_urls else []
+                ),
                 "AdditionalResources": ami_product.description.additional_resources,
             },
             "SupportInformation": {
