@@ -129,6 +129,12 @@ class TestAmiVersion:
         with pytest.raises(ValidationError):
             models.AmiVersion(**version)
 
+    def test_invalid_version_title(self):
+        version_detail = self._get_version_details()
+        version_detail["version_title"] = ""
+        with pytest.raises(ValidationError):
+            models.AmiVersion(**version_detail)
+
 
 class TestAmiProduct:
     @pytest.fixture
