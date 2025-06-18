@@ -312,7 +312,7 @@ class Description(BaseModel):
 
 
 class AmiVersion(BaseModel):
-    version_title: str = Field(max_length=36)
+    version_title: str = Field(min_length=1)
     release_notes: str = Field(max_length=30000)
     ami_id: str = Field(max_length=21)
     access_role_arn: str = Field(max_length=150)
