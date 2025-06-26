@@ -7,6 +7,7 @@ import time
 from typing import Dict, List, Optional, TextIO
 
 import click
+import json_log_formatter  # type: ignore
 import prettytable
 import yaml
 from botocore.exceptions import ClientError
@@ -22,8 +23,26 @@ logger = logging.getLogger(__name__)
 
 
 @click.group()
-def cli():
-    pass
+@click.option("--log-console/--no-log-console", default=False, is_flag=True, help="Do not log to console")
+@click.option("--log-file", required=False, help="File to log to", type=click.Path(dir_okay=False))
+@click.option("--debug", default=False, is_flag=True, help="Enable debug logging")
+def cli(log_file, log_console, debug):
+
+    log_level = logging.INFO
+    if debug:
+        log_level = logging.DEBUG
+
+    logger.setLevel(log_level)
+
+    if log_file:
+        file_handler = logging.FileHandler(filename=log_file)
+        file_handler.setFormatter(json_log_formatter.VerboseJSONFormatter())
+        logger.addHandler(file_handler)
+    if log_console:
+        console_handler = logging.StreamHandler()
+        formatter = logging.Formatter("%(asctime)s:%(name)s:%(levelname)s:%(message)s")
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
 
 
 @cli.group("private-offer")
@@ -117,7 +136,8 @@ def entity_get_diff(entity_id: str, config: TextIO):
     """
 
     entity_from_listing = models.EntityModel(**_driver.get_full_response(entity_id))
-
+    logger.info(entity_from_listing)
+    logger.debug(entity_from_listing)
     with open(config.name, "r") as f:
         yaml_config = yaml.safe_load(f)
     local_config_entity = models.EntityModel.get_entity_from_yaml(yaml_config)
@@ -478,18 +498,3 @@ def _load_configuration(config_path: TextIO, required_fields: List[List[str]]) -
         logger.exception(f"Configuration file is missing: {missing_keys}" for missing_keys in list_of_missing_keys)
         raise YamlMissingKeyException(missing_keys=list_of_missing_keys)
     return config
-
-
-def main():
-    # Setting log format
-    log_formatter = logging.Formatter("%(asctime)s:%(name)s:%(levelname)s:%(message)s")
-    root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO)
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(log_formatter)
-    root_logger.addHandler(console_handler)
-    cli()
-
-
-if __name__ == "__main__":
-    main()
