@@ -15,7 +15,7 @@ awsmpcli = "awsmp.cli:main"
 awsmp = "awsmp.cli:main"
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.10"
 boto3 = "^1.28.28"
 pydantic = "^2.2.0"
 click = "^8.1.6"

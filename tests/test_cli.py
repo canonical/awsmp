@@ -345,7 +345,7 @@ def test_public_offer_product_update_details(mock_get_client, mock_get_details, 
     runner = CliRunner()
     runner.invoke(
         cli.ami_product_update,
-        ["--product-id", "some-prod-id", "--config", "./tests/test_config.yaml"],
+        ["--product-id", "some-prod-id", "--config", "./tests/test_config.yaml", "--no-allow-price-change"],
     )
     mock_start_change_set = mock_get_client.return_value.start_change_set
     assert {"Regions": ["us-east-1", "us-east-2"]} == mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][1][
@@ -516,7 +516,7 @@ def test_public_offer_product_update_details_restrict_instance_types(mock_get_cl
 
     runner.invoke(
         cli.ami_product_update,
-        ["--product-id", "some-prod-id", "--config", "./tests/test_config.yaml"],
+        ["--product-id", "some-prod-id", "--config", "./tests/test_config.yaml", "--no-allow-price-change"],
     )
     mock_start_change_set = mock_get_client.return_value.start_change_set
     assert (
@@ -645,12 +645,7 @@ def test_public_offer_product_update_instance_type(mock_get_client, mock_get_det
     runner = CliRunner()
     runner.invoke(
         cli.ami_product_update_instance_type,
-        [
-            "--product-id",
-            "some-prod-id",
-            "--config",
-            "./tests/test_config.yaml",
-        ],
+        ["--product-id", "some-prod-id", "--config", "./tests/test_config.yaml", "--no-allow-price-change"],
     )
     mock_start_change_set = mock_get_client.return_value.start_change_set
     assert (
@@ -715,12 +710,7 @@ def test_public_offer_product_update_instance_type_restrict_instance_type(
     runner = CliRunner()
     runner.invoke(
         cli.ami_product_update_instance_type,
-        [
-            "--product-id",
-            "some-prod-id",
-            "--config",
-            "./tests/test_config.yaml",
-        ],
+        ["--product-id", "some-prod-id", "--config", "./tests/test_config.yaml", "--no-allow-price-change"],
     )
     mock_start_change_set = mock_get_client.return_value.start_change_set
     assert (
