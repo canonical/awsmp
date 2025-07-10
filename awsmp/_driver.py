@@ -22,34 +22,35 @@ logger = logging.getLogger(__name__)
 
 
 class AmiProduct:
-    def __init__(self, product_id: str):
+    def __init__(self, product_id: str, dry_run: bool = False):
         self.product_id: str = product_id
         self.offer_id = get_public_offer_id(product_id)
+        self._dry_run = dry_run
 
     @staticmethod
-    def create():
+    def create(dry_run: bool):
         changeset = changesets.get_ami_listing_creation_changesets()
         changeset_name = "Create new AMI Product"
 
-        return get_response(changeset, changeset_name)
+        return get_response(changeset, changeset_name, dry_run)
 
     def update_legal_terms(self, eula_document: Dict[str, str]) -> ChangeSetReturnType:
         changeset = changesets.get_ami_listing_update_legal_terms_changesets(eula_document, self.offer_id)
         changeset_name = f"Product {self.product_id} legal terms update"
 
-        return get_response(changeset, changeset_name)
+        return get_response(changeset, changeset_name, self._dry_run)
 
     def update_support_terms(self, refund_policy: str) -> ChangeSetReturnType:
         changeset = changesets.get_ami_listing_update_support_terms_changesets(self.offer_id, refund_policy)
         changeset_name = f"Product {self.product_id} support terms update"
 
-        return get_response(changeset, changeset_name)
+        return get_response(changeset, changeset_name, self._dry_run)
 
     def update_description(self, desc: Dict) -> ChangeSetReturnType:
         changeset = changesets.get_ami_listing_update_description_changesets(self.product_id, desc)
         changeset_name = f"Product {self.product_id} description update"
 
-        return get_response(changeset, changeset_name)
+        return get_response(changeset, changeset_name, self._dry_run)
 
     def update_instance_types(
         self, offer_config: Dict[str, Any], price_change_allowed: bool
@@ -70,25 +71,25 @@ class AmiProduct:
         if changeset is None:
             return None
 
-        return get_response(changeset, changeset_name)
+        return get_response(changeset, changeset_name, self._dry_run)
 
     def update_regions(self, region_config: Dict) -> ChangeSetReturnType:
         changeset = changesets.get_ami_listing_update_region_changesets(self.product_id, region_config)
         changeset_name = f"Product {self.product_id} region update"
 
-        return get_response(changeset, changeset_name)
+        return get_response(changeset, changeset_name, self._dry_run)
 
     def update_version(self, version_config: Dict) -> ChangeSetReturnType:
         changeset = changesets.get_ami_listing_update_version_changesets(self.product_id, version_config)
         changeset_name = f"Product {self.product_id} version update"
 
-        return get_response(changeset, changeset_name)
+        return get_response(changeset, changeset_name, self._dry_run)
 
     def release(self) -> ChangeSetReturnType:
         changeset = changesets.get_ami_release_changesets(self.product_id, self.offer_id)
         changeset_name = f"Product {self.product_id} publish as limited"
 
-        return get_response(changeset, changeset_name)
+        return get_response(changeset, changeset_name, self._dry_run)
 
     def update(self, configs: Dict[str, Any], price_change_allowed: bool) -> Optional[ChangeSetReturnType]:
         """
@@ -121,7 +122,7 @@ class AmiProduct:
 
         changeset_name = f"Product {self.product_id} update product details"
 
-        return get_response(changeset, changeset_name)
+        return get_response(changeset, changeset_name, self._dry_run)
 
     def _get_product_title(self):
         return get_entity_details(self.product_id)["Description"]["ProductTitle"]
@@ -161,12 +162,13 @@ def get_client(service_name="marketplace-catalog", region_name="us-east-1"):
     return boto3.client(service_name, region_name=region_name)
 
 
-def get_response(changeset: List[ChangeSetType], changeset_name: str) -> ChangeSetReturnType:
+def get_response(changeset: List[ChangeSetType], changeset_name: str, dry_run: bool = False) -> ChangeSetReturnType:
     """
     Request to AWS and get response of either success of failure
 
     :param List[ChangeSetType] changeset: list of changesets
     :param str changeset_name: name of changeset
+    :param bool dry_run: should actions be dry_run
     :return: changeset with type, entity, details etc.
     :rtype: ChangeSetReturnType
     """
@@ -174,6 +176,12 @@ def get_response(changeset: List[ChangeSetType], changeset_name: str) -> ChangeS
     logger.info(
         "Requesting changes to marketplace listing", extra={"ChangeSetName": changeset_name, "ChangeSet": changeset}
     )
+    if dry_run:
+        logger.warning("DRY_RUN: %s", changeset)
+        return {
+            "ChangeSetArn": "DRY_RUN",
+            "ChangeSetId": "DRY_RUN",
+        }
     try:
         response = get_client().start_change_set(
             Catalog="AWSMarketplace",
@@ -406,6 +414,7 @@ def offer_create(
     offer_name: str,
     eula_url: Optional[str],
     pricing: IO,
+    dry_run: bool,
 ) -> ChangeSetReturnType:
     csvreader = csv.DictReader(pricing, fieldnames=["name", "price_hourly", "price_annual"])
     instance_type_pricing = [models.InstanceTypePricing(**line) for line in csvreader]  # type:ignore
@@ -429,7 +438,7 @@ def offer_create(
 
     changeset_name = f'{f"create private offer for {product_id}: {offer_name}"[:95]}...'
 
-    return get_response(changeset_list, changeset_name)
+    return get_response(changeset_list, changeset_name, dry_run)
 
 
 def create_offer_name(product_id: str, buyer_accounts: List[str], with_support: bool, customer_name: str) -> str:
