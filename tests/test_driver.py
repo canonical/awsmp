@@ -33,6 +33,12 @@ class TestAmiProduct(object):
         assert test_ami_product.offer_id == "fake-offer-id"
 
 
+DRY_RUN_RESPONSE = {
+    "ChangeSetArn": "DRY_RUN",
+    "ChangeSetId": "DRY_RUN",
+}
+
+
 @pytest.mark.parametrize(
     "args,expected",
     [
@@ -144,7 +150,7 @@ def test_ami_product_update_description(mock_get_client):
 
 @patch("awsmp._driver.get_client")
 def test_ami_product_create(mock_get_client):
-    _driver.AmiProduct.create()
+    _driver.AmiProduct.create(dry_run=False)
     mock_start_change_set = mock_get_client.return_value.start_change_set
 
     assert mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][0]["Entity"]["Type"] == "AmiProduct@1.0"
@@ -154,7 +160,7 @@ def test_ami_product_create(mock_get_client):
 def test_ami_product_create_with_wrong_credentials(mock_get_client):
     mock_get_client.side_effect = UnrecognizedClientException
     with pytest.raises(UnrecognizedClientException) as excInfo:
-        _driver.AmiProduct.create()
+        _driver.AmiProduct.create(dry_run=False)
     assert "This profile is not configured correctly" in excInfo.value.args[0]
 
 
@@ -162,8 +168,15 @@ def test_ami_product_create_with_wrong_credentials(mock_get_client):
 def test_ami_product_create_without_permission(mock_get_client):
     mock_get_client.side_effect = AccessDeniedException(service_name="marketplace")
     with pytest.raises(AccessDeniedException) as excInfo:
-        _driver.AmiProduct.create()
+        _driver.AmiProduct.create(dry_run=False)
     assert "This account does not have permission to request marketplace services" in excInfo.value.args[0]
+
+
+@patch("awsmp._driver.get_client")
+def test_ami_product_create_dry_run(mock_get_client):
+    response = _driver.AmiProduct.create(dry_run=True)
+    mock_get_client.return_value.start_change_set.assert_not_called()
+    assert response == DRY_RUN_RESPONSE
 
 
 @patch("awsmp._driver.get_client")
@@ -1565,11 +1578,35 @@ t2.large,0.034,800
         offer_name="test_offer",
         eula_url="",
         pricing=io.StringIO(pricing_config),
+        dry_run=False,
     )
     mock_start_change_set = mock_get_client.return_value.start_change_set
     assert mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][3]["DetailsDocument"]["Terms"][0]["RateCards"][
         0
     ]["RateCard"][0] == {"DimensionKey": "t2.micro", "Price": "0.012"}
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_entity_details")
+@patch("awsmp._driver.changesets.models.boto3")
+def test_offer_create_pricing_dry_run(mock_boto3, mock_get_details, mock_get_client):
+    mock_get_details.return_value = {"Dimensions": [{"Name": "t2.micro"}, {"Name": "t2.large"}]}
+    pricing_config = """
+t2.micro,0.012,100
+t2.large,0.034,800
+"""
+    offer_creation = _driver.offer_create(
+        product_id="temp",
+        buyer_accounts=["buyer1", "buyer2"],
+        available_for_days=5,
+        valid_for_days=2,
+        offer_name="test_offer",
+        eula_url="",
+        pricing=io.StringIO(pricing_config),
+        dry_run=True,
+    )
+    mock_get_client.return_value.start_change_set.assert_not_called()
+    assert offer_creation == DRY_RUN_RESPONSE
 
 
 @patch("awsmp._driver.get_client")
@@ -1589,11 +1626,35 @@ t2.large,0.034,800
         offer_name="test_offer",
         eula_url="https://test",
         pricing=io.StringIO(pricing_config),
+        dry_run=False,
     )
     mock_start_change_set = mock_get_client.return_value.start_change_set
     assert mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][5]["DetailsDocument"]["Terms"][0]["Documents"][
         0
     ] == {"Type": "CustomEula", "Url": "https://test"}
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_entity_details")
+@patch("awsmp._driver.changesets.models.boto3")
+def test_offer_create_eula_document_dry_run(mock_boto3, mock_get_details, mock_get_client):
+    mock_get_details.return_value = {"Dimensions": [{"Name": "t2.micro"}, {"Name": "t2.large"}]}
+    pricing_config = """
+t2.micro,0.012,100
+t2.large,0.034,800
+"""
+    offer_creation = _driver.offer_create(
+        product_id="temp",
+        buyer_accounts=["buyer1", "buyer2"],
+        available_for_days=5,
+        valid_for_days=2,
+        offer_name="test_offer",
+        eula_url="https://test",
+        pricing=io.StringIO(pricing_config),
+        dry_run=True,
+    )
+    mock_get_client.return_value.start_change_set.assert_not_called()
+    assert offer_creation == DRY_RUN_RESPONSE
 
 
 @pytest.mark.parametrize(

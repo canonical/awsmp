@@ -143,6 +143,7 @@ def entity_get_diff(entity_id: str, config: TextIO):
     envvar="AWSMP_EULA_URL",
 )
 @click.option("--pricing", type=click.File("r"), required=True, prompt=True)
+@click.option("--dry-run", is_flag=True)
 def offer_create(
     product_id,
     buyer_accounts,
@@ -152,6 +153,7 @@ def offer_create(
     customer_name,
     eula_url,
     pricing,
+    dry_run,
 ):
     """
     Create a new private offer.
@@ -184,7 +186,7 @@ def offer_create(
         offer_name = click.prompt("Please enter the offer name in full")
 
     response = _driver.offer_create(
-        product_id, buyer_accounts, available_for_days, valid_for_days, offer_name, eula_url, pricing
+        product_id, buyer_accounts, available_for_days, valid_for_days, offer_name, eula_url, pricing, dry_run
     )
 
     print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
@@ -234,11 +236,12 @@ def offer_pricing_template(offer_id, pricing, free):
 
 
 @public_offer.command("create")
-def ami_product_create():
+@click.option("--dry-run", is_flag=True)
+def ami_product_create(dry_run):
     """
     Create a new AMI product listing
     """
-    response = _driver.AmiProduct.create()
+    response = _driver.AmiProduct.create(dry_run=dry_run)
 
     print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
     print(f'https://aws.amazon.com/marketplace/management/requests/{response["ChangeSetId"]}')
@@ -247,13 +250,14 @@ def ami_product_create():
 @public_offer.command("update-description")
 @click.option("--product-id", required=True, prompt=True)
 @click.option("--config", type=click.File("r"), required=True, prompt=True)
-def ami_product_update_description(product_id, config):
+@click.option("--dry-run", is_flag=True)
+def ami_product_update_description(product_id, config, dry_run):
     """
     Update AMI product description
     """
     # Load yaml file
     desc = _load_configuration(config, [["product", "description"]])["product"]["description"]
-    response = _driver.AmiProduct(product_id=product_id).update_description(desc)
+    response = _driver.AmiProduct(product_id=product_id, dry_run=dry_run).update_description(desc)
     print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
     print(f'https://aws.amazon.com/marketplace/management/requests/{response["ChangeSetId"]}')
 
@@ -269,7 +273,8 @@ def ami_product_update_description(product_id, config):
     is_flag=True,
     prompt="Is price update allowed? (y). Default is False.",
 )
-def ami_product_update_instance_type(product_id: str, config: TextIO, allow_price_change: bool) -> None:
+@click.option("--dry-run", is_flag=True)
+def ami_product_update_instance_type(product_id: str, config: TextIO, allow_price_change: bool, dry_run: bool) -> None:
     """
     Update AMI product instance type
     :param str product_id: Id of listing
@@ -278,7 +283,7 @@ def ami_product_update_instance_type(product_id: str, config: TextIO, allow_pric
     :return: None
     :rtype: None
     """
-    product = _driver.AmiProduct(product_id=product_id)
+    product = _driver.AmiProduct(product_id=product_id, dry_run=dry_run)
     offer_config = _load_configuration(config, [["offer"]])["offer"]
     response = product.update_instance_types(offer_config, allow_price_change)
     if response:
@@ -323,14 +328,15 @@ def ami_product_instance_type_template(arch, virt):
 @public_offer.command("update-region")
 @click.option("--product-id", required=True, prompt=True)
 @click.option("--config", type=click.File("r"), required=True, prompt=True)
-def ami_product_update_regions(product_id, config):
+@click.option("--dry-run", is_flag=True)
+def ami_product_update_regions(product_id, config, dry_run):
     """
     Update AMI product region
     """
     # Load yaml file
     region_config = _load_configuration(config, [["product", "region"]])["product"]["region"]
 
-    product = _driver.AmiProduct(product_id=product_id)
+    product = _driver.AmiProduct(product_id=product_id, dry_run=dry_run)
     response = product.update_regions(region_config)
     print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
     print(f'https://aws.amazon.com/marketplace/management/requests/{response["ChangeSetId"]}')
@@ -339,14 +345,15 @@ def ami_product_update_regions(product_id, config):
 @public_offer.command("update-version")
 @click.option("--product-id", required=True, prompt=True)
 @click.option("--config", type=click.File("r"), required=True, prompt=True)
-def ami_product_update_version(product_id, config):
+@click.option("--dry-run", is_flag=True)
+def ami_product_update_version(product_id, config, dry_run):
     """
     Update AMI product version
     """
     # Load yaml file
     version_config = _load_configuration(config, [["product", "version"]])["product"]["version"]
 
-    product = _driver.AmiProduct(product_id=product_id)
+    product = _driver.AmiProduct(product_id=product_id, dry_run=dry_run)
     response = product.update_version(version_config)
     print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
     print(f'https://aws.amazon.com/marketplace/management/requests/{response["ChangeSetId"]}')
@@ -355,14 +362,15 @@ def ami_product_update_version(product_id, config):
 @public_offer.command("update-legal-terms")
 @click.option("--product-id", required=True, prompt=True)
 @click.option("--config", type=click.File("r"), required=True, prompt=True)
-def ami_product_update_legal_terms(product_id, config):
+@click.option("--dry-run", is_flag=True)
+def ami_product_update_legal_terms(product_id, config, dry_run):
     """
     Update AMI product legal terms
     """
     # Load yaml file
     eula_url = _load_configuration(config, [["offer", "eula_document"]])["offer"]["eula_document"][0]
 
-    product = _driver.AmiProduct(product_id=product_id)
+    product = _driver.AmiProduct(product_id=product_id, dry_run=dry_run)
     response = product.update_legal_terms(eula_url)
     print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
     print(f'https://aws.amazon.com/marketplace/management/requests/{response["ChangeSetId"]}')
@@ -371,14 +379,15 @@ def ami_product_update_legal_terms(product_id, config):
 @public_offer.command("update-support-terms")
 @click.option("--product-id", required=True, prompt=True)
 @click.option("--config", type=click.File("r"), required=True, prompt=True)
-def ami_product_update_support_terms(product_id, config):
+@click.option("--dry-run", is_flag=True)
+def ami_product_update_support_terms(product_id, config, dry_run):
     """
     Update AMI product support terms
     """
     # Load yaml file
     refund_policy = _load_configuration(config, [["offer", "refund_policy"]])["offer"]["refund_policy"]
 
-    product = _driver.AmiProduct(product_id=product_id)
+    product = _driver.AmiProduct(product_id=product_id, dry_run=dry_run)
     response = product.update_support_terms(refund_policy)
     print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
     print(f'https://aws.amazon.com/marketplace/management/requests/{response["ChangeSetId"]}')
@@ -386,12 +395,13 @@ def ami_product_update_support_terms(product_id, config):
 
 @public_offer.command("release")
 @click.option("--product-id", required=True, prompt=True)
-def ami_product_release(product_id):
+@click.option("--dry-run", is_flag=True)
+def ami_product_release(product_id, dry_run):
     """
     Publish AMI product as Limited
     """
 
-    product = _driver.AmiProduct(product_id=product_id)
+    product = _driver.AmiProduct(product_id=product_id, dry_run=dry_run)
     response = product.release()
     print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
     print(f'https://aws.amazon.com/marketplace/management/requests/{response["ChangeSetId"]}')
@@ -407,7 +417,8 @@ def ami_product_release(product_id):
     is_flag=True,
     prompt="Is price update allowed? (y/N). Default is False.",
 )
-def ami_product_update(product_id: str, config: TextIO, allow_price_change: bool) -> None:
+@click.option("--dry-run", is_flag=True)
+def ami_product_update(product_id: str, config: TextIO, allow_price_change: bool, dry_run) -> None:
     """
     Update AMI product details (description, region, instnance type and pricing) in a single call
     :param str product_id: Id of listing
@@ -419,7 +430,7 @@ def ami_product_update(product_id: str, config: TextIO, allow_price_change: bool
 
     # Load yaml file
     configs = _load_configuration(config, [["product", "description"], ["product", "region"], ["offer"]])
-    product = _driver.AmiProduct(product_id=product_id)
+    product = _driver.AmiProduct(product_id=product_id, dry_run=dry_run)
     response = product.update(configs, allow_price_change)
 
     if response:

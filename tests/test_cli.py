@@ -77,6 +77,7 @@ def test_offer_create(mock_get_client, mock_get_entity_details):
             "Some offer name",
             "",
             prices,
+            False,
         )
     mock_start_change_set = mock_get_client.return_value.start_change_set
 
