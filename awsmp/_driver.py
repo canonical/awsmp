@@ -403,6 +403,41 @@ def _get_pricing_diff(product_id: str, changeset: List[ChangeSetType], allow_pri
     return diffs_hourly, diffs_annual
 
 
+def build_pricing_rows_from_offer(offer_id: str, *, free: bool = False) -> list[tuple[str, str, str]]:
+    """
+    Return [(instance_type, hourly, annual)] based on an existing offer.
+    """
+    e = get_client().describe_entity(Catalog="AWSMarketplace", EntityId=offer_id)
+    details = e["DetailsDocument"]
+
+    prices_hourly = {}
+    prices_annual = {}
+    for term in details["Terms"]:
+        if term["Type"] not in ["UsageBasedPricingTerm", "ConfigurableUpfrontPricingTerm"]:
+            continue
+        for rate_card in term["RateCards"]:
+            for d in rate_card["RateCard"]:
+                if term["Type"] == "UsageBasedPricingTerm":
+                    # hourly
+                    prices_hourly[d["DimensionKey"]] = d["Price"]
+                elif term["Type"] == "ConfigurableUpfrontPricingTerm":
+                    # annual
+                    prices_annual[d["DimensionKey"]] = d["Price"]
+                else:
+                    raise Exception(f'Unknown terms type {term["type"]}')
+
+    # both should have the same keys so calculate the symmetric difference
+    # this should never happen given that we get the data from an available offer
+    # free listing can be skipped since it doesn't have annual pricing
+    if not free:
+        if prices_hourly.keys() ^ prices_annual.keys():
+            raise Exception("instance type dimensions are not identical in hourly and annual prices")
+    else:
+        prices_annual = prices_hourly
+
+    return [(it, prices_hourly[it], prices_annual[it]) for it in sorted(prices_hourly.keys())]
+
+
 def _get_existing_instance_types(product_id: str):
     entity = get_entity_details(product_id)
     # New created product does not have existing instance types
