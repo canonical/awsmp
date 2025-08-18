@@ -91,6 +91,12 @@ class AmiProductPricingType(Enum):
     HOURLY_WITH_MONTHLY_SUBSCRIPTION_FEE = 3
 
 
+class AmiVisibility(str, Enum):
+    Public = "Public"
+    Restricted = "Restricted"
+    Limited = "Limited"
+
+
 class Offer(BaseModel):
     """
     Offer model

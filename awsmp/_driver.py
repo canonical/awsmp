@@ -227,6 +227,19 @@ def list_entities(entity_type: str) -> dict[str, dict[str, str]]:
     return entities
 
 
+def get_entities_by_visibility(entity_type: str, visibilities: tuple[models.AmiVisibility, ...]) -> list[dict]:
+    """
+    Return entity summaries for the given entity_type filtered by Marketplace Visibility.
+
+    :param str entity_type: Marketplace entity type, e.g. "Offer" or "AmiProduct"
+    :param tuple[Visibility, ...] visibilities: One or more Visibility enum values to include
+    :return: A list of entity summary dicts as returned by ListEntities
+    :rtype: list[dict]
+    """
+    entities = list_entities(entity_type)
+    return [e for e in entities.values() if not visibilities or e["Visibility"] in visibilities]
+
+
 def get_entity_details(entity_id: str) -> Dict:
     client = get_client()
     try:
