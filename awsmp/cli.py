@@ -116,13 +116,11 @@ def entity_get_diff(entity_id: str, config: TextIO):
     :rtype None
     """
 
-    entity_from_listing = models.EntityModel(**_driver.get_full_response(entity_id))
-
     with open(config.name, "r") as f:
         yaml_config = yaml.safe_load(f)
     local_config_entity = models.EntityModel.get_entity_from_yaml(yaml_config)
 
-    diff = entity_from_listing.get_diff(local_config_entity)
+    diff = _driver.diff_entity_id_vs_local(entity_id, local_config_entity)
 
     print(repr(diff))
 
@@ -469,7 +467,7 @@ def _load_configuration(config_path: TextIO, required_fields: List[List[str]]) -
 
     with open(config_path.name, "r") as f:
         config = yaml.safe_load(f)
-        list_of_missing_keys: List[List[str]] = []
+    list_of_missing_keys: List[List[str]] = []
 
     for keys in required_fields:
         missing_keys = []
