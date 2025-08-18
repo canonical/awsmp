@@ -250,6 +250,18 @@ def get_entity_details(entity_id: str) -> Dict:
     return e["DetailsDocument"]
 
 
+def get_ami_product_version_summary() -> list[models.AmiProductVersionSummary]:
+    """
+    Query a list each marketplace entry with its number of versions.
+    """
+    entity_dict = list_entities("AmiProduct")
+    versions = [
+        models.AmiProductVersionSummary(entity_id, len(get_entity_versions(entity_id)), entity_dict[entity_id]["Name"])
+        for entity_id in entity_dict.keys()
+    ]
+    return versions
+
+
 def get_public_offer_id(entity_id: str):
     client = get_client()
     e = client.list_entities(

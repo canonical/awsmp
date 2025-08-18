@@ -9,6 +9,7 @@ from typing import (
     Dict,
     List,
     Literal,
+    NamedTuple,
     Optional,
     Tuple,
     TypedDict,
@@ -89,6 +90,12 @@ class AmiProductPricingType(Enum):
     HOURLY = 1
     HOURLY_WITH_ANNUAL = 2
     HOURLY_WITH_MONTHLY_SUBSCRIPTION_FEE = 3
+
+
+class AmiProductVersionSummary(NamedTuple):
+    entity_id: str
+    version_count: int
+    name: str
 
 
 class AmiVisibility(str, Enum):

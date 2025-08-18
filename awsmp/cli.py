@@ -79,11 +79,7 @@ def entity_versions_count():
     """
     List each marketplace entry with it's number of versions, sorted by number of versions
     """
-    entity_dict = _driver.list_entities("AmiProduct")
-    versions = [
-        (entity_id, len(_driver.get_entity_versions(entity_id)), entity_dict[entity_id]["Name"])
-        for entity_id in entity_dict.keys()
-    ]
+    versions = _driver.get_ami_product_version_summary()
 
     for version in sorted(versions, key=lambda x: x[1]):
         print(f"{version[0]} - {version[1]} - {version[2]}")
