@@ -296,26 +296,9 @@ def ami_product_instance_type_template(arch, virt):
     """
     Generate AMI product instance type template
     """
-    # Load yaml file
-    client = _driver.get_client(service_name="ec2")
-    try:
-        e = client.get_instance_types_from_instance_requirements(
-            ArchitectureTypes=[arch],
-            VirtualizationTypes=[virt],
-            InstanceRequirements={
-                "VCpuCount": {
-                    "Min": 0,
-                },
-                "MemoryMiB": {
-                    "Min": 0,
-                },
-            },
-        )
-    except ClientError:
-        logger.exception("Profile does not have EC2 service access. Check your profile role or services.")
-        raise AccessDeniedException(service_name="ec2")
 
-    available_instances = [i["InstanceType"] for i in e["InstanceTypes"]]
+    available_instances = _driver.get_available_instance_types(arch, virt)
+
     with open("instance_type.csv", "w") as f:
         csvwriter = csv.writer(f)
         for instance in available_instances:

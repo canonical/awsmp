@@ -387,6 +387,33 @@ def _get_existing_instance_types(product_id: str):
     return existing_instance_types
 
 
+def get_available_instance_types(arch: str, virt: str) -> list[str]:
+    """
+    Return available EC2 instance types for the given arch/virt.
+    """
+    client = get_client(service_name="ec2")
+    try:
+        e = client.get_instance_types_from_instance_requirements(
+            ArchitectureTypes=[arch],
+            VirtualizationTypes=[virt],
+            InstanceRequirements={
+                "VCpuCount": {
+                    "Min": 0,
+                },
+                "MemoryMiB": {
+                    "Min": 0,
+                },
+            },
+        )
+    except ClientError:
+        logger.exception("Profile does not have EC2 service access. Check your profile role or services.")
+        raise AccessDeniedException(service_name="ec2")
+
+    available_instances = [i["InstanceType"] for i in e["InstanceTypes"]]
+
+    return available_instances
+
+
 def _filter_instance_types(product_id: str, changeset):
     existing_instance_types = _get_existing_instance_types(product_id)
     pricing_instance_types = {
