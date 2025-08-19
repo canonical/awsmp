@@ -52,18 +52,18 @@ def inspect():
 
 @inspect.command("entity-list")
 @click.argument("entity-type", type=click.Choice(["Offer", "AmiProduct"]))
-@click.option("--filter-visibility", multiple=True, type=click.Choice(["Public", "Restricted", "Limited"]))
+@click.option("--filter-visibility", multiple=True, type=click.Choice([v.value for v in models.AmiVisibility]))
 def entity_list(entity_type, filter_visibility):
     """
     List available entities. Currently supported are entities of type "Offer"
     and "AmiProduct".
     """
-    entity_list = _driver.list_entities(entity_type)
+    entity_list = _driver.get_entities_by_visibility(entity_type, filter_visibility)
+
     t = prettytable.PrettyTable()
     t.field_names = ["entity-id", "name", "visibility", "last-changed"]
-    for _, entity in entity_list.items():
-        if not filter_visibility or entity["Visibility"] in filter_visibility:
-            t.add_row([entity["EntityId"], entity["Name"], entity["Visibility"], entity["LastModifiedDate"]])
+    t.add_rows([[e["EntityId"], e["Name"], e["Visibility"], e["LastModifiedDate"]] for e in entity_list])
+
     print(t.get_string(sortby="last-changed"))
 
 
@@ -79,11 +79,7 @@ def entity_versions_count():
     """
     List each marketplace entry with it's number of versions, sorted by number of versions
     """
-    entity_dict = _driver.list_entities("AmiProduct")
-    versions = [
-        (entity_id, len(_driver.get_entity_versions(entity_id)), entity_dict[entity_id]["Name"])
-        for entity_id in entity_dict.keys()
-    ]
+    versions = _driver.get_ami_product_version_summary()
 
     for version in sorted(versions, key=lambda x: x[1]):
         print(f"{version[0]} - {version[1]} - {version[2]}")
@@ -116,13 +112,11 @@ def entity_get_diff(entity_id: str, config: TextIO):
     :rtype None
     """
 
-    entity_from_listing = models.EntityModel(**_driver.get_full_response(entity_id))
-
     with open(config.name, "r") as f:
         yaml_config = yaml.safe_load(f)
     local_config_entity = models.EntityModel.get_entity_from_yaml(yaml_config)
 
-    diff = entity_from_listing.get_diff(local_config_entity)
+    diff = _driver.diff_entity_id_vs_local(entity_id, local_config_entity)
 
     print(repr(diff))
 
@@ -201,38 +195,12 @@ def offer_pricing_template(offer_id, pricing, free):
     """
     Create a pricing template (.csv file) based on a given offer
     """
-    client = _driver.get_client()
-    e = client.describe_entity(Catalog="AWSMarketplace", EntityId=offer_id)
-    details = e["DetailsDocument"]
 
-    prices_hourly = {}
-    prices_annual = {}
-    for term in details["Terms"]:
-        if term["Type"] not in ["UsageBasedPricingTerm", "ConfigurableUpfrontPricingTerm"]:
-            continue
-        for rate_card in term["RateCards"]:
-            for d in rate_card["RateCard"]:
-                if term["Type"] == "UsageBasedPricingTerm":
-                    # hourly
-                    prices_hourly[d["DimensionKey"]] = d["Price"]
-                elif term["Type"] == "ConfigurableUpfrontPricingTerm":
-                    # annual
-                    prices_annual[d["DimensionKey"]] = d["Price"]
-                else:
-                    raise Exception(f'Unknown terms type {term["type"]}')
-
-    # both should have the same keys so calculate the symmetric difference
-    # this should never happen given that we get the data from an available offer
-    # free listing can be skipped since it doesn't have annual pricing
-    if not free:
-        if prices_hourly.keys() ^ prices_annual.keys():
-            raise Exception("instance type dimensions are not identical in hourly and annual prices")
-    else:
-        prices_annual = prices_hourly
+    offer_pricing = _driver.build_pricing_rows_from_offer(offer_id, free=free)
 
     csvwriter = csv.writer(pricing)
-    for instance_type in sorted(prices_hourly.keys()):
-        csvwriter.writerow([instance_type, prices_hourly[instance_type], prices_annual[instance_type]])
+    for instance_type, hourly_price, annual_price in offer_pricing:
+        csvwriter.writerow([instance_type, hourly_price, annual_price])
 
 
 @public_offer.command("create")
@@ -298,26 +266,9 @@ def ami_product_instance_type_template(arch, virt):
     """
     Generate AMI product instance type template
     """
-    # Load yaml file
-    client = _driver.get_client(service_name="ec2")
-    try:
-        e = client.get_instance_types_from_instance_requirements(
-            ArchitectureTypes=[arch],
-            VirtualizationTypes=[virt],
-            InstanceRequirements={
-                "VCpuCount": {
-                    "Min": 0,
-                },
-                "MemoryMiB": {
-                    "Min": 0,
-                },
-            },
-        )
-    except ClientError:
-        logger.exception("Profile does not have EC2 service access. Check your profile role or services.")
-        raise AccessDeniedException(service_name="ec2")
 
-    available_instances = [i["InstanceType"] for i in e["InstanceTypes"]]
+    available_instances = _driver.get_available_instance_types(arch, virt)
+
     with open("instance_type.csv", "w") as f:
         csvwriter = csv.writer(f)
         for instance in available_instances:
@@ -469,7 +420,7 @@ def _load_configuration(config_path: TextIO, required_fields: List[List[str]]) -
 
     with open(config_path.name, "r") as f:
         config = yaml.safe_load(f)
-        list_of_missing_keys: List[List[str]] = []
+    list_of_missing_keys: List[List[str]] = []
 
     for keys in required_fields:
         missing_keys = []

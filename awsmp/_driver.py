@@ -227,6 +227,19 @@ def list_entities(entity_type: str) -> dict[str, dict[str, str]]:
     return entities
 
 
+def get_entities_by_visibility(entity_type: str, visibilities: tuple[models.AmiVisibility, ...]) -> list[dict]:
+    """
+    Return entity summaries for the given entity_type filtered by Marketplace Visibility.
+
+    :param str entity_type: Marketplace entity type, e.g. "Offer" or "AmiProduct"
+    :param tuple[Visibility, ...] visibilities: One or more Visibility enum values to include
+    :return: A list of entity summary dicts as returned by ListEntities
+    :rtype: list[dict]
+    """
+    entities = list_entities(entity_type)
+    return [e for e in entities.values() if not visibilities or e["Visibility"] in visibilities]
+
+
 def get_entity_details(entity_id: str) -> Dict:
     client = get_client()
     try:
@@ -235,6 +248,18 @@ def get_entity_details(entity_id: str) -> Dict:
         _raise_client_error(error)
 
     return e["DetailsDocument"]
+
+
+def get_ami_product_version_summary() -> list[models.AmiProductVersionSummary]:
+    """
+    Query a list each marketplace entry with its number of versions.
+    """
+    entity_dict = list_entities("AmiProduct")
+    versions = [
+        models.AmiProductVersionSummary(entity_id, len(get_entity_versions(entity_id)), entity_dict[entity_id]["Name"])
+        for entity_id in entity_dict.keys()
+    ]
+    return versions
 
 
 def get_public_offer_id(entity_id: str):
@@ -378,6 +403,41 @@ def _get_pricing_diff(product_id: str, changeset: List[ChangeSetType], allow_pri
     return diffs_hourly, diffs_annual
 
 
+def build_pricing_rows_from_offer(offer_id: str, *, free: bool = False) -> list[tuple[str, str, str]]:
+    """
+    Return [(instance_type, hourly, annual)] based on an existing offer.
+    """
+    e = get_client().describe_entity(Catalog="AWSMarketplace", EntityId=offer_id)
+    details = e["DetailsDocument"]
+
+    prices_hourly = {}
+    prices_annual = {}
+    for term in details["Terms"]:
+        if term["Type"] not in ["UsageBasedPricingTerm", "ConfigurableUpfrontPricingTerm"]:
+            continue
+        for rate_card in term["RateCards"]:
+            for d in rate_card["RateCard"]:
+                if term["Type"] == "UsageBasedPricingTerm":
+                    # hourly
+                    prices_hourly[d["DimensionKey"]] = d["Price"]
+                elif term["Type"] == "ConfigurableUpfrontPricingTerm":
+                    # annual
+                    prices_annual[d["DimensionKey"]] = d["Price"]
+                else:
+                    raise Exception(f'Unknown terms type {term["type"]}')
+
+    # both should have the same keys so calculate the symmetric difference
+    # this should never happen given that we get the data from an available offer
+    # free listing can be skipped since it doesn't have annual pricing
+    if not free:
+        if prices_hourly.keys() ^ prices_annual.keys():
+            raise Exception("instance type dimensions are not identical in hourly and annual prices")
+    else:
+        prices_annual = prices_hourly
+
+    return [(it, prices_hourly[it], prices_annual[it]) for it in sorted(prices_hourly.keys())]
+
+
 def _get_existing_instance_types(product_id: str):
     entity = get_entity_details(product_id)
     # New created product does not have existing instance types
@@ -385,6 +445,33 @@ def _get_existing_instance_types(product_id: str):
     if "Dimensions" in entity:
         existing_instance_types = {t["Name"] for t in entity["Dimensions"]}
     return existing_instance_types
+
+
+def get_available_instance_types(arch: str, virt: str) -> list[str]:
+    """
+    Return available EC2 instance types for the given arch/virt.
+    """
+    client = get_client(service_name="ec2")
+    try:
+        e = client.get_instance_types_from_instance_requirements(
+            ArchitectureTypes=[arch],
+            VirtualizationTypes=[virt],
+            InstanceRequirements={
+                "VCpuCount": {
+                    "Min": 0,
+                },
+                "MemoryMiB": {
+                    "Min": 0,
+                },
+            },
+        )
+    except ClientError:
+        logger.exception("Profile does not have EC2 service access. Check your profile role or services.")
+        raise AccessDeniedException(service_name="ec2")
+
+    available_instances = [i["InstanceType"] for i in e["InstanceTypes"]]
+
+    return available_instances
 
 
 def _filter_instance_types(product_id: str, changeset):
@@ -484,3 +571,14 @@ def get_full_response(product_id: str) -> dict[str, Any]:
             key=lambda x: term_order.get(x["Type"], 3),
         )
     return listing_resp
+
+
+def diff_entity_id_vs_local(entity_id: str, local_entity: models.EntityModel):
+    """
+    Fetch live by id, compare against provided local model.
+    """
+
+    entity_from_listing = models.EntityModel(**get_full_response(entity_id))
+    diff = entity_from_listing.get_diff(local_entity)
+
+    return diff
