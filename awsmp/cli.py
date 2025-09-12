@@ -138,6 +138,7 @@ def entity_get_diff(entity_id: str, config: TextIO):
 )
 @click.option("--pricing", type=click.File("r"), required=True, prompt=True)
 @click.option("--dry-run", is_flag=True)
+@click.option("--hourly", is_flag=True, help="Create hourly listing")
 def offer_create(
     product_id,
     buyer_accounts,
@@ -148,6 +149,7 @@ def offer_create(
     eula_url,
     pricing,
     dry_run,
+    hourly=False,
 ):
     """
     Create a new private offer.
@@ -180,7 +182,15 @@ def offer_create(
         offer_name = click.prompt("Please enter the offer name in full")
 
     response = _driver.offer_create(
-        product_id, buyer_accounts, available_for_days, valid_for_days, offer_name, eula_url, pricing, dry_run
+        product_id,
+        buyer_accounts,
+        available_for_days,
+        valid_for_days,
+        offer_name,
+        eula_url,
+        pricing,
+        dry_run,
+        hourly=hourly,
     )
 
     print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
