@@ -474,7 +474,7 @@ def get_available_instance_types(arch: str, virt: str) -> list[str]:
     return available_instances
 
 
-def _filter_instance_types(product_id: str, changeset):
+def _filter_instance_types(product_id: str, changeset, hourly=False):
     existing_instance_types = _get_existing_instance_types(product_id)
     pricing_instance_types = {
         t["DimensionKey"] for t in changeset[3]["DetailsDocument"]["Terms"][0]["RateCards"][0]["RateCard"]
@@ -486,7 +486,8 @@ def _filter_instance_types(product_id: str, changeset):
     intersect = list(pricing_instance_types.intersection(existing_instance_types))
 
     # idx 0 is hourly pricing, and 1 is annual
-    for idx in {0, 1}:
+    indexes = {0} if hourly else {0, 1}
+    for idx in indexes:
         changeset[3]["DetailsDocument"]["Terms"][idx]["RateCards"][0]["RateCard"] = _get_ratecard_info(
             changeset, idx, intersect
         )
@@ -502,9 +503,14 @@ def offer_create(
     eula_url: Optional[str],
     pricing: IO,
     dry_run: bool,
+    hourly: bool = False,
 ) -> ChangeSetReturnType:
     csvreader = csv.DictReader(pricing, fieldnames=["name", "price_hourly", "price_annual"])
     instance_type_pricing = [models.InstanceTypePricing(**line) for line in csvreader]  # type:ignore
+
+    if hourly:
+        for i in instance_type_pricing:
+            i.price_annual = None
 
     if eula_url:
         eula_document = {"type": "CustomEula", "url": eula_url}
@@ -521,7 +527,7 @@ def offer_create(
         eula_document,
     )
 
-    changeset_list = _filter_instance_types(product_id, changeset_list)
+    changeset_list = _filter_instance_types(product_id, changeset_list, hourly=hourly)
 
     changeset_name = f'{f"create private offer for {product_id}: {offer_name}"[:95]}...'
 
