@@ -22,11 +22,11 @@ jobs:
           # FIXME: not pining to an exact version results in getting poetry 1.0.10 which doesn't work
           pip3 install tox poetry==1.7.1
           poetry --version
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Run tox
         run: tox
   snap:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: snapcore/action-build@v1
