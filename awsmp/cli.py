@@ -137,7 +137,7 @@ def entity_get_diff(entity_id: str, config: TextIO):
     envvar="AWSMP_EULA_URL",
 )
 @click.option("--pricing", type=click.File("r"), required=True, prompt=True)
-@click.option("--dry-run", is_flag=True)
+@click.option("--dry-run/--no-dry-run", is_flag=True)
 @click.option("--hourly", is_flag=True, help="Create hourly listing")
 def offer_create(
     product_id,
