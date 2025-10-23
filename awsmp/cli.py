@@ -214,7 +214,7 @@ def offer_pricing_template(offer_id, pricing, free):
 
 
 @public_offer.command("create")
-@click.option("--dry-run", is_flag=True)
+@click.option("--dry-run/--no-dry-run", is_flag=True)
 def ami_product_create(dry_run):
     """
     Create a new AMI product listing
@@ -228,7 +228,7 @@ def ami_product_create(dry_run):
 @public_offer.command("update-description")
 @click.option("--product-id", required=True, prompt=True)
 @click.option("--config", type=click.File("r"), required=True, prompt=True)
-@click.option("--dry-run", is_flag=True)
+@click.option("--dry-run/--no-dry-run", is_flag=True)
 def ami_product_update_description(product_id, config, dry_run):
     """
     Update AMI product description
@@ -251,7 +251,7 @@ def ami_product_update_description(product_id, config, dry_run):
     is_flag=True,
     prompt="Is price update allowed? (y). Default is False.",
 )
-@click.option("--dry-run", is_flag=True)
+@click.option("--dry-run/--no-dry-run", is_flag=True)
 def ami_product_update_instance_type(product_id: str, config: TextIO, allow_price_change: bool, dry_run: bool) -> None:
     """
     Update AMI product instance type
@@ -289,7 +289,7 @@ def ami_product_instance_type_template(arch, virt):
 @public_offer.command("update-region")
 @click.option("--product-id", required=True, prompt=True)
 @click.option("--config", type=click.File("r"), required=True, prompt=True)
-@click.option("--dry-run", is_flag=True)
+@click.option("--dry-run/--no-dry-run", is_flag=True)
 def ami_product_update_regions(product_id, config, dry_run):
     """
     Update AMI product region
@@ -306,7 +306,7 @@ def ami_product_update_regions(product_id, config, dry_run):
 @public_offer.command("update-version")
 @click.option("--product-id", required=True, prompt=True)
 @click.option("--config", type=click.File("r"), required=True, prompt=True)
-@click.option("--dry-run", is_flag=True)
+@click.option("--dry-run/--no-dry-run", is_flag=True)
 def ami_product_update_version(product_id, config, dry_run):
     """
     Update AMI product version
@@ -323,7 +323,7 @@ def ami_product_update_version(product_id, config, dry_run):
 @public_offer.command("update-legal-terms")
 @click.option("--product-id", required=True, prompt=True)
 @click.option("--config", type=click.File("r"), required=True, prompt=True)
-@click.option("--dry-run", is_flag=True)
+@click.option("--dry-run/--no-dry-run", is_flag=True)
 def ami_product_update_legal_terms(product_id, config, dry_run):
     """
     Update AMI product legal terms
@@ -340,7 +340,7 @@ def ami_product_update_legal_terms(product_id, config, dry_run):
 @public_offer.command("update-support-terms")
 @click.option("--product-id", required=True, prompt=True)
 @click.option("--config", type=click.File("r"), required=True, prompt=True)
-@click.option("--dry-run", is_flag=True)
+@click.option("--dry-run/--no-dry-run", is_flag=True)
 def ami_product_update_support_terms(product_id, config, dry_run):
     """
     Update AMI product support terms
@@ -356,7 +356,7 @@ def ami_product_update_support_terms(product_id, config, dry_run):
 
 @public_offer.command("release")
 @click.option("--product-id", required=True, prompt=True)
-@click.option("--dry-run", is_flag=True)
+@click.option("--dry-run/--no-dry-run", is_flag=True)
 def ami_product_release(product_id, dry_run):
     """
     Publish AMI product as Limited
@@ -378,7 +378,7 @@ def ami_product_release(product_id, dry_run):
     is_flag=True,
     prompt="Is price update allowed? (y/N). Default is False.",
 )
-@click.option("--dry-run", is_flag=True)
+@click.option("--dry-run/--no-dry-run", is_flag=True)
 def ami_product_update(product_id: str, config: TextIO, allow_price_change: bool, dry_run) -> None:
     """
     Update AMI product details (description, region, instnance type and pricing) in a single call
