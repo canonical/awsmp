@@ -1396,59 +1396,26 @@ def test_ami_product_update(mock_boto3, mock_get_details, mock_get_client):
     ]
 
 
-@patch("awsmp._driver.get_client")
-@patch("awsmp._driver.get_entity_details")
-@patch("awsmp._driver.changesets.models.boto3")
-def test_ami_product_update_no_pricing_change(mock_boto3, mock_get_details, mock_get_client):
+@patch("awsmp._driver.changesets.get_ami_listing_update_changesets")
+@patch("awsmp._driver.AmiProduct._get_instance_type_changeset_and_pricing_diff")
+@patch("awsmp._driver.get_public_offer_id")
+@patch("awsmp._driver.get_response")
+def test_ami_product_update_no_pricing_change(
+    mock_get_response, mock_get_public_offer_id, mock_pricing_diff, mock_listing_update
+):
     with open("./tests/test_config.yaml", "r") as f:
         config = yaml.safe_load(f)
 
-    mock_boto3.client.return_value.describe_regions.return_value = {
-        "Regions": [
-            {"Endpoint": "ec2.us-east-1.amazonaws.com", "RegionName": "us-east-1", "OptInStatus": "opted-in"},
-            {"Endpoint": "ec2.us-east-2.amazonaws.com", "RegionName": "us-east-2", "OptInStatus": "opted-in"},
-        ]
-    }
-
-    mock_get_details.side_effect = [
-        {"Dimensions": [{"Name": "a1.large"}, {"Name": "a1.xlarge"}]},
-        {"Description": {"Visibility": "Limited"}},
-        {
-            "Terms": [
-                {
-                    "Type": "UsageBasedPricingTerm",
-                    "RateCards": [
-                        {
-                            "RateCard": [
-                                {"DimensionKey": "a1.large", "Price": "0.004"},
-                                {"DimensionKey": "a1.xlarge", "Price": "0.007"},
-                            ]
-                        }
-                    ],
-                },
-                {
-                    "Type": "ConfigurableUpfrontPricingTerm",
-                    "RateCards": [
-                        {
-                            "RateCard": [
-                                {"DimensionKey": "a1.large", "Price": "24.528"},
-                                {"DimensionKey": "a1.xlarge", "Price": "49.056"},
-                            ]
-                        }
-                    ],
-                },
-            ]
-        },
-    ]
-
-    mock_get_client.return_value.list_entities.return_value = {
-        "EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]
-    }
+    mock_pricing_diff.return_value = None, [], []
+    # matching type return value not necessary
+    mock_listing_update.return_value = "some_value"
+    mock_get_public_offer_id.return_value = "prod-some_value"
 
     ap = _driver.AmiProduct(product_id="testing")
-    res = ap.update(config, False)
+    ap.update(config, False)
 
-    assert res == None
+    changeset_name = f"Product testing update product details"
+    mock_get_response.assert_called_once_with("some_value", changeset_name, False)
 
 
 @patch("awsmp._driver.get_client")
