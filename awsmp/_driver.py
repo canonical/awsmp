@@ -114,8 +114,6 @@ class AmiProduct:
                     % (hourly_diff, annual_diff)
                 )
                 return None
-        elif not changeset_pricing:
-            return None
 
         if changeset_pricing is not None:
             changeset.extend(changeset_pricing)
