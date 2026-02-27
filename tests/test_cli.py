@@ -86,6 +86,33 @@ def test_offer_create(mock_get_client, mock_get_entity_details):
     } == mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][3]["DetailsDocument"]["Terms"][0]["RateCards"][0]
 
 
+@patch("awsmp._driver.get_entity_details")
+@patch("awsmp._driver.get_client")
+def test_offer_create_with_hourly_flag(mock_get_client, mock_get_entity_details):
+    """Test that --hourly flag is properly passed through CLI"""
+    mock_get_entity_details.return_value = {"Dimensions": [{"Name": "c3.2xlarge"}, {"Name": "c3.4xlarge"}]}
+    with open("./tests/prices.csv") as prices:
+        _driver.offer_create(
+            "some-product-id",
+            [
+                "123",
+            ],
+            10,
+            365,
+            "Some offer name",
+            "",
+            prices,
+            False,
+            hourly=True,
+        )
+    mock_start_change_set = mock_get_client.return_value.start_change_set
+
+    # Verify hourly pricing is set correctly
+    assert {
+        "RateCard": [{"DimensionKey": "c3.2xlarge", "Price": "0.014"}, {"DimensionKey": "c3.4xlarge", "Price": "0.028"}]
+    } == mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][3]["DetailsDocument"]["Terms"][0]["RateCards"][0]
+
+
 def test_ami_product_instance_type_template():
     """
     Test with invalid architecture argument
