@@ -59,6 +59,29 @@ Please check schema regex and request with fixed value.
         super().__init__(message)
 
 
+class MarketplaceServiceQuotaExceededException(AWSException):
+    def __init__(self, error_msg: str):
+        message = f"""
+
+
+{error_msg}
+Please wait and retry after existing in-flight updates complete.
+"""
+        super().__init__(message)
+
+
+class MarketplaceResourceInUseException(AWSException):
+    def __init__(self, error_msg: str):
+        message = f"""
+
+
+{error_msg}
+Requested entities are currently locked by another in-flight change set.
+Please wait and retry.
+"""
+        super().__init__(message)
+
+
 class YamlMissingKeyException(Exception):
     def __init__(self, missing_keys: List[List[str]]):
         formatted_keys = "\n".join("->".join(keys) for keys in missing_keys)

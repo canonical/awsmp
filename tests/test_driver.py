@@ -14,6 +14,8 @@ from awsmp.errors import (
     AccessDeniedException,
     AmiPriceChangeError,
     AmiPricingModelChangeError,
+    MarketplaceResourceInUseException,
+    MarketplaceServiceQuotaExceededException,
     MissingInstanceTypeError,
     NoVersionException,
     ResourceNotFoundException,
@@ -37,6 +39,10 @@ DRY_RUN_RESPONSE = {
     "ChangeSetArn": "DRY_RUN",
     "ChangeSetId": "DRY_RUN",
 }
+
+
+def _build_client_error(code: str, message: str) -> ClientError:
+    return ClientError({"Error": {"Code": code, "Message": message}}, "StartChangeSet")
 
 
 @pytest.mark.parametrize(
@@ -177,6 +183,113 @@ def test_ami_product_create_dry_run(mock_get_client):
     response = _driver.AmiProduct.create(dry_run=True)
     mock_get_client.return_value.start_change_set.assert_not_called()
     assert response == DRY_RUN_RESPONSE
+
+
+@patch("awsmp._driver.time.sleep")
+@patch("awsmp._driver.get_client")
+def test_get_response_retries_service_quota_exceeded(mock_get_client, mock_sleep):
+    class ServiceQuotaExceededException(ClientError):
+        pass
+
+    class ResourceInUseException(ClientError):
+        pass
+
+    ServiceQuotaExceededException.__module__ = "botocore.errorfactory"
+    ResourceInUseException.__module__ = "botocore.errorfactory"
+
+    mock_get_client.return_value.exceptions.ServiceQuotaExceededException = ServiceQuotaExceededException
+    mock_get_client.return_value.exceptions.ResourceInUseException = ResourceInUseException
+
+    mock_get_client.return_value.start_change_set.side_effect = [
+        ServiceQuotaExceededException(
+            {
+                "Error": {
+                    "Code": "ServiceQuotaExceededException",
+                    "Message": "You have reached the maximum service quota limit of 20 total entities that can be updated concurrently for Offer entity type for your account.",
+                }
+            },
+            "StartChangeSet",
+        ),
+        {"ChangeSetId": "ok", "ChangeSetArn": "arn:ok"},
+    ]
+
+    response = _driver.get_response(
+        changeset=[cast(ChangeSetType, {"ChangeType": "UpdateInformation"})],
+        changeset_name="test",
+        dry_run=False,
+        retry_config=_driver.RetryConfig(max_retries=2, initial_delay_seconds=60, max_delay_seconds=300),
+    )
+
+    assert response["ChangeSetId"] == "ok"
+    assert mock_get_client.return_value.start_change_set.call_count == 2
+    mock_sleep.assert_called_once_with(60)
+
+
+@patch("awsmp._driver.time.sleep")
+@patch("awsmp._driver.get_client")
+def test_get_response_retries_exhausted_for_resource_in_use(mock_get_client, mock_sleep):
+    class ServiceQuotaExceededException(ClientError):
+        pass
+
+    class ResourceInUseException(ClientError):
+        pass
+
+    ServiceQuotaExceededException.__module__ = "botocore.errorfactory"
+    ResourceInUseException.__module__ = "botocore.errorfactory"
+
+    mock_get_client.return_value.exceptions.ServiceQuotaExceededException = ServiceQuotaExceededException
+    mock_get_client.return_value.exceptions.ResourceInUseException = ResourceInUseException
+
+    mock_get_client.return_value.start_change_set.side_effect = [
+        ResourceInUseException(
+            {
+                "Error": {
+                    "Code": "ResourceInUseException",
+                    "Message": "Requested change set has entities locked by change sets - entity .",
+                }
+            },
+            "StartChangeSet",
+        ),
+        ResourceInUseException(
+            {
+                "Error": {
+                    "Code": "ResourceInUseException",
+                    "Message": "Requested change set has entities locked by change sets - entity .",
+                }
+            },
+            "StartChangeSet",
+        ),
+        ResourceInUseException(
+            {
+                "Error": {
+                    "Code": "ResourceInUseException",
+                    "Message": "Requested change set has entities locked by change sets - entity .",
+                }
+            },
+            "StartChangeSet",
+        ),
+    ]
+
+    with pytest.raises(MarketplaceResourceInUseException):
+        _driver.get_response(
+            changeset=[cast(ChangeSetType, {"ChangeType": "UpdateInformation"})],
+            changeset_name="test",
+            dry_run=False,
+            retry_config=_driver.RetryConfig(max_retries=2, initial_delay_seconds=1, max_delay_seconds=5),
+        )
+
+    assert mock_get_client.return_value.start_change_set.call_count == 3
+    assert [args[0] for args, _ in mock_sleep.call_args_list] == [1, 2]
+
+
+def test_raise_client_error_quota_message_maps_to_typed_exception():
+    with pytest.raises(MarketplaceServiceQuotaExceededException):
+        _driver._raise_client_error(
+            _build_client_error(
+                "InternalFailure",
+                "You have reached the maximum service quota limit of 20 total entities that can be updated concurrently for Offer entity type for your account.",
+            )
+        )
 
 
 @patch("awsmp._driver.get_client")
@@ -1415,7 +1528,7 @@ def test_ami_product_update_no_pricing_change(
     ap.update(config, False)
 
     changeset_name = f"Product testing update product details"
-    mock_get_response.assert_called_once_with("some_value", changeset_name, False)
+    mock_get_response.assert_called_once_with("some_value", changeset_name, False, retry_config=None)
 
 
 @patch("awsmp._driver.get_client")

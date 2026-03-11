@@ -21,6 +21,18 @@ from .errors import (
 logger = logging.getLogger(__name__)
 
 
+def _build_retry_config(
+    retry_max_retries: int,
+    retry_initial_delay_seconds: int,
+    retry_max_delay_seconds: int,
+) -> _driver.RetryConfig:
+    return _driver.RetryConfig(
+        max_retries=retry_max_retries,
+        initial_delay_seconds=retry_initial_delay_seconds,
+        max_delay_seconds=retry_max_delay_seconds,
+    )
+
+
 @click.group()
 def cli():
     pass
@@ -139,6 +151,9 @@ def entity_get_diff(entity_id: str, config: TextIO):
 @click.option("--pricing", type=click.File("r"), required=True, prompt=True)
 @click.option("--dry-run/--no-dry-run", is_flag=True)
 @click.option("--hourly", is_flag=True, help="Create hourly listing")
+@click.option("--retry-max-retries", default=0, show_default=True, type=click.IntRange(min=0))
+@click.option("--retry-initial-delay-seconds", default=60, show_default=True, type=click.IntRange(min=1))
+@click.option("--retry-max-delay-seconds", default=300, show_default=True, type=click.IntRange(min=1))
 def offer_create(
     product_id,
     buyer_accounts,
@@ -150,6 +165,9 @@ def offer_create(
     pricing,
     dry_run,
     hourly=False,
+    retry_max_retries=0,
+    retry_initial_delay_seconds=60,
+    retry_max_delay_seconds=300,
 ):
     """
     Create a new private offer.
@@ -191,6 +209,11 @@ def offer_create(
         pricing,
         dry_run,
         hourly=hourly,
+        retry_config=_build_retry_config(
+            retry_max_retries,
+            retry_initial_delay_seconds,
+            retry_max_delay_seconds,
+        ),
     )
 
     print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
@@ -215,11 +238,21 @@ def offer_pricing_template(offer_id, pricing, free):
 
 @public_offer.command("create")
 @click.option("--dry-run/--no-dry-run", is_flag=True)
-def ami_product_create(dry_run):
+@click.option("--retry-max-retries", default=0, show_default=True, type=click.IntRange(min=0))
+@click.option("--retry-initial-delay-seconds", default=60, show_default=True, type=click.IntRange(min=1))
+@click.option("--retry-max-delay-seconds", default=300, show_default=True, type=click.IntRange(min=1))
+def ami_product_create(dry_run, retry_max_retries, retry_initial_delay_seconds, retry_max_delay_seconds):
     """
     Create a new AMI product listing
     """
-    response = _driver.AmiProduct.create(dry_run=dry_run)
+    response = _driver.AmiProduct.create(
+        dry_run=dry_run,
+        retry_config=_build_retry_config(
+            retry_max_retries,
+            retry_initial_delay_seconds,
+            retry_max_delay_seconds,
+        ),
+    )
 
     print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
     print(f'https://aws.amazon.com/marketplace/management/requests/{response["ChangeSetId"]}')
@@ -229,13 +262,31 @@ def ami_product_create(dry_run):
 @click.option("--product-id", required=True, prompt=True)
 @click.option("--config", type=click.File("r"), required=True, prompt=True)
 @click.option("--dry-run/--no-dry-run", is_flag=True)
-def ami_product_update_description(product_id, config, dry_run):
+@click.option("--retry-max-retries", default=0, show_default=True, type=click.IntRange(min=0))
+@click.option("--retry-initial-delay-seconds", default=60, show_default=True, type=click.IntRange(min=1))
+@click.option("--retry-max-delay-seconds", default=300, show_default=True, type=click.IntRange(min=1))
+def ami_product_update_description(
+    product_id,
+    config,
+    dry_run,
+    retry_max_retries,
+    retry_initial_delay_seconds,
+    retry_max_delay_seconds,
+):
     """
     Update AMI product description
     """
     # Load yaml file
     desc = _load_configuration(config, [["product", "description"]])["product"]["description"]
-    response = _driver.AmiProduct(product_id=product_id, dry_run=dry_run).update_description(desc)
+    response = _driver.AmiProduct(
+        product_id=product_id,
+        dry_run=dry_run,
+        retry_config=_build_retry_config(
+            retry_max_retries,
+            retry_initial_delay_seconds,
+            retry_max_delay_seconds,
+        ),
+    ).update_description(desc)
     print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
     print(f'https://aws.amazon.com/marketplace/management/requests/{response["ChangeSetId"]}')
 
@@ -252,7 +303,18 @@ def ami_product_update_description(product_id, config, dry_run):
     prompt="Is price update allowed? (y). Default is False.",
 )
 @click.option("--dry-run/--no-dry-run", is_flag=True)
-def ami_product_update_instance_type(product_id: str, config: TextIO, allow_price_change: bool, dry_run: bool) -> None:
+@click.option("--retry-max-retries", default=0, show_default=True, type=click.IntRange(min=0))
+@click.option("--retry-initial-delay-seconds", default=60, show_default=True, type=click.IntRange(min=1))
+@click.option("--retry-max-delay-seconds", default=300, show_default=True, type=click.IntRange(min=1))
+def ami_product_update_instance_type(
+    product_id: str,
+    config: TextIO,
+    allow_price_change: bool,
+    dry_run: bool,
+    retry_max_retries: int,
+    retry_initial_delay_seconds: int,
+    retry_max_delay_seconds: int,
+) -> None:
     """
     Update AMI product instance type
     :param str product_id: Id of listing
@@ -261,7 +323,15 @@ def ami_product_update_instance_type(product_id: str, config: TextIO, allow_pric
     :return: None
     :rtype: None
     """
-    product = _driver.AmiProduct(product_id=product_id, dry_run=dry_run)
+    product = _driver.AmiProduct(
+        product_id=product_id,
+        dry_run=dry_run,
+        retry_config=_build_retry_config(
+            retry_max_retries,
+            retry_initial_delay_seconds,
+            retry_max_delay_seconds,
+        ),
+    )
     offer_config = _load_configuration(config, [["offer"]])["offer"]
     response = product.update_instance_types(offer_config, allow_price_change)
     if response:
@@ -290,14 +360,32 @@ def ami_product_instance_type_template(arch, virt):
 @click.option("--product-id", required=True, prompt=True)
 @click.option("--config", type=click.File("r"), required=True, prompt=True)
 @click.option("--dry-run/--no-dry-run", is_flag=True)
-def ami_product_update_regions(product_id, config, dry_run):
+@click.option("--retry-max-retries", default=0, show_default=True, type=click.IntRange(min=0))
+@click.option("--retry-initial-delay-seconds", default=60, show_default=True, type=click.IntRange(min=1))
+@click.option("--retry-max-delay-seconds", default=300, show_default=True, type=click.IntRange(min=1))
+def ami_product_update_regions(
+    product_id,
+    config,
+    dry_run,
+    retry_max_retries,
+    retry_initial_delay_seconds,
+    retry_max_delay_seconds,
+):
     """
     Update AMI product region
     """
     # Load yaml file
     region_config = _load_configuration(config, [["product", "region"]])["product"]["region"]
 
-    product = _driver.AmiProduct(product_id=product_id, dry_run=dry_run)
+    product = _driver.AmiProduct(
+        product_id=product_id,
+        dry_run=dry_run,
+        retry_config=_build_retry_config(
+            retry_max_retries,
+            retry_initial_delay_seconds,
+            retry_max_delay_seconds,
+        ),
+    )
     response = product.update_regions(region_config)
     print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
     print(f'https://aws.amazon.com/marketplace/management/requests/{response["ChangeSetId"]}')
@@ -307,14 +395,32 @@ def ami_product_update_regions(product_id, config, dry_run):
 @click.option("--product-id", required=True, prompt=True)
 @click.option("--config", type=click.File("r"), required=True, prompt=True)
 @click.option("--dry-run/--no-dry-run", is_flag=True)
-def ami_product_update_version(product_id, config, dry_run):
+@click.option("--retry-max-retries", default=0, show_default=True, type=click.IntRange(min=0))
+@click.option("--retry-initial-delay-seconds", default=60, show_default=True, type=click.IntRange(min=1))
+@click.option("--retry-max-delay-seconds", default=300, show_default=True, type=click.IntRange(min=1))
+def ami_product_update_version(
+    product_id,
+    config,
+    dry_run,
+    retry_max_retries,
+    retry_initial_delay_seconds,
+    retry_max_delay_seconds,
+):
     """
     Update AMI product version
     """
     # Load yaml file
     version_config = _load_configuration(config, [["product", "version"]])["product"]["version"]
 
-    product = _driver.AmiProduct(product_id=product_id, dry_run=dry_run)
+    product = _driver.AmiProduct(
+        product_id=product_id,
+        dry_run=dry_run,
+        retry_config=_build_retry_config(
+            retry_max_retries,
+            retry_initial_delay_seconds,
+            retry_max_delay_seconds,
+        ),
+    )
     response = product.update_version(version_config)
     print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
     print(f'https://aws.amazon.com/marketplace/management/requests/{response["ChangeSetId"]}')
@@ -324,14 +430,32 @@ def ami_product_update_version(product_id, config, dry_run):
 @click.option("--product-id", required=True, prompt=True)
 @click.option("--config", type=click.File("r"), required=True, prompt=True)
 @click.option("--dry-run/--no-dry-run", is_flag=True)
-def ami_product_update_legal_terms(product_id, config, dry_run):
+@click.option("--retry-max-retries", default=0, show_default=True, type=click.IntRange(min=0))
+@click.option("--retry-initial-delay-seconds", default=60, show_default=True, type=click.IntRange(min=1))
+@click.option("--retry-max-delay-seconds", default=300, show_default=True, type=click.IntRange(min=1))
+def ami_product_update_legal_terms(
+    product_id,
+    config,
+    dry_run,
+    retry_max_retries,
+    retry_initial_delay_seconds,
+    retry_max_delay_seconds,
+):
     """
     Update AMI product legal terms
     """
     # Load yaml file
     eula_url = _load_configuration(config, [["offer", "eula_document"]])["offer"]["eula_document"][0]
 
-    product = _driver.AmiProduct(product_id=product_id, dry_run=dry_run)
+    product = _driver.AmiProduct(
+        product_id=product_id,
+        dry_run=dry_run,
+        retry_config=_build_retry_config(
+            retry_max_retries,
+            retry_initial_delay_seconds,
+            retry_max_delay_seconds,
+        ),
+    )
     response = product.update_legal_terms(eula_url)
     print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
     print(f'https://aws.amazon.com/marketplace/management/requests/{response["ChangeSetId"]}')
@@ -341,14 +465,32 @@ def ami_product_update_legal_terms(product_id, config, dry_run):
 @click.option("--product-id", required=True, prompt=True)
 @click.option("--config", type=click.File("r"), required=True, prompt=True)
 @click.option("--dry-run/--no-dry-run", is_flag=True)
-def ami_product_update_support_terms(product_id, config, dry_run):
+@click.option("--retry-max-retries", default=0, show_default=True, type=click.IntRange(min=0))
+@click.option("--retry-initial-delay-seconds", default=60, show_default=True, type=click.IntRange(min=1))
+@click.option("--retry-max-delay-seconds", default=300, show_default=True, type=click.IntRange(min=1))
+def ami_product_update_support_terms(
+    product_id,
+    config,
+    dry_run,
+    retry_max_retries,
+    retry_initial_delay_seconds,
+    retry_max_delay_seconds,
+):
     """
     Update AMI product support terms
     """
     # Load yaml file
     refund_policy = _load_configuration(config, [["offer", "refund_policy"]])["offer"]["refund_policy"]
 
-    product = _driver.AmiProduct(product_id=product_id, dry_run=dry_run)
+    product = _driver.AmiProduct(
+        product_id=product_id,
+        dry_run=dry_run,
+        retry_config=_build_retry_config(
+            retry_max_retries,
+            retry_initial_delay_seconds,
+            retry_max_delay_seconds,
+        ),
+    )
     response = product.update_support_terms(refund_policy)
     print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
     print(f'https://aws.amazon.com/marketplace/management/requests/{response["ChangeSetId"]}')
@@ -357,12 +499,29 @@ def ami_product_update_support_terms(product_id, config, dry_run):
 @public_offer.command("release")
 @click.option("--product-id", required=True, prompt=True)
 @click.option("--dry-run/--no-dry-run", is_flag=True)
-def ami_product_release(product_id, dry_run):
+@click.option("--retry-max-retries", default=0, show_default=True, type=click.IntRange(min=0))
+@click.option("--retry-initial-delay-seconds", default=60, show_default=True, type=click.IntRange(min=1))
+@click.option("--retry-max-delay-seconds", default=300, show_default=True, type=click.IntRange(min=1))
+def ami_product_release(
+    product_id,
+    dry_run,
+    retry_max_retries,
+    retry_initial_delay_seconds,
+    retry_max_delay_seconds,
+):
     """
     Publish AMI product as Limited
     """
 
-    product = _driver.AmiProduct(product_id=product_id, dry_run=dry_run)
+    product = _driver.AmiProduct(
+        product_id=product_id,
+        dry_run=dry_run,
+        retry_config=_build_retry_config(
+            retry_max_retries,
+            retry_initial_delay_seconds,
+            retry_max_delay_seconds,
+        ),
+    )
     response = product.release()
     print(f'ChangeSet created (ID: {response["ChangeSetId"]})')
     print(f'https://aws.amazon.com/marketplace/management/requests/{response["ChangeSetId"]}')
@@ -379,7 +538,18 @@ def ami_product_release(product_id, dry_run):
     prompt="Is price update allowed? (y/N). Default is False.",
 )
 @click.option("--dry-run/--no-dry-run", is_flag=True)
-def ami_product_update(product_id: str, config: TextIO, allow_price_change: bool, dry_run) -> None:
+@click.option("--retry-max-retries", default=0, show_default=True, type=click.IntRange(min=0))
+@click.option("--retry-initial-delay-seconds", default=60, show_default=True, type=click.IntRange(min=1))
+@click.option("--retry-max-delay-seconds", default=300, show_default=True, type=click.IntRange(min=1))
+def ami_product_update(
+    product_id: str,
+    config: TextIO,
+    allow_price_change: bool,
+    dry_run,
+    retry_max_retries,
+    retry_initial_delay_seconds,
+    retry_max_delay_seconds,
+) -> None:
     """
     Update AMI product details (description, region, instnance type and pricing) in a single call
     :param str product_id: Id of listing
@@ -391,7 +561,15 @@ def ami_product_update(product_id: str, config: TextIO, allow_price_change: bool
 
     # Load yaml file
     configs = _load_configuration(config, [["product", "description"], ["product", "region"], ["offer"]])
-    product = _driver.AmiProduct(product_id=product_id, dry_run=dry_run)
+    product = _driver.AmiProduct(
+        product_id=product_id,
+        dry_run=dry_run,
+        retry_config=_build_retry_config(
+            retry_max_retries,
+            retry_initial_delay_seconds,
+            retry_max_delay_seconds,
+        ),
+    )
     response = product.update(configs, allow_price_change)
 
     if response:
