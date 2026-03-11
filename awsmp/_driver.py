@@ -1,8 +1,11 @@
 import csv
 import logging
+import time
+from dataclasses import dataclass
 from typing import IO, Any, Dict, List, Optional, Tuple, cast
 
 import boto3
+from botocore import errorfactory
 from botocore.exceptions import ClientError
 
 from . import changesets, models
@@ -10,6 +13,8 @@ from .errors import (
     AccessDeniedException,
     AmiPriceChangeError,
     AmiPricingModelChangeError,
+    MarketplaceResourceInUseException,
+    MarketplaceServiceQuotaExceededException,
     MissingInstanceTypeError,
     NoVersionException,
     ResourceNotFoundException,
@@ -20,37 +25,49 @@ from .types import ChangeSetReturnType, ChangeSetType
 
 logger = logging.getLogger(__name__)
 
+LOCKED_ENTITY_ERROR = "entities locked by change sets"
+OFFER_QUOTA_ERROR = "maximum service quota limit"
+RETRYABLE_ERROR_CODES = {"ServiceQuotaExceededException", "ResourceInUseException"}
+
+
+@dataclass(frozen=True)
+class RetryConfig:
+    max_retries: int = 0
+    initial_delay_seconds: int = 60
+    max_delay_seconds: int = 300
+
 
 class AmiProduct:
-    def __init__(self, product_id: str, dry_run: bool = False):
+    def __init__(self, product_id: str, dry_run: bool = False, retry_config: Optional[RetryConfig] = None):
         self.product_id: str = product_id
         self.offer_id = get_public_offer_id(product_id)
         self._dry_run = dry_run
+        self._retry_config = retry_config
 
     @staticmethod
-    def create(dry_run: bool):
+    def create(dry_run: bool, retry_config: Optional[RetryConfig] = None):
         changeset = changesets.get_ami_listing_creation_changesets()
         changeset_name = "Create new AMI Product"
 
-        return get_response(changeset, changeset_name, dry_run)
+        return get_response(changeset, changeset_name, dry_run, retry_config=retry_config)
 
     def update_legal_terms(self, eula_document: Dict[str, str]) -> ChangeSetReturnType:
         changeset = changesets.get_ami_listing_update_legal_terms_changesets(eula_document, self.offer_id)
         changeset_name = f"Product {self.product_id} legal terms update"
 
-        return get_response(changeset, changeset_name, self._dry_run)
+        return get_response(changeset, changeset_name, self._dry_run, retry_config=self._retry_config)
 
     def update_support_terms(self, refund_policy: str) -> ChangeSetReturnType:
         changeset = changesets.get_ami_listing_update_support_terms_changesets(self.offer_id, refund_policy)
         changeset_name = f"Product {self.product_id} support terms update"
 
-        return get_response(changeset, changeset_name, self._dry_run)
+        return get_response(changeset, changeset_name, self._dry_run, retry_config=self._retry_config)
 
     def update_description(self, desc: Dict) -> ChangeSetReturnType:
         changeset = changesets.get_ami_listing_update_description_changesets(self.product_id, desc)
         changeset_name = f"Product {self.product_id} description update"
 
-        return get_response(changeset, changeset_name, self._dry_run)
+        return get_response(changeset, changeset_name, self._dry_run, retry_config=self._retry_config)
 
     def update_instance_types(
         self, offer_config: Dict[str, Any], price_change_allowed: bool
@@ -71,25 +88,25 @@ class AmiProduct:
         if changeset is None:
             return None
 
-        return get_response(changeset, changeset_name, self._dry_run)
+        return get_response(changeset, changeset_name, self._dry_run, retry_config=self._retry_config)
 
     def update_regions(self, region_config: Dict) -> ChangeSetReturnType:
         changeset = changesets.get_ami_listing_update_region_changesets(self.product_id, region_config)
         changeset_name = f"Product {self.product_id} region update"
 
-        return get_response(changeset, changeset_name, self._dry_run)
+        return get_response(changeset, changeset_name, self._dry_run, retry_config=self._retry_config)
 
     def update_version(self, version_config: Dict) -> ChangeSetReturnType:
         changeset = changesets.get_ami_listing_update_version_changesets(self.product_id, version_config)
         changeset_name = f"Product {self.product_id} version update"
 
-        return get_response(changeset, changeset_name, self._dry_run)
+        return get_response(changeset, changeset_name, self._dry_run, retry_config=self._retry_config)
 
     def release(self) -> ChangeSetReturnType:
         changeset = changesets.get_ami_release_changesets(self.product_id, self.offer_id)
         changeset_name = f"Product {self.product_id} publish as limited"
 
-        return get_response(changeset, changeset_name, self._dry_run)
+        return get_response(changeset, changeset_name, self._dry_run, retry_config=self._retry_config)
 
     def update(self, configs: Dict[str, Any], price_change_allowed: bool) -> Optional[ChangeSetReturnType]:
         """
@@ -120,7 +137,7 @@ class AmiProduct:
 
         changeset_name = f"Product {self.product_id} update product details"
 
-        return get_response(changeset, changeset_name, self._dry_run)
+        return get_response(changeset, changeset_name, self._dry_run, retry_config=self._retry_config)
 
     def _get_product_title(self):
         return get_entity_details(self.product_id)["Description"]["ProductTitle"]
@@ -160,7 +177,44 @@ def get_client(service_name="marketplace-catalog", region_name="us-east-1"):
     return boto3.client(service_name, region_name=region_name)
 
 
-def get_response(changeset: List[ChangeSetType], changeset_name: str, dry_run: bool = False) -> ChangeSetReturnType:
+def _get_retryable_changeset_exception_types(client) -> Tuple[type[Exception], ...]:
+    # These service-specific exception classes are generated under botocore.errorfactory.
+    candidate_names = ("ServiceQuotaExceededException", "ResourceInUseException")
+    retryable_exception_types: list[type[Exception]] = []
+    for name in candidate_names:
+        exception_type = getattr(client.exceptions, name, None)
+        if isinstance(exception_type, type):
+            retryable_exception_types.append(cast(type[Exception], exception_type))
+    return tuple(retryable_exception_types)
+
+
+def _is_retryable_changeset_error(
+    exception: ClientError,
+    retryable_changeset_exception_types: Tuple[type[Exception], ...],
+) -> bool:
+    if retryable_changeset_exception_types and isinstance(exception, retryable_changeset_exception_types):
+        return True
+
+    exception_code = exception.response["Error"].get("Code", "")
+    error_msg = exception.response["Error"].get("Message", "").lower()
+
+    if exception_code in RETRYABLE_ERROR_CODES:
+        return True
+
+    return LOCKED_ENTITY_ERROR in error_msg or OFFER_QUOTA_ERROR in error_msg
+
+
+def _get_retry_delay_seconds(retry_config: RetryConfig, current_retry: int) -> int:
+    delay_seconds = retry_config.initial_delay_seconds * (2**current_retry)
+    return min(delay_seconds, retry_config.max_delay_seconds)
+
+
+def get_response(
+    changeset: List[ChangeSetType],
+    changeset_name: str,
+    dry_run: bool = False,
+    retry_config: Optional[RetryConfig] = None,
+) -> ChangeSetReturnType:
     """
     Request to AWS and get response of either success of failure
 
@@ -180,16 +234,47 @@ def get_response(changeset: List[ChangeSetType], changeset_name: str, dry_run: b
             "ChangeSetArn": "DRY_RUN",
             "ChangeSetId": "DRY_RUN",
         }
-    try:
-        response = get_client().start_change_set(
-            Catalog="AWSMarketplace",
-            ChangeSet=changeset,
-            ChangeSetName=changeset_name,
-        )
-    except ClientError as e:
-        _raise_client_error(e)
 
-    return response
+    retry_config = retry_config or RetryConfig()
+    client = get_client()
+    retryable_changeset_exception_types = _get_retryable_changeset_exception_types(client)
+
+    # Validate that generated exception classes map to botocore.errorfactory.
+    for retry_exception in retryable_changeset_exception_types:
+        if retry_exception.__module__ != errorfactory.__name__:
+            logger.debug("Unexpected retry exception module", extra={"module": retry_exception.__module__})
+
+    current_retry = 0
+    while True:
+        try:
+            return client.start_change_set(
+                Catalog="AWSMarketplace",
+                ChangeSet=changeset,
+                ChangeSetName=changeset_name,
+            )
+        except ClientError as error:
+            if not _is_retryable_changeset_error(error, retryable_changeset_exception_types):
+                _raise_client_error(error)
+
+            if current_retry >= retry_config.max_retries:
+                logger.exception(
+                    "Retries exhausted for transient Marketplace contention error.",
+                    extra={"max_retries": retry_config.max_retries},
+                )
+                _raise_client_error(error)
+
+            delay_seconds = _get_retry_delay_seconds(retry_config, current_retry)
+            current_retry += 1
+            logger.warning(
+                "Retrying failed Marketplace start_change_set request",
+                extra={
+                    "attempt": current_retry,
+                    "max_retries": retry_config.max_retries,
+                    "wait_seconds": delay_seconds,
+                    "error_code": error.response["Error"].get("Code", ""),
+                },
+            )
+            time.sleep(delay_seconds)
 
 
 def _raise_client_error(exception: ClientError):
@@ -206,6 +291,12 @@ def _raise_client_error(exception: ClientError):
     elif exception_code == "ValidationException":
         logger.exception(f"Please check schema regex and request with fixed value.")
         raise ValidationException(error_msg) from None
+    elif exception_code == "ServiceQuotaExceededException" or OFFER_QUOTA_ERROR in error_msg.lower():
+        logger.exception(error_msg)
+        raise MarketplaceServiceQuotaExceededException(error_msg) from None
+    elif exception_code == "ResourceInUseException" or LOCKED_ENTITY_ERROR in error_msg.lower():
+        logger.exception(error_msg)
+        raise MarketplaceResourceInUseException(error_msg) from None
     else:
         logger.exception(error_msg)
         raise Exception
@@ -502,6 +593,7 @@ def offer_create(
     pricing: IO,
     dry_run: bool,
     hourly: bool = False,
+    retry_config: Optional[RetryConfig] = None,
 ) -> ChangeSetReturnType:
     csvreader = csv.DictReader(pricing, fieldnames=["name", "price_hourly", "price_annual"])
     instance_type_pricing = [models.InstanceTypePricing(**line) for line in csvreader]  # type:ignore
@@ -529,7 +621,7 @@ def offer_create(
 
     changeset_name = f'{f"create private offer for {product_id}: {offer_name}"[:95]}...'
 
-    return get_response(changeset_list, changeset_name, dry_run)
+    return get_response(changeset_list, changeset_name, dry_run, retry_config=retry_config)
 
 
 def create_offer_name(product_id: str, buyer_accounts: List[str], with_support: bool, customer_name: str) -> str:

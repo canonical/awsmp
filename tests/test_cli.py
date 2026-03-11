@@ -86,6 +86,49 @@ def test_offer_create(mock_get_client, mock_get_entity_details):
     } == mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][3]["DetailsDocument"]["Terms"][0]["RateCards"][0]
 
 
+@patch("awsmp._driver.create_offer_name")
+@patch("awsmp._driver.offer_create")
+def test_private_offer_create_passes_retry_options(mock_offer_create, mock_create_offer_name):
+    mock_create_offer_name.return_value = "some-offer-name"
+    mock_offer_create.return_value = {"ChangeSetId": "test-id"}
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli.offer_create,
+        [
+            "--product-id",
+            "some-product-id",
+            "--buyer-accounts",
+            "123456789012",
+            "--available-for-days",
+            "14",
+            "--valid-for-days",
+            "365",
+            "--with-support",
+            "--customer-name",
+            "some-customer",
+            "--eula-url",
+            "",
+            "--pricing",
+            "./tests/prices.csv",
+            "--retry-max-retries",
+            "3",
+            "--retry-initial-delay-seconds",
+            "7",
+            "--retry-max-delay-seconds",
+            "11",
+        ],
+        input="y\n",
+    )
+
+    assert result.exit_code == 0
+    assert mock_offer_create.call_args.kwargs["retry_config"] == _driver.RetryConfig(
+        max_retries=3,
+        initial_delay_seconds=7,
+        max_delay_seconds=11,
+    )
+
+
 def test_ami_product_instance_type_template():
     """
     Test with invalid architecture argument
@@ -94,6 +137,36 @@ def test_ami_product_instance_type_template():
     result = runner.invoke(cli.ami_product_instance_type_template, ["--arch", "invalid", "--virt", "hvm"])
     # click exceptions get translated to SystemEixt unless specified
     assert isinstance(result.exception, SystemExit)
+
+
+@patch("awsmp._driver.AmiProduct")
+def test_public_offer_update_passes_retry_options(mock_ami_product):
+    mock_ami_product.return_value.update.return_value = {"ChangeSetId": "test-id"}
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli.ami_product_update,
+        [
+            "--product-id",
+            "some-prod-id",
+            "--config",
+            "./tests/test_config.yaml",
+            "--no-allow-price-change",
+            "--retry-max-retries",
+            "4",
+            "--retry-initial-delay-seconds",
+            "9",
+            "--retry-max-delay-seconds",
+            "21",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert mock_ami_product.call_args.kwargs["retry_config"] == _driver.RetryConfig(
+        max_retries=4,
+        initial_delay_seconds=9,
+        max_delay_seconds=21,
+    )
 
 
 @pytest.mark.parametrize(
