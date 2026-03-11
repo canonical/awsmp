@@ -1,6 +1,34 @@
 How to create a private offer
 =============================
 
+Retry behaviour for change-set workflows
+----------------------------------------
+
+Commands that submit Marketplace change sets now support retry options for transient contention failures.
+
+Retry flags:
+
+- ``--retry-max-retries`` (default: ``0``; retries are opt-in)
+- ``--retry-initial-delay-seconds`` (default: ``60``)
+- ``--retry-max-delay-seconds`` (default: ``300``)
+
+Supported private-offer workflow:
+
+- ``awsmp private-offer create``
+
+Example:
+
+.. code-block:: sh
+
+   awsmp private-offer create \
+      --product-id 3a628887-30de-4d23-a949-93b32e4e4c5f \
+      --buyer-accounts 887450378614 \
+      --customer-name "toabctl testing" \
+      --pricing prices.csv \
+      --retry-max-retries 3 \
+      --retry-initial-delay-seconds 60 \
+      --retry-max-delay-seconds 300
+
 To create a private offer in the `AWS marketplace management portal`_, use the API calls described below.
 
 

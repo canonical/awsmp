@@ -1,6 +1,43 @@
 How to create a public offer
 ============================
 
+Retry behaviour for change-set workflows
+----------------------------------------
+
+Commands that submit Marketplace change sets now support retry options for transient contention failures such as:
+
+- ``Requested change set has entities locked by change sets``
+- ``maximum service quota limit ... entities ... updated concurrently``
+
+Retry flags:
+
+- ``--retry-max-retries`` (default: ``0``; retries are opt-in)
+- ``--retry-initial-delay-seconds`` (default: ``60``)
+- ``--retry-max-delay-seconds`` (default: ``300``)
+
+Supported public-offer workflows:
+
+- ``awsmp public-offer create``
+- ``awsmp public-offer update-description``
+- ``awsmp public-offer update-instance-type``
+- ``awsmp public-offer update-region``
+- ``awsmp public-offer update-version``
+- ``awsmp public-offer update-legal-terms``
+- ``awsmp public-offer update-support-terms``
+- ``awsmp public-offer release``
+- ``awsmp public-offer update``
+
+Example:
+
+.. code-block:: sh
+
+   awsmp public-offer update \
+      --product-id prod-fwu3xsqup23cs \
+      --config listing_configuration.yaml \
+      --retry-max-retries 3 \
+      --retry-initial-delay-seconds 60 \
+      --retry-max-delay-seconds 300
+
 To create a new public AMI product listing in the `AWS marketplace management portal`_, use the API calls described below:
 
 
