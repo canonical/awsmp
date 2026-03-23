@@ -532,3 +532,87 @@ def get_ami_listing_update_changesets(product_id: str, description: dict, region
         _changeset_update_ami_product_region(product_id, region_config),
         _changeset_update_ami_product_future_region(product_id, region_config),
     ]
+
+
+# ---------------------------------------------------------------------------
+# EC2 Image Builder component changesets
+# ---------------------------------------------------------------------------
+
+
+def _changeset_add_ib_delivery_options(
+    product_id: str,
+    ib_version: models.IBVersion,
+    component_arns: List[str],
+) -> ChangeSetType:
+    """Construct AddDeliveryOptions for Image Builder component delivery."""
+    if len(ib_version.delivery_options) != len(component_arns):
+        raise ValueError(
+            f"delivery_options length ({len(ib_version.delivery_options)}) "
+            f"does not match component_arns length ({len(component_arns)})"
+        )
+    delivery_options = []
+    for option, arn in zip(ib_version.delivery_options, component_arns):
+        delivery_options.append(
+            {
+                "Details": {
+                    "Ec2ImageBuilderComponentDeliveryOptionDetails": {
+                        "ComponentArn": arn,
+                        "UsageInstructions": option.usage_instructions,
+                        "AccessRoleArn": ib_version.access_role_arn,
+                    }
+                },
+            }
+        )
+
+    return {
+        "ChangeType": "AddDeliveryOptions",
+        "Entity": {
+            "Type": "AmiProduct@1.0",
+            "Identifier": product_id,
+        },
+        "DetailsDocument": {
+            "Version": {
+                "VersionTitle": ib_version.version_title,
+                "ReleaseNotes": ib_version.release_notes,
+            },
+            "DeliveryOptions": delivery_options,
+        },
+    }
+
+
+def _changeset_restrict_ib_delivery_options(
+    product_id: str,
+    delivery_option_ids: List[str],
+) -> ChangeSetType:
+    """Construct RestrictDeliveryOptions changeset."""
+    return {
+        "ChangeType": "RestrictDeliveryOptions",
+        "Entity": {
+            "Type": "AmiProduct@1.0",
+            "Identifier": product_id,
+        },
+        "DetailsDocument": {
+            "DeliveryOptionIds": delivery_option_ids,
+        },
+    }
+
+
+def get_ib_listing_add_version_changesets(
+    product_id: str,
+    ib_product: models.IBProduct,
+    component_arns: List[str],
+) -> List[ChangeSetType]:
+    """Return changesets for adding an IB version: AddDeliveryOptions."""
+    return [
+        _changeset_add_ib_delivery_options(product_id, ib_product.version, component_arns),
+    ]
+
+
+def get_ib_listing_restrict_version_changesets(
+    product_id: str,
+    delivery_option_ids: List[str],
+) -> List[ChangeSetType]:
+    """Return changesets for restricting IB delivery options."""
+    return [
+        _changeset_restrict_ib_delivery_options(product_id, delivery_option_ids),
+    ]
