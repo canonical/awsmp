@@ -1,4 +1,5 @@
 import json
+from decimal import Decimal
 from typing import Any, Optional, cast
 from unittest.mock import patch
 
@@ -1235,3 +1236,206 @@ class TestRegionAvailabilityModel:
             Regions=["us-east-1", "us-west-2"], FutureRegionSupport="None"
         ).to_dict()
         assert yaml_config[key] == value
+
+
+class TestIBComponent:
+    def test_inline_component_valid(self):
+        comp = models.IBComponent(
+            name="my-comp",
+            semantic_version="1.0.0",
+            platform="Linux",
+            description="desc",
+            document="schemaVersion: 1.0\n",
+        )
+        assert comp.name == "my-comp"
+        assert comp.arn is None
+
+    def test_arn_component_valid(self):
+        comp = models.IBComponent(arn="arn:aws:imagebuilder:us-east-1:123456789012:component/my-comp/1.0.0/1")
+        assert comp.arn is not None
+        assert comp.document is None
+
+    def test_both_document_and_arn_raises(self):
+        with pytest.raises(ValidationError, match="Only one of"):
+            models.IBComponent(
+                name="my-comp",
+                semantic_version="1.0.0",
+                platform="Linux",
+                document="schemaVersion: 1.0\n",
+                arn="arn:aws:imagebuilder:us-east-1:123456789012:component/my-comp/1.0.0/1",
+            )
+
+    def test_neither_document_nor_arn_raises(self):
+        with pytest.raises(ValidationError, match="One of 'document' or 'arn' must be provided"):
+            models.IBComponent(name="my-comp")
+
+    def test_inline_missing_required_fields(self):
+        with pytest.raises(ValidationError, match="'name' is required"):
+            models.IBComponent(
+                semantic_version="1.0.0",
+                platform="Linux",
+                document="schemaVersion: 1.0\n",
+            )
+
+    def test_inline_missing_platform(self):
+        with pytest.raises(ValidationError, match="'platform' is required"):
+            models.IBComponent(
+                name="my-comp",
+                semantic_version="1.0.0",
+                document="schemaVersion: 1.0\n",
+            )
+
+
+class TestIBDeliveryOption:
+    def test_valid_delivery_option(self):
+        opt = models.IBDeliveryOption(
+            title="Install",
+            usage_instructions="Add to pipeline",
+            component=models.IBComponent(
+                name="my-comp",
+                semantic_version="1.0.0",
+                platform="Linux",
+                document="schemaVersion: 1.0\n",
+            ),
+        )
+        assert opt.title == "Install"
+
+
+class TestIBVersion:
+    def _build_delivery_option(self, name="comp", arn=None):
+        if arn:
+            component = models.IBComponent(arn=arn)
+        else:
+            component = models.IBComponent(
+                name=name,
+                semantic_version="1.0.0",
+                platform="Linux",
+                document="schemaVersion: 1.0\n",
+            )
+        return models.IBDeliveryOption(
+            title=f"Option {name}",
+            usage_instructions="instructions",
+            component=component,
+        )
+
+    def test_valid_version(self):
+        version = models.IBVersion(
+            version_title="1.0.0",
+            release_notes="Initial",
+            access_role_arn="arn:aws:iam::123456789012:role/Test",
+            delivery_options=[self._build_delivery_option()],
+        )
+        assert version.version_title == "1.0.0"
+
+    def test_invalid_access_role_arn(self):
+        with pytest.raises(ValidationError):
+            models.IBVersion(
+                version_title="1.0.0",
+                release_notes="Initial",
+                access_role_arn="arn:iam::bad",
+                delivery_options=[self._build_delivery_option()],
+            )
+
+    def test_empty_delivery_options_raises(self):
+        with pytest.raises(ValidationError):
+            models.IBVersion(
+                version_title="1.0.0",
+                release_notes="Initial",
+                access_role_arn="arn:aws:iam::123456789012:role/Test",
+                delivery_options=[],
+            )
+
+    def test_max_5_unique_component_names(self):
+        opts = [self._build_delivery_option(name=f"comp-{i}") for i in range(6)]
+        with pytest.raises(ValidationError, match="Max 5 unique component names"):
+            models.IBVersion(
+                version_title="1.0.0",
+                release_notes="Initial",
+                access_role_arn="arn:aws:iam::123456789012:role/Test",
+                delivery_options=opts,
+            )
+
+    def test_5_unique_names_is_ok(self):
+        opts = [self._build_delivery_option(name=f"comp-{i}") for i in range(5)]
+        version = models.IBVersion(
+            version_title="1.0.0",
+            release_notes="Initial",
+            access_role_arn="arn:aws:iam::123456789012:role/Test",
+            delivery_options=opts,
+        )
+        assert len(version.delivery_options) == 5
+
+    def test_duplicate_names_count_once(self):
+        opts = [self._build_delivery_option(name="same") for _ in range(6)]
+        version = models.IBVersion(
+            version_title="1.0.0",
+            release_notes="Initial",
+            access_role_arn="arn:aws:iam::123456789012:role/Test",
+            delivery_options=opts,
+        )
+        assert len(version.delivery_options) == 6
+
+    def test_arn_components_dont_count_toward_limit(self):
+        arn_opts = [
+            self._build_delivery_option(arn=f"arn:aws:imagebuilder:us-east-1:123456789012:component/c{i}/1.0.0/1")
+            for i in range(6)
+        ]
+        version = models.IBVersion(
+            version_title="1.0.0",
+            release_notes="Initial",
+            access_role_arn="arn:aws:iam::123456789012:role/Test",
+            delivery_options=arn_opts,
+        )
+        assert len(version.delivery_options) == 6
+
+
+class TestIBProduct:
+    def _build_ib_product(self, mock_boto3):
+        return models.IBProduct(
+            description=models.Description(
+                product_title="My Component",
+                short_description="Short",
+                long_description="Long",
+                logourl=HttpUrl("https://example.com/logo"),
+                highlights=["Feature 1"],
+                categories=["Operating Systems"],
+                search_keywords=["component"],
+                support_description="Support info",
+            ),
+            region=models.Region(
+                commercial_regions=["us-east-1"],
+                future_region_support=True,
+            ),
+            offer=models.Offer(
+                instance_types=[
+                    models.InstanceTypePricing(
+                        name="m5.large", price_hourly=Decimal("0.05"), price_annual=Decimal("400.00")
+                    )
+                ],
+                eula_document=[models.EulaDocumentItem(type="StandardEula", version="2022-07-14")],
+                refund_policy="No refunds",
+                monthly_subscription_fee=None,
+            ),
+            version=models.IBVersion(
+                version_title="1.0.0",
+                release_notes="Initial release",
+                access_role_arn="arn:aws:iam::123456789012:role/Test",
+                delivery_options=[
+                    models.IBDeliveryOption(
+                        title="Install",
+                        usage_instructions="Add to pipeline",
+                        component=models.IBComponent(
+                            name="my-comp",
+                            semantic_version="1.0.0",
+                            platform="Linux",
+                            document="schemaVersion: 1.0\n",
+                        ),
+                    ),
+                ],
+            ),
+        )
+
+    def test_ib_product_valid(self, mock_boto3):
+        product = self._build_ib_product(mock_boto3)
+        assert product.version.version_title == "1.0.0"
+        assert product.description.product_title == "My Component"
