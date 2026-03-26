@@ -9,6 +9,7 @@ import yaml
 from click.testing import CliRunner
 
 from awsmp import _driver, changesets, cli, errors, models
+from awsmp.cli import ib_cli
 
 
 @patch("awsmp._driver.get_client")
@@ -977,3 +978,161 @@ def test_public_offer_product_download_offer(mock_get_public_offer_id, mock_get_
         config = yaml.safe_load(f)
 
     assert config[key1][key2] == value
+
+
+# ---------------------------------------------------------------------------
+# EC2 Image Builder CLI tests
+# ---------------------------------------------------------------------------
+
+IB_CONFIG_PATH = "./tests/test_ib_config.yaml"
+
+DRY_RUN_RESPONSE = {
+    "ChangeSetArn": "DRY_RUN",
+    "ChangeSetId": "DRY_RUN",
+}
+
+
+@patch("awsmp._driver.get_client")
+def test_ib_create_dry_run(mock_get_client):
+    runner = CliRunner()
+    result = runner.invoke(ib_cli.ib_create, ["--dry-run"])
+    assert result.exit_code == 0
+    assert "DRY_RUN" in result.output
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_public_offer_id")
+@patch("awsmp.models.boto3")
+def test_ib_update_description_dry_run(mock_boto3, mock_get_public_offer_id, mock_get_client):
+    mock_boto3.client.return_value.describe_regions.return_value = {
+        "Regions": [
+            {"RegionName": "us-east-1"},
+            {"RegionName": "us-east-2"},
+        ]
+    }
+    mock_get_public_offer_id.return_value = "fake-offer-id"
+    runner = CliRunner()
+    result = runner.invoke(
+        ib_cli.ib_update_description,
+        ["--product-id", "prod-123", "--config", IB_CONFIG_PATH, "--dry-run"],
+    )
+    assert result.exit_code == 0
+    assert "DRY_RUN" in result.output
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_public_offer_id")
+@patch("awsmp.models.boto3")
+def test_ib_update_region_dry_run(mock_boto3, mock_get_public_offer_id, mock_get_client):
+    mock_boto3.client.return_value.describe_regions.return_value = {
+        "Regions": [
+            {"RegionName": "us-east-1"},
+            {"RegionName": "us-east-2"},
+        ]
+    }
+    mock_get_public_offer_id.return_value = "fake-offer-id"
+    runner = CliRunner()
+    result = runner.invoke(
+        ib_cli.ib_update_region,
+        ["--product-id", "prod-123", "--config", IB_CONFIG_PATH, "--dry-run"],
+    )
+    assert result.exit_code == 0
+    assert "DRY_RUN" in result.output
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_public_offer_id")
+@patch("awsmp.models.boto3")
+def test_ib_update_legal_terms_dry_run(mock_boto3, mock_get_public_offer_id, mock_get_client):
+    mock_boto3.client.return_value.describe_regions.return_value = {
+        "Regions": [
+            {"RegionName": "us-east-1"},
+            {"RegionName": "us-east-2"},
+        ]
+    }
+    mock_get_public_offer_id.return_value = "fake-offer-id"
+    runner = CliRunner()
+    result = runner.invoke(
+        ib_cli.ib_update_legal_terms,
+        ["--product-id", "prod-123", "--config", IB_CONFIG_PATH, "--dry-run"],
+    )
+    assert result.exit_code == 0
+    assert "DRY_RUN" in result.output
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_public_offer_id")
+@patch("awsmp.models.boto3")
+def test_ib_update_support_terms_dry_run(mock_boto3, mock_get_public_offer_id, mock_get_client):
+    mock_boto3.client.return_value.describe_regions.return_value = {
+        "Regions": [
+            {"RegionName": "us-east-1"},
+            {"RegionName": "us-east-2"},
+        ]
+    }
+    mock_get_public_offer_id.return_value = "fake-offer-id"
+    runner = CliRunner()
+    result = runner.invoke(
+        ib_cli.ib_update_support_terms,
+        ["--product-id", "prod-123", "--config", IB_CONFIG_PATH, "--dry-run"],
+    )
+    assert result.exit_code == 0
+    assert "DRY_RUN" in result.output
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_public_offer_id")
+def test_ib_release_dry_run(mock_get_public_offer_id, mock_get_client):
+    mock_get_public_offer_id.return_value = "fake-offer-id"
+    runner = CliRunner()
+    result = runner.invoke(
+        ib_cli.ib_release,
+        ["--product-id", "prod-123", "--dry-run"],
+    )
+    assert result.exit_code == 0
+    assert "DRY_RUN" in result.output
+
+
+@patch("awsmp._driver.get_response")
+@patch("awsmp._driver.get_ib_client")
+@patch("awsmp.models.boto3")
+def test_ib_add_version_dry_run(mock_boto3, mock_ib_client, mock_get_response):
+    mock_boto3.client.return_value.describe_regions.return_value = {
+        "Regions": [
+            {"RegionName": "us-east-1"},
+            {"RegionName": "us-east-2"},
+        ]
+    }
+    mock_ib_client.return_value.create_component.return_value = {
+        "componentBuildVersionArn": "arn:aws:imagebuilder:us-east-1:123456789012:component/my-comp/1.0.0/1"
+    }
+    mock_get_response.return_value = DRY_RUN_RESPONSE
+    runner = CliRunner()
+    result = runner.invoke(
+        ib_cli.ib_add_version,
+        ["--product-id", "prod-123", "--config", IB_CONFIG_PATH, "--dry-run"],
+    )
+    assert result.exit_code == 0
+    assert "DRY_RUN" in result.output
+
+
+@patch("awsmp._driver.get_response")
+def test_ib_restrict_version_dry_run(mock_get_response):
+    mock_get_response.return_value = DRY_RUN_RESPONSE
+    runner = CliRunner()
+    result = runner.invoke(
+        ib_cli.ib_restrict_version,
+        ["--product-id", "prod-123", "--delivery-option-id", "do-aaa", "--dry-run"],
+    )
+    assert result.exit_code == 0
+    assert "DRY_RUN" in result.output
+
+
+def test_ib_add_version_missing_config_key():
+    runner = CliRunner()
+    # Use the AMI config which doesn't have ec2_image_builder key
+    result = runner.invoke(
+        ib_cli.ib_add_version,
+        ["--product-id", "prod-123", "--config", "./tests/test_config.yaml", "--dry-run"],
+    )
+    assert result.exit_code != 0

@@ -1,13 +1,14 @@
 import io
 import json
 import random
+from decimal import Decimal
 from typing import Any, List, cast
 from unittest.mock import patch
 
 import pytest
 import yaml
 from botocore.exceptions import ClientError
-from pydantic import ValidationError
+from pydantic import HttpUrl, ValidationError
 
 from awsmp import _driver
 from awsmp.errors import (
@@ -1866,3 +1867,163 @@ def test_get_full_response_term_refund_policy(mock_get_details, mock_get_public_
 
     res = _driver.get_full_response("test_prod_id")
     assert res["Terms"][0]["RefundPolicy"] == "test_refund_policy_term\n"
+
+
+# ---------------------------------------------------------------------------
+# EC2 Image Builder driver tests
+# ---------------------------------------------------------------------------
+
+
+DRY_RUN_RESPONSE = {
+    "ChangeSetArn": "DRY_RUN",
+    "ChangeSetId": "DRY_RUN",
+}
+
+
+def _build_ib_component_inline():
+    return _driver.models.IBComponent(
+        name="my-comp",
+        semantic_version="1.0.0",
+        platform="Linux",
+        description="desc",
+        document="schemaVersion: 1.0\n",
+    )
+
+
+def _build_ib_component_arn():
+    return _driver.models.IBComponent(arn="arn:aws:imagebuilder:us-east-1:123456789012:component/my-comp/1.0.0/1")
+
+
+def _build_ib_product(mock_boto3_regions, component=None):
+    mock_boto3_regions.client.return_value.describe_regions.return_value = {
+        "Regions": [
+            {"Endpoint": "ec2.us-east-1.amazonaws.com", "RegionName": "us-east-1", "OptInStatus": "opted-in"},
+        ]
+    }
+    if component is None:
+        component = _build_ib_component_inline()
+    return _driver.models.IBProduct(
+        description=_driver.models.Description(
+            product_title="My Component",
+            short_description="Short",
+            long_description="Long",
+            logourl=HttpUrl("https://example.com/logo"),
+            highlights=["Feature 1"],
+            categories=["Operating Systems"],
+            search_keywords=["component"],
+            support_description="Support info",
+        ),
+        region=_driver.models.Region(
+            commercial_regions=["us-east-1"],
+            future_region_support=True,
+        ),
+        offer=_driver.models.Offer(
+            instance_types=[
+                _driver.models.InstanceTypePricing(
+                    name="m5.large", price_hourly=Decimal("0.05"), price_annual=Decimal("400.00")
+                ),
+            ],
+            eula_document=[_driver.models.EulaDocumentItem(type="StandardEula", version="2022-07-14")],
+            refund_policy="No refunds",
+            monthly_subscription_fee=None,
+        ),
+        version=_driver.models.IBVersion(
+            version_title="1.0.0",
+            release_notes="Initial release",
+            access_role_arn="arn:aws:iam::123456789012:role/Test",
+            delivery_options=[
+                _driver.models.IBDeliveryOption(
+                    title="Install",
+                    usage_instructions="Add to pipeline",
+                    component=component,
+                ),
+            ],
+        ),
+    )
+
+
+class TestIbProduct:
+    def test_ib_product_class(self):
+        product = _driver.IbProduct(product_id="fake-prod")
+        assert product.product_id == "fake-prod"
+
+    @patch("awsmp.models.boto3")
+    def test_publish_component_arn_passthrough(self, mock_boto3):
+        comp = _build_ib_component_arn()
+        product = _driver.IbProduct(product_id="prod-123")
+        result = product.publish_component(comp)
+        assert result == comp.arn
+
+    @patch("awsmp.models.boto3")
+    def test_publish_component_dry_run(self, mock_boto3):
+        comp = _build_ib_component_inline()
+        product = _driver.IbProduct(product_id="prod-123", dry_run=True)
+        result = product.publish_component(comp)
+        assert "dry-run" in result
+
+    @patch("awsmp._driver.get_ib_client")
+    @patch("awsmp.models.boto3")
+    def test_publish_component_creates_component(self, mock_boto3, mock_ib_client):
+        mock_ib_client.return_value.create_component.return_value = {
+            "componentBuildVersionArn": "arn:aws:imagebuilder:us-east-1:123456789012:component/my-comp/1.0.0/1"
+        }
+        comp = _build_ib_component_inline()
+        product = _driver.IbProduct(product_id="prod-123")
+        result = product.publish_component(comp)
+        assert result == "arn:aws:imagebuilder:us-east-1:123456789012:component/my-comp/1.0.0/1"
+        mock_ib_client.return_value.create_component.assert_called_once()
+
+    @patch("awsmp._driver.get_ib_client")
+    @patch("awsmp.models.boto3")
+    def test_publish_component_already_exists(self, mock_boto3, mock_ib_client):
+        existing_arn = "arn:aws:imagebuilder:us-east-1:123456789012:component/my-comp/1.0.0/1"
+        mock_ib_client.return_value.create_component.side_effect = ClientError(
+            {
+                "Error": {
+                    "Code": "ResourceAlreadyExistsException",
+                    "Message": f"The following resource 'Component' already exists: '{existing_arn}'",
+                }
+            },
+            "CreateComponent",
+        )
+        comp = _build_ib_component_inline()
+        product = _driver.IbProduct(product_id="prod-123")
+        result = product.publish_component(comp)
+        assert result == existing_arn
+
+    @patch("awsmp._driver.get_ib_client")
+    @patch("awsmp.models.boto3")
+    def test_publish_components_returns_list(self, mock_boto3, mock_ib_client):
+        mock_ib_client.return_value.create_component.return_value = {
+            "componentBuildVersionArn": "arn:aws:imagebuilder:us-east-1:123456789012:component/my-comp/1.0.0/1"
+        }
+        ib_product = _build_ib_product(mock_boto3)
+        product = _driver.IbProduct(product_id="prod-123")
+        arns = product.publish_components(ib_product)
+        assert len(arns) == 1
+        assert arns[0] == "arn:aws:imagebuilder:us-east-1:123456789012:component/my-comp/1.0.0/1"
+
+    @patch("awsmp._driver.get_response")
+    @patch("awsmp._driver.get_ib_client")
+    @patch("awsmp.models.boto3")
+    def test_add_version(self, mock_boto3, mock_ib_client, mock_get_response):
+        mock_ib_client.return_value.create_component.return_value = {
+            "componentBuildVersionArn": "arn:aws:imagebuilder:us-east-1:123456789012:component/my-comp/1.0.0/1"
+        }
+        mock_get_response.return_value = DRY_RUN_RESPONSE
+        ib_product = _build_ib_product(mock_boto3)
+        product = _driver.IbProduct(product_id="prod-123")
+        result = product.add_version(ib_product)
+        assert result["ChangeSetId"] == "DRY_RUN"
+        mock_get_response.assert_called_once()
+        changeset = mock_get_response.call_args[0][0]
+        assert changeset[0]["ChangeType"] == "AddDeliveryOptions"
+
+    @patch("awsmp._driver.get_response")
+    def test_restrict_version(self, mock_get_response):
+        mock_get_response.return_value = DRY_RUN_RESPONSE
+        product = _driver.IbProduct(product_id="prod-123")
+        result = product.restrict_version(["do-aaa"])
+        assert result["ChangeSetId"] == "DRY_RUN"
+        changeset = mock_get_response.call_args[0][0]
+        assert changeset[0]["ChangeType"] == "RestrictDeliveryOptions"

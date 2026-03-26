@@ -1,9 +1,10 @@
+from decimal import Decimal
 from typing import Any, Dict, List, Union, cast
 from unittest.mock import patch
 
 import pytest
 import yaml
-from pydantic import ValidationError
+from pydantic import HttpUrl, ValidationError
 
 from awsmp import changesets, models, types
 
@@ -552,3 +553,101 @@ def test_get_ami_listing_update_instance_type_changesets_no_restrict_and_add_ins
         res[0]["ChangeType"] == "UpdatePricingTerms"
         and res[0]["DetailsDocument"]["Terms"][0]["RateCards"][0]["RateCard"][0]["Price"] == "0.12"  # type: ignore
     )
+
+
+# ---------------------------------------------------------------------------
+# EC2 Image Builder changeset tests
+# ---------------------------------------------------------------------------
+
+
+class TestIBChangesets:
+    def _build_ib_version(self):
+        return models.IBVersion(
+            version_title="1.0.0",
+            release_notes="Initial release",
+            access_role_arn="arn:aws:iam::123456789012:role/Test",
+            delivery_options=[
+                models.IBDeliveryOption(
+                    title="Install",
+                    usage_instructions="Add to pipeline",
+                    component=models.IBComponent(
+                        name="my-comp",
+                        semantic_version="1.0.0",
+                        platform="Linux",
+                        document="schemaVersion: 1.0\n",
+                    ),
+                ),
+            ],
+        )
+
+    def _build_ib_product(self):
+        return models.IBProduct(
+            description=models.Description(
+                product_title="My Component",
+                short_description="Short",
+                long_description="Long",
+                logourl=HttpUrl("https://example.com/logo"),
+                highlights=["Feature 1"],
+                categories=["Operating Systems"],
+                search_keywords=["component"],
+                support_description="Support info",
+            ),
+            region=models.Region(
+                commercial_regions=["us-east-1"],
+                future_region_support=True,
+            ),
+            offer=models.Offer(
+                instance_types=[
+                    models.InstanceTypePricing(
+                        name="m5.large", price_hourly=Decimal("0.05"), price_annual=Decimal("400.00")
+                    ),
+                ],
+                eula_document=[models.EulaDocumentItem(type="StandardEula", version="2022-07-14")],
+                refund_policy="No refunds",
+                monthly_subscription_fee=None,
+            ),
+            version=self._build_ib_version(),
+        )
+
+    @patch("awsmp.models.boto3")
+    def test_add_ib_delivery_options_changeset(self, mock_boto3):
+        mock_boto3.client.return_value.describe_regions.return_value = {
+            "Regions": [
+                {"Endpoint": "ec2.us-east-1.amazonaws.com", "RegionName": "us-east-1", "OptInStatus": "opted-in"},
+            ]
+        }
+        ib_version = self._build_ib_version()
+        arns = ["arn:aws:imagebuilder:us-east-1:123456789012:component/my-comp/1.0.0/1"]
+        result = changesets._changeset_add_ib_delivery_options("prod-123", ib_version, arns)
+
+        assert result["ChangeType"] == "AddDeliveryOptions"
+        assert result["Entity"]["Identifier"] == "prod-123"
+        delivery_opts = cast(Dict[str, Any], result["DetailsDocument"])["DeliveryOptions"]
+        assert len(delivery_opts) == 1
+        details = delivery_opts[0]["Details"]["Ec2ImageBuilderComponentDeliveryOptionDetails"]
+        assert details["ComponentArn"] == arns[0]
+        assert details["AccessRoleArn"] == "arn:aws:iam::123456789012:role/Test"
+
+    def test_restrict_ib_delivery_options_changeset(self):
+        result = changesets._changeset_restrict_ib_delivery_options("prod-123", ["do-aaa", "do-bbb"])
+        assert result["ChangeType"] == "RestrictDeliveryOptions"
+        details = cast(Dict[str, Any], result["DetailsDocument"])
+        assert details["DeliveryOptionIds"] == ["do-aaa", "do-bbb"]
+
+    @patch("awsmp.models.boto3")
+    def test_get_ib_listing_add_version_changesets(self, mock_boto3):
+        mock_boto3.client.return_value.describe_regions.return_value = {
+            "Regions": [
+                {"Endpoint": "ec2.us-east-1.amazonaws.com", "RegionName": "us-east-1", "OptInStatus": "opted-in"},
+            ]
+        }
+        ib_product = self._build_ib_product()
+        arns = ["arn:aws:imagebuilder:us-east-1:123456789012:component/my-comp/1.0.0/1"]
+        result = changesets.get_ib_listing_add_version_changesets("prod-123", ib_product, arns)
+        assert len(result) == 1
+        assert result[0]["ChangeType"] == "AddDeliveryOptions"
+
+    def test_get_ib_listing_restrict_version_changesets(self):
+        result = changesets.get_ib_listing_restrict_version_changesets("prod-123", ["do-aaa"])
+        assert len(result) == 1
+        assert result[0]["ChangeType"] == "RestrictDeliveryOptions"

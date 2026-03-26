@@ -11,8 +11,8 @@ import prettytable
 import yaml
 from botocore.exceptions import ClientError
 
-from . import _driver, models, yaml_utils
-from .errors import (
+from .. import _driver, models, yaml_utils
+from ..errors import (
     AccessDeniedException,
     NoProductIdProvidedException,
     YamlMissingKeyException,
@@ -439,7 +439,6 @@ def _load_configuration(config_path: TextIO, required_fields: List[List[str]]) -
             if key not in temp_config:
                 idx = keys.index(key)
                 missing_keys = keys[idx:]
-
                 break
             else:
                 if isinstance(temp_config[key], dict):
@@ -450,6 +449,11 @@ def _load_configuration(config_path: TextIO, required_fields: List[List[str]]) -
         logger.exception(f"Configuration file is missing: {missing_keys}" for missing_keys in list_of_missing_keys)
         raise YamlMissingKeyException(missing_keys=list_of_missing_keys)
     return config
+
+
+from . import (  # noqa: F401 — must be after cli/group definitions to avoid circular import
+    ib_cli,
+)
 
 
 def main():

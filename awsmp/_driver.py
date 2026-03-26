@@ -1,6 +1,7 @@
 import csv
 import logging
-from typing import IO, Any, Dict, List, Optional, Tuple, cast
+import re
+from typing import IO, Any, Dict, List, NoReturn, Optional, Tuple, cast
 
 import boto3
 from botocore.exceptions import ClientError
@@ -156,6 +157,75 @@ class AmiProduct:
         return changeset, hourly_diff, annual_diff
 
 
+def get_ib_client():
+    """Return a boto3 imagebuilder client pinned to us-east-1."""
+    return boto3.client("imagebuilder", region_name="us-east-1")
+
+
+class IbProduct:
+    """Driver for EC2 Image Builder component products."""
+
+    def __init__(self, product_id: str, dry_run: bool = False):
+        self.product_id: str = product_id
+        self._dry_run = dry_run
+
+    def publish_component(self, component: models.IBComponent) -> str:
+        """Create an IB component via imagebuilder.create_component or return existing ARN.
+
+        In dry-run mode, prints the would-be payload and returns a placeholder ARN.
+        """
+        if component.arn is not None:
+            logger.info("Using pre-existing component ARN: %s", component.arn)
+            return component.arn
+
+        params: dict[str, Any] = {
+            "name": component.name,
+            "semanticVersion": component.semantic_version,
+            "platform": component.platform,
+            "description": component.description or "",
+            "data": component.document,
+        }
+        if component.supported_os_versions:
+            params["supportedOsVersions"] = component.supported_os_versions
+
+        if self._dry_run:
+            logger.warning("DRY_RUN: imagebuilder.create_component(%s)", params)
+            return "arn:aws:imagebuilder:us-east-1:123456789012:component/dry-run/1.0.0/1"
+
+        try:
+            response = get_ib_client().create_component(**params)
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "ResourceAlreadyExistsException":
+                match = re.search(r"(arn:aws[^'\"\s]+)", e.response["Error"]["Message"])
+                if match is None:
+                    _raise_client_error(e)
+                arn = match.group(1)
+                logger.debug("Component already exists, continuing with ARN: %s", arn)
+                return arn
+            _raise_client_error(e)
+
+        arn = response["componentBuildVersionArn"]
+        logger.info("Created component: %s", arn)
+        return arn
+
+    def publish_components(self, ib_product: models.IBProduct) -> list[str]:
+        """Create/resolve ARNs for all delivery options in order."""
+        return [self.publish_component(opt.component) for opt in ib_product.version.delivery_options]
+
+    def add_version(self, ib_product: models.IBProduct) -> ChangeSetReturnType:
+        """Full pipeline: create components then submit AddDeliveryOptions."""
+        component_arns = self.publish_components(ib_product)
+        changeset = changesets.get_ib_listing_add_version_changesets(self.product_id, ib_product, component_arns)
+        changeset_name = f"Product {self.product_id} IB add version"
+        return get_response(changeset, changeset_name, self._dry_run)
+
+    def restrict_version(self, delivery_option_ids: list[str]) -> ChangeSetReturnType:
+        """Submit RestrictDeliveryOptions changeset."""
+        changeset = changesets.get_ib_listing_restrict_version_changesets(self.product_id, delivery_option_ids)
+        changeset_name = f"Product {self.product_id} IB restrict version"
+        return get_response(changeset, changeset_name, self._dry_run)
+
+
 def get_client(service_name="marketplace-catalog", region_name="us-east-1"):
     return boto3.client(service_name, region_name=region_name)
 
@@ -192,7 +262,7 @@ def get_response(changeset: List[ChangeSetType], changeset_name: str, dry_run: b
     return response
 
 
-def _raise_client_error(exception: ClientError):
+def _raise_client_error(exception: ClientError) -> NoReturn:
     exception_code, error_msg = exception.response["Error"]["Code"], exception.response["Error"]["Message"]
     if exception_code == "AccessDeniedException":
         logger.exception(f"Profile does not have marketplace access. Please check your profile role or services.")

@@ -363,6 +363,74 @@ class AmiProduct(BaseModel):
     version: AmiVersion
 
 
+class IBComponent(BaseModel):
+    """EC2 Image Builder component — either inline or by pre-existing ARN."""
+
+    name: Optional[str] = None
+    semantic_version: Optional[str] = None
+    platform: Optional[Literal["Linux", "Windows"]] = None
+    supported_os_versions: Optional[List[str]] = None
+    description: Optional[str] = None
+    document: Optional[str] = None
+    arn: Optional[str] = None
+
+    @model_validator(mode="after")
+    def check_document_or_arn(cls, values):
+        has_document = values.document is not None
+        has_arn = values.arn is not None
+        if not has_document and not has_arn:
+            raise ValueError("One of 'document' or 'arn' must be provided.")
+        if has_document and has_arn:
+            raise ValueError("Only one of 'document' or 'arn' can be provided, not both.")
+        if has_document:
+            for field_name in ("name", "semantic_version", "platform"):
+                if getattr(values, field_name) is None:
+                    raise ValueError(f"'{field_name}' is required when 'document' is provided.")
+        return values
+
+
+class IBDeliveryOption(BaseModel):
+    """A single delivery option inside an IB version."""
+
+    title: str
+    usage_instructions: str
+    component: IBComponent
+
+
+class IBVersion(BaseModel):
+    """Image Builder version — analogous to AmiVersion."""
+
+    version_title: str = Field(min_length=1)
+    release_notes: str = Field(max_length=30000)
+    access_role_arn: str = Field(max_length=150)
+    delivery_options: conlist(IBDeliveryOption, min_length=1)  # type:ignore
+
+    @field_validator("access_role_arn")
+    def ib_access_role_arn_validator(cls, value):
+        if not value.startswith("arn:aws:iam::"):
+            raise ValueError(f"{value} is invalid role format. Please check your role again.")
+        return value
+
+    @model_validator(mode="after")
+    def check_max_unique_component_names(cls, values):
+        names = set()
+        for opt in values.delivery_options:
+            if opt.component.name is not None:
+                names.add(opt.component.name)
+        if len(names) > 5:
+            raise ValueError(f"Max 5 unique component names per product, got {len(names)}: {names}")
+        return values
+
+
+class IBProduct(BaseModel):
+    """Top-level model loaded from the ec2_image_builder config key."""
+
+    description: Description
+    region: Region
+    offer: Offer
+    version: IBVersion
+
+
 class DescriptionModel(BaseModel):
     """
     Model for description details from entity details
