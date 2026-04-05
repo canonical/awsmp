@@ -95,6 +95,57 @@ def test_filter_instance_types_missing_types(mock_get_details):
         _driver._filter_instance_types("product-id", changeset)
 
 
+@patch("awsmp._driver.get_entity_details")
+def test_filter_instance_types_hourly_true(mock_get_details):
+    """Test that hourly=True only processes hourly pricing (index 0)"""
+    mock_get_details.return_value = {"Dimensions": [{"Name": "foo"}, {"Name": "bar"}]}
+    hourly_ratecard = {"RateCards": [{"RateCard": [{"DimensionKey": "foo"}, {"DimensionKey": "bar"}]}]}
+    annual_ratecard = {"RateCards": [{"RateCard": [{"DimensionKey": "foo"}, {"DimensionKey": "bar"}]}]}
+    changeset = [
+        None,
+        None,
+        None,
+        {"DetailsDocument": {"Terms": [hourly_ratecard, annual_ratecard]}},
+    ]
+    res = _driver._filter_instance_types("product-id", changeset, hourly=True)
+
+    # Verify hourly pricing (index 0) was processed
+    assert res[3]["DetailsDocument"]["Terms"][0]["RateCards"][0]["RateCard"] == [
+        {"DimensionKey": "foo"},
+        {"DimensionKey": "bar"},
+    ]
+    # Verify annual pricing (index 1) was not modified by checking it still has original data
+    assert res[3]["DetailsDocument"]["Terms"][1]["RateCards"][0]["RateCard"] == [
+        {"DimensionKey": "foo"},
+        {"DimensionKey": "bar"},
+    ]
+
+
+@patch("awsmp._driver.get_entity_details")
+def test_filter_instance_types_hourly_false(mock_get_details):
+    """Test that hourly=False processes both hourly (index 0) and annual (index 1) pricing"""
+    mock_get_details.return_value = {"Dimensions": [{"Name": "foo"}, {"Name": "bar"}]}
+    hourly_ratecard = {"RateCards": [{"RateCard": [{"DimensionKey": "foo"}, {"DimensionKey": "bar"}]}]}
+    annual_ratecard = {"RateCards": [{"RateCard": [{"DimensionKey": "foo"}, {"DimensionKey": "bar"}]}]}
+    changeset = [
+        None,
+        None,
+        None,
+        {"DetailsDocument": {"Terms": [hourly_ratecard, annual_ratecard]}},
+    ]
+    res = _driver._filter_instance_types("product-id", changeset, hourly=False)
+
+    # Verify both hourly (index 0) and annual (index 1) pricing were processed
+    assert res[3]["DetailsDocument"]["Terms"][0]["RateCards"][0]["RateCard"] == [
+        {"DimensionKey": "foo"},
+        {"DimensionKey": "bar"},
+    ]
+    assert res[3]["DetailsDocument"]["Terms"][1]["RateCards"][0]["RateCard"] == [
+        {"DimensionKey": "foo"},
+        {"DimensionKey": "bar"},
+    ]
+
+
 @pytest.mark.parametrize(
     "invalid_config",
     [
@@ -1623,6 +1674,97 @@ t2.large,0.034,800
     )
     mock_get_client.return_value.start_change_set.assert_not_called()
     assert offer_creation == DRY_RUN_RESPONSE
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_entity_details")
+@patch("awsmp._driver.changesets.models.boto3")
+def test_offer_create_hourly_pricing(mock_boto3, mock_get_details, mock_get_client):
+    """Test that hourly=True sets price_annual to None for all instance types"""
+    mock_get_details.return_value = {"Dimensions": [{"Name": "t2.micro"}, {"Name": "t2.large"}]}
+    pricing_config = """
+t2.micro,0.012,100
+t2.large,0.034,800
+"""
+    offer_creation = _driver.offer_create(
+        product_id="temp",
+        buyer_accounts=["buyer1", "buyer2"],
+        available_for_days=5,
+        valid_for_days=2,
+        offer_name="test_offer",
+        eula_url="",
+        pricing=io.StringIO(pricing_config),
+        dry_run=False,
+        hourly=True,
+    )
+    mock_start_change_set = mock_get_client.return_value.start_change_set
+
+    # Verify hourly pricing is set correctly
+    hourly_ratecard = mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][3]["DetailsDocument"]["Terms"][0][
+        "RateCards"
+    ][0]
+    assert hourly_ratecard["RateCard"][0] == {"DimensionKey": "t2.micro", "Price": "0.012"}
+    assert hourly_ratecard["RateCard"][1] == {"DimensionKey": "t2.large", "Price": "0.034"}
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_entity_details")
+@patch("awsmp._driver.changesets.models.boto3")
+def test_offer_create_hourly_pricing_dry_run(mock_boto3, mock_get_details, mock_get_client):
+    """Test that hourly=True with dry_run returns expected response"""
+    mock_get_details.return_value = {"Dimensions": [{"Name": "t2.micro"}, {"Name": "t2.large"}]}
+    pricing_config = """
+t2.micro,0.012,100
+t2.large,0.034,800
+"""
+    offer_creation = _driver.offer_create(
+        product_id="temp",
+        buyer_accounts=["buyer1", "buyer2"],
+        available_for_days=5,
+        valid_for_days=2,
+        offer_name="test_offer",
+        eula_url="",
+        pricing=io.StringIO(pricing_config),
+        dry_run=True,
+        hourly=True,
+    )
+    mock_get_client.return_value.start_change_set.assert_not_called()
+    assert offer_creation == DRY_RUN_RESPONSE
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_entity_details")
+@patch("awsmp._driver.changesets.models.boto3")
+def test_offer_create_annual_pricing_retained(mock_boto3, mock_get_details, mock_get_client):
+    """Test that hourly=False (default) retains annual pricing"""
+    mock_get_details.return_value = {"Dimensions": [{"Name": "t2.micro"}, {"Name": "t2.large"}]}
+    pricing_config = """
+t2.micro,0.012,100
+t2.large,0.034,800
+"""
+    offer_creation = _driver.offer_create(
+        product_id="temp",
+        buyer_accounts=["buyer1", "buyer2"],
+        available_for_days=5,
+        valid_for_days=2,
+        offer_name="test_offer",
+        eula_url="",
+        pricing=io.StringIO(pricing_config),
+        dry_run=False,
+        hourly=False,
+    )
+    mock_start_change_set = mock_get_client.return_value.start_change_set
+
+    # Verify both hourly and annual pricing are set
+    hourly_ratecard = mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][3]["DetailsDocument"]["Terms"][0][
+        "RateCards"
+    ][0]
+    assert hourly_ratecard["RateCard"][0] == {"DimensionKey": "t2.micro", "Price": "0.012"}
+
+    annual_ratecard = mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][3]["DetailsDocument"]["Terms"][1][
+        "RateCards"
+    ][0]
+    assert annual_ratecard["RateCard"][0] == {"DimensionKey": "t2.micro", "Price": "100"}
 
 
 @pytest.mark.parametrize(
