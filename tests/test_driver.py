@@ -1397,26 +1397,31 @@ def test_ami_product_update(mock_boto3, mock_get_details, mock_get_client):
     ]
 
 
+@patch("awsmp._driver.changesets.get_ami_listing_update_support_terms_changesets")
 @patch("awsmp._driver.changesets.get_ami_listing_update_changesets")
 @patch("awsmp._driver.AmiProduct._get_instance_type_changeset_and_pricing_diff")
 @patch("awsmp._driver.get_public_offer_id")
 @patch("awsmp._driver.get_response")
 def test_ami_product_update_no_pricing_change(
-    mock_get_response, mock_get_public_offer_id, mock_pricing_diff, mock_listing_update
+    mock_get_response, mock_get_public_offer_id, mock_pricing_diff, mock_listing_update, mock_support_terms
 ):
     with open("./tests/test_config.yaml", "r") as f:
         config = yaml.safe_load(f)
 
     mock_pricing_diff.return_value = None, [], []
-    # matching type return value not necessary
-    mock_listing_update.return_value = "some_value"
+    mock_listing_update.return_value = ["some_value"]
+    mock_support_terms.return_value = ["some_support_terms"]
     mock_get_public_offer_id.return_value = "prod-some_value"
 
     ap = _driver.AmiProduct(product_id="testing")
     ap.update(config, False)
 
     changeset_name = f"Product testing update product details"
-    mock_get_response.assert_called_once_with("some_value", changeset_name, False)
+    mock_get_response.assert_called_once_with(["some_value", "some_support_terms"], changeset_name, False)
+    mock_listing_update.assert_called_once_with(
+        "testing", config["product"]["description"], config["product"]["region"]
+    )
+    mock_support_terms.assert_called_once_with("prod-some_value", "test_refund_policy_term\n")
 
 
 @patch("awsmp._driver.get_client")
