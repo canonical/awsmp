@@ -94,8 +94,9 @@ class AmiProduct:
 
     def update(self, configs: Dict[str, Any], price_change_allowed: bool) -> Optional[ChangeSetReturnType]:
         """
-        Update AMI product details (Description, Region, Instance type) and public offer pricing term
-        :prarm configs dict[str, Any]: Local configuration file
+        Update AMI product details (Description, Region, Instance type), public offer pricing terms, and
+        support terms based on the given configuration file.
+        :param configs dict[str, Any]: Local configuration file
         :param bool price_change_allowed: Flag to indicate price change is allowed
         :return: Response from the request
         :rtype: ChangeSetReturnType
@@ -118,6 +119,10 @@ class AmiProduct:
 
         if changeset_pricing is not None:
             changeset.extend(changeset_pricing)
+
+        refund_policy = configs["offer"]["refund_policy"]
+        changeset_support = changesets.get_ami_listing_update_support_terms_changesets(self.offer_id, refund_policy)
+        changeset.extend(changeset_support)
 
         changeset_name = f"Product {self.product_id} update product details"
 
