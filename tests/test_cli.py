@@ -478,6 +478,34 @@ def test_public_offer_product_update_details_restrict_instance_types(mock_get_cl
 
     mock_get_details.side_effect = [
         {"Dimensions": [{"Name": "a1.large"}, {"Name": "a1.xlarge"}, {"Name": "t1.micro"}]},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "0.004"},
+                                {"DimensionKey": "a1.xlarge", "Price": "0.007"},
+                                {"DimensionKey": "t1.micro", "Price": "0.008"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "24.528"},
+                                {"DimensionKey": "a1.xlarge", "Price": "49.056"},
+                                {"DimensionKey": "t1.micro", "Price": "80.00"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
         {"Description": {"Visibility": "Limited"}},
         {
             "Terms": [
@@ -512,6 +540,7 @@ def test_public_offer_product_update_details_restrict_instance_types(mock_get_cl
     mock_get_client.return_value.list_entities.side_effect = [
         {"EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]},
         {"EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]},
+        {"EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]},
     ]
 
     runner = CliRunner()
@@ -526,6 +555,12 @@ def test_public_offer_product_update_details_restrict_instance_types(mock_get_cl
         == {"InstanceTypes": ["t1.micro"]}
         and mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][4]["ChangeType"] == "RestrictInstanceTypes"
     )
+
+    rate_card = mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][3]["DetailsDocument"]["Terms"][0][
+        "RateCards"
+    ][0]["RateCard"]
+    rate_card_keys = {r["DimensionKey"] for r in rate_card}
+    assert "t1.micro" in rate_card_keys
 
 
 @patch("awsmp._driver.changesets.models.boto3")
@@ -673,6 +708,34 @@ def test_public_offer_product_update_instance_type_restrict_instance_type(
 
     mock_get_details.side_effect = [
         {"Dimensions": [{"Name": "a1.large"}, {"Name": "a1.xlarge"}, {"Name": "t1.micro"}]},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "0.004"},
+                                {"DimensionKey": "a1.xlarge", "Price": "0.007"},
+                                {"DimensionKey": "t1.micro", "Price": "0.001"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "24.528"},
+                                {"DimensionKey": "a1.xlarge", "Price": "49.056"},
+                                {"DimensionKey": "t1.micro", "Price": "0.4"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
         {"Description": {"Visibility": "Limited"}},
         {
             "Terms": [
@@ -705,6 +768,7 @@ def test_public_offer_product_update_instance_type_restrict_instance_type(
     ]
 
     mock_get_client.return_value.list_entities.side_effect = [
+        {"EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]},
         {"EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]},
         {"EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]},
     ]
