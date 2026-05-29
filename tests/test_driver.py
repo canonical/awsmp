@@ -254,6 +254,34 @@ def test_ami_product_update_instance_type_restrict_instance_type(mock_get_detail
     ap = _driver.AmiProduct(product_id="testing")
     mock_get_details.side_effect = [
         {"Dimensions": [{"Name": "c3.2xlarge"}, {"Name": "c3.4xlarge"}, {"Name": "c3.8xlarge"}]},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.2xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.00"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.2xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.00"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
         {"Description": {"Visibility": "Limited"}},
         {
             "Terms": [
@@ -287,6 +315,9 @@ def test_ami_product_update_instance_type_restrict_instance_type(mock_get_detail
     mock_get_details.return_value = {
         "Dimensions": [{"Name": "c3.2xlarge"}, {"Name": "c3.4xlarge"}, {"Name": "c3.8xlarge"}]
     }
+    mock_get_client.return_value.list_entities.return_value = {
+        "EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]
+    }
     offer_config = {
         "instance_types": [
             {"name": "c3.2xlarge", "hourly": 0.00, "yearly": 0.00},
@@ -312,6 +343,34 @@ def test_ami_product_update_instance_type_restrict_and_add_instance_type(mock_ge
     ap = _driver.AmiProduct(product_id="testing")
     mock_get_details.side_effect = [
         {"Dimensions": [{"Name": "c3.2xlarge"}, {"Name": "c3.4xlarge"}, {"Name": "c3.8xlarge"}]},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.2xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.00"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.2xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.00"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
         {"Description": {"Visibility": "Limited"}},
         {
             "Terms": [
@@ -342,6 +401,9 @@ def test_ami_product_update_instance_type_restrict_and_add_instance_type(mock_ge
             ]
         },
     ]
+    mock_get_client.return_value.list_entities.return_value = {
+        "EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]
+    }
     offer_config = {
         "instance_types": [
             {"name": "c3.2xlarge", "hourly": 0.00, "yearly": 0.00},
@@ -432,6 +494,34 @@ def test_ami_product_update_instance_type_restrict_and_add_instance_type_pricing
     ap = _driver.AmiProduct(product_id="testing")
     mock_get_details.side_effect = [
         {"Dimensions": [{"Name": "c3.2xlarge"}, {"Name": "c3.4xlarge"}, {"Name": "c3.8xlarge"}]},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.2xlarge", "Price": "0.03"},
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.12"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.50"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.2xlarge", "Price": "12.00"},
+                                {"DimensionKey": "c3.4xlarge", "Price": "24.00"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "90.00"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
         {"Description": {"Visibility": "Limited"}},
         {
             "Terms": [
@@ -462,6 +552,9 @@ def test_ami_product_update_instance_type_restrict_and_add_instance_type_pricing
             ]
         },
     ]
+    mock_get_client.return_value.list_entities.return_value = {
+        "EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]
+    }
     offer_config = {
         "instance_types": [
             {"name": "c3.2xlarge", "hourly": 0.03, "yearly": 12.00},
@@ -1486,6 +1579,34 @@ def test_ami_product_update_restrict_instance_types(mock_boto3, mock_get_details
 
     mock_get_details.side_effect = [
         {"Dimensions": [{"Name": "a1.large"}, {"Name": "a1.xlarge"}, {"Name": "c1.xlarge"}]},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "0.004"},
+                                {"DimensionKey": "a1.xlarge", "Price": "0.007"},
+                                {"DimensionKey": "c1.xlarge", "Price": "0.078"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "24.528"},
+                                {"DimensionKey": "a1.xlarge", "Price": "49.056"},
+                                {"DimensionKey": "c1.xlarge", "Price": "100.00"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
         {"Description": {"Visibility": "Limited"}},
         {
             "Terms": [
@@ -1532,6 +1653,12 @@ def test_ami_product_update_restrict_instance_types(mock_boto3, mock_get_details
     ] == {
         "InstanceTypes": ["c1.xlarge"]
     }
+
+    rate_card = mock_start_change_set.call_args_list[0].kwargs["ChangeSet"][3]["DetailsDocument"]["Terms"][0][
+        "RateCards"
+    ][0]["RateCard"]
+    rate_card_keys = {r["DimensionKey"] for r in rate_card}
+    assert "c1.xlarge" in rate_card_keys
 
 
 @patch("awsmp._driver.get_client")

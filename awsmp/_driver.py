@@ -147,8 +147,15 @@ class AmiProduct:
         new_instance_types = list(local_instance_types - existing_instance_types)
         removed_instance_types = list(existing_instance_types - local_instance_types)
 
+        removed_instance_type_pricing = _get_removed_instance_type_pricing(self.offer_id, removed_instance_types)
+
         changeset = changesets.get_ami_listing_update_instance_type_changesets(
-            self.product_id, self.offer_id, offer_detail, new_instance_types, removed_instance_types
+            self.product_id,
+            self.offer_id,
+            offer_detail,
+            new_instance_types,
+            removed_instance_types,
+            removed_instance_type_pricing=removed_instance_type_pricing,
         )
 
         hourly_diff, annual_diff = _get_pricing_diff(self.product_id, changeset, price_change_allowed)
@@ -384,6 +391,39 @@ def _get_full_ratecard_info(terms: List) -> Tuple[List, List]:
             annual = term["RateCards"][0]["RateCard"]
 
     return hourly, annual
+
+
+def _get_removed_instance_type_pricing(
+    offer_id: str, removed_instance_types: List[str]
+) -> Optional[List[models.InstanceTypePricing]]:
+    """
+    Fetch existing pricing for instance types being removed from the listing.
+
+    Removed instance types must still be included in the UpdatePricingTerms changeset because AWS validates
+    rate card completeness before applying RestrictDimensions/RestrictInstanceTypes in the same batch.
+    Omitting the removed types from the rate card causes a "Rates can't be removed from
+    UsageBasedPricingTerm" rejection.
+
+    :param str offer_id: offer id for fetching existing terms
+    :param List[str] removed_instance_types: instance types being removed
+    :return: pricing for removed types, or None if none are being removed
+    :rtype: Optional[List[models.InstanceTypePricing]]
+    """
+    if not removed_instance_types:
+        return None
+
+    existing_terms = get_entity_details(offer_id)["Terms"]
+    existing_hourly, existing_annual = _get_full_ratecard_info(existing_terms)
+    existing_hourly_map = {r["DimensionKey"]: r["Price"] for r in existing_hourly}
+    existing_annual_map = {r["DimensionKey"]: r["Price"] for r in existing_annual}
+    return [
+        models.InstanceTypePricing(
+            name=it,
+            price_hourly=existing_hourly_map.get(it, "0.000"),
+            price_annual=existing_annual_map.get(it),
+        )
+        for it in removed_instance_types
+    ]
 
 
 def _build_pricing_diff(existing_prices: List, local_prices: List) -> List:

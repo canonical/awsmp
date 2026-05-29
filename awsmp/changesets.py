@@ -457,6 +457,7 @@ def get_ami_listing_update_instance_type_changesets(
     offer_detail: models.Offer,
     new_instance_types: List[str],
     removed_instance_types: List[str],
+    removed_instance_type_pricing: Optional[List[models.InstanceTypePricing]] = None,
 ) -> List[ChangeSetType]:
     """
     Return list of changeset to restrict instance types with pricing term
@@ -465,13 +466,22 @@ def get_ami_listing_update_instance_type_changesets(
     :param models.Offer offer_detail: offer configuration in local confi file
     :param List[str] new_instance_types: list of instance types to add to the listing
     :param List[str] removed_instance_types: list of instance types to remove from the listing
+    :param Optional[List[models.InstanceTypePricing]] removed_instance_type_pricing: existing pricing for
+        removed instance types. Required when removed_instance_types is non-empty. AWS requires all existing
+        dimensions to have prices in the UpdatePricingTerms rate card even when those dimensions are being
+        restricted in the same change set batch - omitting them causes a "Rates can't be removed from
+        UsageBasedPricingTerm" rejection.
     :return: List of Changesets
     :rtype: List[ChangeSetType]
     """
 
+    all_instance_type_pricing = list(offer_detail.instance_types)
+    if removed_instance_type_pricing:
+        all_instance_type_pricing.extend(removed_instance_type_pricing)
+
     changeset_list = [
         _changeset_update_pricing_terms(
-            offer_detail.instance_types,
+            all_instance_type_pricing,
             monthly_subscription_fee=offer_detail.monthly_subscription_fee,
             offer_id=offer_id,
         )
