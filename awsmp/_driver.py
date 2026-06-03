@@ -697,7 +697,15 @@ def diff_entity_id_vs_local(entity_id: str, local_entity: models.EntityModel):
     Fetch live by id, compare against provided local model.
     """
 
-    entity_from_listing = models.EntityModel(**get_full_response(entity_id))
-    diff = entity_from_listing.get_diff(local_entity)
+    full_response = get_full_response(entity_id)
+    restricted_instance_types: set[str] = set()
+    compatibility = full_response.get("Compatibility")
+    if isinstance(compatibility, dict):
+        restricted = compatibility.get("RestrictedInstanceTypes")
+        if isinstance(restricted, list):
+            restricted_instance_types = set(restricted)
+
+    entity_from_listing = models.EntityModel(**full_response)
+    diff = entity_from_listing.get_diff(local_entity, restricted_instance_types=restricted_instance_types)
 
     return diff

@@ -299,6 +299,50 @@ def test_entity_get_diff_pricing_terms(
     assert result.output.strip() == json.dumps(expected_diff, indent=2).strip()
 
 
+@patch("awsmp._driver.get_public_offer_id")
+@patch("awsmp._driver.get_entity_details")
+@patch("awsmp.models.boto3")
+def test_entity_get_diff_restricted_instance_types(mock_boto3, mock_get_entity_details, mock_get_public_offer_id):
+    mock_boto3.client.return_value.describe_regions.return_value = {
+        "Regions": [
+            {"Endpoint": "ec2.us-east-1.amazonaws.com", "RegionName": "us-east-1", "OptInStatus": "opted-in"},
+            {"Endpoint": "ec2.us-east-2.amazonaws.com", "RegionName": "us-east-2", "OptInStatus": "opted-in"},
+        ]
+    }
+
+    with open("./tests/test_config.json") as f:
+        test_config = json.load(f)
+
+    mock_prod_resp = test_config.copy()
+    mock_prod_resp.pop("Terms")
+    mock_prod_resp["Versions"] = [mock_prod_resp["Versions"]]
+    mock_prod_resp["Compatibility"] = {
+        "AvailableInstanceTypes": ["a1.large", "a1.xlarge"],
+        "RestrictedInstanceTypes": ["c1.xlarge"],
+    }
+
+    base_terms = test_config["Terms"]
+    for term in base_terms:
+        if "RateCards" in term:
+            for rc in term["RateCards"]:
+                if "RateCard" in rc:
+                    rc["RateCard"].append({"DimensionKey": "c1.xlarge", "Price": "0.078"})
+                elif "Selector" in rc:
+                    rc["RateCard"].append({"DimensionKey": "c1.xlarge", "Price": "100.00"})
+    mock_offer_resp = {"Terms": base_terms}
+
+    mock_get_public_offer_id.return_value = "test-offer-id"
+    mock_get_entity_details.side_effect = [mock_prod_resp, mock_offer_resp]
+
+    runner = CliRunner()
+    result = runner.invoke(cli.entity_get_diff, ["temp-list", "./tests/local_config/test_config_8.yaml"])
+    diff_data = json.loads(result.output)
+
+    removed_keys = [r["name"] for r in diff_data.get("removed", [])]
+    assert "UsageBasedPricingTerm" not in removed_keys
+    assert "ConfigurableUpfrontPricingTerm" not in removed_keys
+
+
 @patch("awsmp._driver.changesets.models.boto3")
 @patch("awsmp._driver.get_entity_details")
 @patch("awsmp._driver.get_client")

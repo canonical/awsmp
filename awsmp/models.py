@@ -1060,6 +1060,7 @@ class EntityModel(BaseModel):
         diff_added: List[DiffAddedModel],
         diff_removed: List[DiffRemovedModel],
         diff_changed: List[DiffChangedModel],
+        restricted_instance_types: Optional[set[str]] = None,
     ) -> None:
         """
         Helper function to compare ratecard
@@ -1084,11 +1085,15 @@ class EntityModel(BaseModel):
         for dimension_key in entity_rate_cards:
             # instance type removed
             if dimension_key not in local_rate_cards:
+                if restricted_instance_types and dimension_key in restricted_instance_types:
+                    continue
                 EntityModel._add_diff(
                     term_type, entity_rate_cards[dimension_key], None, diff_added, diff_removed, diff_changed
                 )
 
-    def _get_diff_model(self, local_entity: EntityModel) -> DiffModel:
+    def _get_diff_model(
+        self, local_entity: EntityModel, restricted_instance_types: Optional[set[str]] = None
+    ) -> DiffModel:
         """
         Get complete DiffModel instance of diff from listing and local config
 
@@ -1167,9 +1172,10 @@ class EntityModel(BaseModel):
                                             diff_added,
                                             diff_removed,
                                             diff_changed,
+                                            restricted_instance_types=restricted_instance_types,
                                         )
 
         return DiffModel(added=diff_added, removed=diff_removed, changed=diff_changed)
 
-    def get_diff(self, local_entity: EntityModel) -> DiffModel:
-        return self._get_diff_model(local_entity)
+    def get_diff(self, local_entity: EntityModel, restricted_instance_types: Optional[set[str]] = None) -> DiffModel:
+        return self._get_diff_model(local_entity, restricted_instance_types=restricted_instance_types)
