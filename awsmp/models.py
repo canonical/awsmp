@@ -979,6 +979,11 @@ class EntityModel(BaseModel):
 
         if name in non_ordered_fields:
             return set(value1) != set(value2)
+        elif name == "Price":
+            try:
+                return Decimal(value1) != Decimal(value2)
+            except (TypeError, ValueError):
+                return value1 != value2
         else:
             return value1 != value2
 
@@ -1070,7 +1075,9 @@ class EntityModel(BaseModel):
                 EntityModel._add_diff(
                     term_type, None, local_rate_cards[dimension_key], diff_added, diff_removed, diff_changed
                 )
-            elif entity_rate_cards[dimension_key] != local_rate_cards[dimension_key]:
+            elif EntityModel.is_changed(
+                "Price", entity_rate_cards[dimension_key].get("Price"), local_rate_cards[dimension_key].get("Price")
+            ):
                 # pricing changed
                 EntityModel._add_diff(
                     term_type,
