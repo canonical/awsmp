@@ -590,6 +590,8 @@ class TestEntity:
                 "testtest",
                 models.DiffChangedModel(name="test3", old_value="test", new_value="testtest"),
             ),
+            ("Price", "0.0", "0.00", None),
+            ("Sku", "001", "1", models.DiffChangedModel(name="Sku", old_value="001", new_value="1")),
         ],
     )
     def test_get_diff_model_type(self, name, value1, value2, expected):
