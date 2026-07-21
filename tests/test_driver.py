@@ -15,9 +15,14 @@ from awsmp.errors import (
     AccessDeniedException,
     AmiPriceChangeError,
     AmiPricingModelChangeError,
+    AWSException,
+    MarketplaceAPIException,
     MissingInstanceTypeError,
     NoVersionException,
+    ResourceInUseException,
     ResourceNotFoundException,
+    ServiceQuotaExceededException,
+    ThrottlingException,
     UnrecognizedClientException,
 )
 from awsmp.types import ChangeSetType
@@ -171,6 +176,78 @@ def test_ami_product_create_without_permission(mock_get_client):
     with pytest.raises(AccessDeniedException) as excInfo:
         _driver.AmiProduct.create(dry_run=False)
     assert "This account does not have permission to request marketplace services" in excInfo.value.args[0]
+
+
+@patch("awsmp._driver.get_client")
+def test_ami_product_create_resource_in_use(mock_get_client):
+    mock_get_client.return_value.start_change_set.side_effect = ClientError(
+        {
+            "Error": {
+                "Code": "ResourceInUseException",
+                "Message": "Requested change set has entities locked by change sets - entity: 'prod-123' change sets: abc123.",
+            }
+        },
+        "StartChangeSet",
+    )
+    with pytest.raises(ResourceInUseException) as excInfo:
+        _driver.AmiProduct.create(dry_run=False)
+    assert "entities locked by change sets" in excInfo.value.args[0]
+
+
+@patch("awsmp._driver.get_client")
+def test_ami_product_create_service_quota_exceeded(mock_get_client):
+    mock_get_client.return_value.start_change_set.side_effect = ClientError(
+        {
+            "Error": {
+                "Code": "ServiceQuotaExceededException",
+                "Message": "You have reached the maximum service quota limit of 20 total entities that can be updated concurrently for Offer entity type for your account.",
+            }
+        },
+        "StartChangeSet",
+    )
+    with pytest.raises(ServiceQuotaExceededException) as excInfo:
+        _driver.AmiProduct.create(dry_run=False)
+    assert "maximum service quota limit" in excInfo.value.args[0]
+
+
+@patch("awsmp._driver.get_client")
+def test_ami_product_create_throttled(mock_get_client):
+    mock_get_client.return_value.start_change_set.side_effect = ClientError(
+        {
+            "Error": {
+                "Code": "ThrottlingException",
+                "Message": "Rate exceeded",
+            }
+        },
+        "StartChangeSet",
+    )
+    with pytest.raises(ThrottlingException) as excInfo:
+        _driver.AmiProduct.create(dry_run=False)
+    assert "Rate exceeded" in excInfo.value.args[0]
+
+
+@patch("awsmp._driver.get_client")
+def test_ami_product_create_unmapped_error_code(mock_get_client):
+    mock_get_client.return_value.start_change_set.side_effect = ClientError(
+        {
+            "Error": {
+                "Code": "InternalServiceException",
+                "Message": "An internal error occurred",
+            }
+        },
+        "StartChangeSet",
+    )
+    with pytest.raises(MarketplaceAPIException) as excInfo:
+        _driver.AmiProduct.create(dry_run=False)
+    assert excInfo.value.code == "InternalServiceException"
+    assert "An internal error occurred" in excInfo.value.args[0]
+
+
+def test_new_awsmp_exceptions_extend_aws_exception():
+    assert issubclass(ResourceInUseException, AWSException)
+    assert issubclass(ServiceQuotaExceededException, AWSException)
+    assert issubclass(ThrottlingException, AWSException)
+    assert issubclass(MarketplaceAPIException, AWSException)
 
 
 @patch("awsmp._driver.get_client")

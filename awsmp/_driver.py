@@ -11,9 +11,13 @@ from .errors import (
     AccessDeniedException,
     AmiPriceChangeError,
     AmiPricingModelChangeError,
+    MarketplaceAPIException,
     MissingInstanceTypeError,
     NoVersionException,
+    ResourceInUseException,
     ResourceNotFoundException,
+    ServiceQuotaExceededException,
+    ThrottlingException,
     UnrecognizedClientException,
     ValidationException,
 )
@@ -276,9 +280,18 @@ def _raise_client_error(exception: ClientError) -> NoReturn:
     elif exception_code == "ValidationException":
         logger.exception(f"Please check schema regex and request with fixed value.")
         raise ValidationException(error_msg) from None
+    elif exception_code == "ResourceInUseException":
+        logger.exception(error_msg)
+        raise ResourceInUseException(error_msg) from None
+    elif exception_code == "ServiceQuotaExceededException":
+        logger.exception(error_msg)
+        raise ServiceQuotaExceededException(error_msg) from None
+    elif exception_code == "ThrottlingException":
+        logger.exception(error_msg)
+        raise ThrottlingException(error_msg) from None
     else:
         logger.exception(error_msg)
-        raise Exception
+        raise MarketplaceAPIException(exception_code, error_msg) from None
 
 
 def list_entities(entity_type: str) -> dict[str, dict[str, str]]:

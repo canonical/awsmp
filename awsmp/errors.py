@@ -59,6 +59,27 @@ Please check schema regex and request with fixed value.
         super().__init__(message)
 
 
+class ResourceInUseException(AWSException):
+    def __init__(self, error_msg):
+        super().__init__(error_msg)
+
+
+class ServiceQuotaExceededException(AWSException):
+    def __init__(self, error_msg):
+        super().__init__(error_msg)
+
+
+class ThrottlingException(AWSException):
+    def __init__(self, error_msg):
+        super().__init__(error_msg)
+
+
+class MarketplaceAPIException(AWSException):
+    def __init__(self, code: str, error_msg: str):
+        self.code = code
+        super().__init__(error_msg)
+
+
 class YamlMissingKeyException(Exception):
     def __init__(self, missing_keys: List[List[str]]):
         formatted_keys = "\n".join("->".join(keys) for keys in missing_keys)
