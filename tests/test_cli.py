@@ -356,7 +356,6 @@ def test_public_offer_product_update_details(mock_get_client, mock_get_details, 
 
     mock_get_details.side_effect = [
         {"Dimensions": [{"Name": "a1.large"}]},
-        {"Description": {"Visibility": "Limited"}},
         {
             "Terms": [
                 {
@@ -381,6 +380,7 @@ def test_public_offer_product_update_details(mock_get_client, mock_get_details, 
                 },
             ]
         },
+        {"Description": {"Visibility": "Limited"}},
     ]
 
     mock_get_client.return_value.list_entities.side_effect = [
@@ -414,7 +414,6 @@ def test_public_offer_product_update_details_pricing_change(mock_get_client, moc
 
     mock_get_details.side_effect = [
         {"Dimensions": [{"Name": "a1.large"}, {"Name": "a1.xlarge"}]},
-        {"Description": {"Visibility": "Limited"}},
         {
             "Terms": [
                 {
@@ -441,6 +440,7 @@ def test_public_offer_product_update_details_pricing_change(mock_get_client, moc
                 },
             ]
         },
+        {"Description": {"Visibility": "Limited"}},
     ]
 
     mock_get_client.return_value.list_entities.side_effect = [
@@ -474,7 +474,6 @@ def test_public_offer_product_update_details_raise_exception(mock_get_client, mo
 
     mock_get_details.side_effect = [
         {"Dimensions": [{"Name": "a1.large"}, {"Name": "a1.xlarge"}]},
-        {"Description": {"Visibility": "Restricted"}},
         {
             "Terms": [
                 {
@@ -490,6 +489,7 @@ def test_public_offer_product_update_details_raise_exception(mock_get_client, mo
                 },
             ]
         },
+        {"Description": {"Visibility": "Restricted"}},
     ]
 
     mock_get_client.return_value.list_entities.side_effect = [
@@ -622,7 +622,6 @@ def test_public_offer_product_update_details_pricing_change_allowed(
 
     mock_get_details.side_effect = [
         {"Dimensions": [{"Name": "a1.large"}, {"Name": "a1.xlarge"}]},
-        {"Description": {"Visibility": "Limited"}},
         {
             "Terms": [
                 {
@@ -649,6 +648,7 @@ def test_public_offer_product_update_details_pricing_change_allowed(
                 },
             ]
         },
+        {"Description": {"Visibility": "Limited"}},
     ]
 
     mock_get_client.return_value.list_entities.side_effect = [
@@ -691,7 +691,6 @@ def test_public_offer_product_update_instance_type(mock_get_client, mock_get_det
 
     mock_get_details.side_effect = [
         {"Dimensions": [{"Name": "a1.large"}]},
-        {"Description": {"Visibility": "Limited"}},
         {
             "Terms": [
                 {
@@ -716,6 +715,7 @@ def test_public_offer_product_update_instance_type(mock_get_client, mock_get_det
                 },
             ]
         },
+        {"Description": {"Visibility": "Limited"}},
     ]
 
     mock_get_client.return_value.list_entities.side_effect = [
@@ -834,6 +834,120 @@ def test_public_offer_product_update_instance_type_restrict_instance_type(
 @patch("awsmp._driver.changesets.models.boto3")
 @patch("awsmp._driver.get_entity_details")
 @patch("awsmp._driver.get_client")
+def test_public_offer_product_update_instance_type_already_restricted_instance_type(
+    mock_get_client, mock_get_details, mock_boto3
+):
+    """
+    An instance type already restricted on a previous apply must keep its pricing (rate card entries can
+    never be removed) but must not be resubmitted in a RestrictInstanceTypes/RestrictDimensions changeset.
+    """
+    mock_boto3.client.return_value.describe_regions.return_value = {
+        "Regions": [
+            {"Endpoint": "ec2.us-east-1.amazonaws.com", "RegionName": "us-east-1", "OptInStatus": "opted-in"},
+            {"Endpoint": "ec2.us-east-2.amazonaws.com", "RegionName": "us-east-2", "OptInStatus": "opted-in"},
+        ]
+    }
+
+    mock_get_details.side_effect = [
+        {
+            "Dimensions": [{"Name": "a1.large"}, {"Name": "a1.xlarge"}, {"Name": "t1.micro"}],
+            "Compatibility": {
+                "AvailableInstanceTypes": ["a1.large", "a1.xlarge"],
+                "RestrictedInstanceTypes": ["t1.micro"],
+            },
+        },
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "0.004"},
+                                {"DimensionKey": "a1.xlarge", "Price": "0.007"},
+                                {"DimensionKey": "t1.micro", "Price": "0.001"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "24.528"},
+                                {"DimensionKey": "a1.xlarge", "Price": "49.056"},
+                                {"DimensionKey": "t1.micro", "Price": "0.4"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
+        {"Description": {"Visibility": "Limited"}},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "0.004"},
+                                {"DimensionKey": "a1.xlarge", "Price": "0.007"},
+                                {"DimensionKey": "t1.micro", "Price": "0.001"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "24.528"},
+                                {"DimensionKey": "a1.xlarge", "Price": "49.056"},
+                                {"DimensionKey": "t1.micro", "Price": "0.4"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
+    ]
+
+    mock_get_client.return_value.list_entities.side_effect = [
+        {"EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]},
+        {"EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]},
+    ]
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli.ami_product_update_instance_type,
+        [
+            "--product-id",
+            "some-prod-id",
+            "--config",
+            "./tests/test_config_new_instance_type.yaml",
+            "--no-allow-price-change",
+        ],
+    )
+    assert result.exit_code == 0
+
+    mock_start_change_set = mock_get_client.return_value.start_change_set
+    changeset = mock_start_change_set.call_args_list[0].kwargs["ChangeSet"]
+
+    # No restrict changeset should be resubmitted for the already-restricted instance type.
+    assert not any(c["ChangeType"] in ("RestrictInstanceTypes", "RestrictDimensions") for c in changeset)
+
+    # The already-restricted instance type's pricing must still be present in the rate card, alongside the
+    # newly added instance type.
+    hourly_rate_card = changeset[0]["DetailsDocument"]["Terms"][0]["RateCards"][0]["RateCard"]
+    assert {r["DimensionKey"] for r in hourly_rate_card} == {"a1.large", "a1.xlarge", "t1.micro", "m5.large"}
+
+
+@patch("awsmp._driver.changesets.models.boto3")
+@patch("awsmp._driver.get_entity_details")
+@patch("awsmp._driver.get_client")
 def test_public_offer_product_update_instance_type_pricing_change(mock_get_client, mock_get_details, mock_boto3):
     mock_boto3.client.return_value.describe_regions.return_value = {
         "Regions": [
@@ -844,7 +958,6 @@ def test_public_offer_product_update_instance_type_pricing_change(mock_get_clien
 
     mock_get_details.side_effect = [
         {"Dimensions": [{"Name": "a1.large"}, {"Name": "a1.xlarge"}]},
-        {"Description": {"Visibility": "Limited"}},
         {
             "Terms": [
                 {
@@ -871,6 +984,7 @@ def test_public_offer_product_update_instance_type_pricing_change(mock_get_clien
                 },
             ]
         },
+        {"Description": {"Visibility": "Limited"}},
     ]
 
     mock_get_client.return_value.list_entities.side_effect = [
@@ -970,7 +1084,6 @@ def test_public_offer_product_update_instance_type_pricing_change_exception(
 
     mock_get_details.side_effect = [
         {"Dimensions": [{"Name": "a1.large"}, {"Name": "a1.xlarge"}]},
-        {"Description": {"Visibility": "Restricted"}},
         {
             "Terms": [
                 {
@@ -986,6 +1099,7 @@ def test_public_offer_product_update_instance_type_pricing_change_exception(
                 },
             ]
         },
+        {"Description": {"Visibility": "Restricted"}},
     ]
 
     mock_get_client.return_value.list_entities.side_effect = [

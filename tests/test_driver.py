@@ -186,7 +186,6 @@ def test_ami_product_update_instance_type(mock_get_details, mock_get_client):
     ap = _driver.AmiProduct(product_id="testing")
     mock_get_details.side_effect = [
         {"Dimensions": [{"Name": "c3.2xlarge"}, {"Name": "c3.4xlarge"}, {"Name": "c3.8xlarge"}]},
-        {"Description": {"Visibility": "Limited"}},
         {
             "Terms": [
                 {
@@ -215,6 +214,7 @@ def test_ami_product_update_instance_type(mock_get_details, mock_get_client):
                 },
             ]
         },
+        {"Description": {"Visibility": "Limited"}},
     ]
     offer_config = {
         "instance_types": [
@@ -246,6 +246,164 @@ def test_ami_product_update_instance_type(mock_get_details, mock_get_client):
         ][0]["RateCards"][0]["RateCard"][-1]["Price"]
         == "0.0"
     )
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_entity_details")
+def test_ami_product_update_instance_type_uses_offer_rate_card_for_removed_pricing(mock_get_details, mock_get_client):
+    """
+    Regression test: the offer's live rate card, not the product's Dimensions list, must be the source of
+    truth for which instance types need their pricing preserved when removed from the local config, while
+    only actual product dimensions may be sent to the RestrictInstanceTypes/RestrictDimensions changesets.
+
+    "c3.8xlarge" is a real product dimension being removed from the local config, so it must be restricted.
+    "c3.16xlarge" is priced on the offer's rate card but missing from the product's Dimensions (simulating
+    drift between the AmiProduct entity and the Offer entity). Removing it from the local config must still
+    keep its price in the outgoing UpdatePricingTerms changeset, otherwise AWS rejects the changeset with
+    "Rates can't be removed from UsageBasedPricingTerm". However, since "c3.16xlarge" is not a product
+    dimension, it must NOT be included in the RestrictInstanceTypes/RestrictDimensions changesets - AWS
+    cannot restrict a product dimension that doesn't exist.
+    """
+    ap = _driver.AmiProduct(product_id="testing")
+    mock_get_details.side_effect = [
+        {"Dimensions": [{"Name": "c3.2xlarge"}, {"Name": "c3.4xlarge"}, {"Name": "c3.8xlarge"}]},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.2xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.02"},
+                                {"DimensionKey": "c3.16xlarge", "Price": "0.05"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.2xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "120.00"},
+                                {"DimensionKey": "c3.16xlarge", "Price": "300.00"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
+        {"Description": {"Visibility": "Limited"}},
+    ]
+    offer_config = {
+        "instance_types": [
+            {"name": "c3.2xlarge", "hourly": 0.00, "yearly": 0.00},
+            {"name": "c3.4xlarge", "hourly": 0.00, "yearly": 0.00},
+        ],
+        "refund_policy": "refund_policy",
+        "eula_document": [{"type": "StandardEula", "version": "2025-04-05"}],
+    }
+
+    mock_get_client.return_value.list_entities.return_value = {
+        "EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]
+    }
+    change_set, hourly_diff, annual_diff = ap._get_instance_type_changeset_and_pricing_diff(offer_config, False)
+
+    assert change_set is not None
+    pricing_details = change_set[0]["DetailsDocument"]["Terms"]
+    hourly_rate_card = next(t for t in pricing_details if t["Type"] == "UsageBasedPricingTerm")["RateCards"][0][
+        "RateCard"
+    ]
+    # Both the real dimension and the offer-only dimension must keep their price.
+    assert {"DimensionKey": "c3.8xlarge", "Price": "0.02"} in hourly_rate_card
+    assert {"DimensionKey": "c3.16xlarge", "Price": "0.05"} in hourly_rate_card
+
+    # Only the real product dimension "c3.8xlarge" may be restricted; "c3.16xlarge" is not a product
+    # dimension and must be excluded from both changesets.
+    restrict_instance_types = next(
+        c["DetailsDocument"] for c in change_set if c["ChangeType"] == "RestrictInstanceTypes"
+    )
+    assert restrict_instance_types == {"InstanceTypes": ["c3.8xlarge"]}
+    restrict_dimensions = next(c["DetailsDocument"] for c in change_set if c["ChangeType"] == "RestrictDimensions")
+    assert restrict_dimensions == [{"Key": "c3.8xlarge", "Types": ["Metered"]}]
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_entity_details")
+def test_ami_product_update_instance_type_add_back_restricted_instance_type(mock_get_details, mock_get_client):
+    """
+    A previously restricted instance type that is added back to the local config must receive an
+    AddInstanceTypes changeset so it becomes available again. Its pricing dimension already exists, so no
+    AddDimensions changeset should be emitted for it.
+    """
+    ap = _driver.AmiProduct(product_id="testing")
+    mock_get_details.side_effect = [
+        {
+            "Dimensions": [{"Name": "a1.large"}, {"Name": "t1.micro"}],
+            "Compatibility": {
+                "AvailableInstanceTypes": ["a1.large"],
+                "RestrictedInstanceTypes": ["t1.micro"],
+            },
+        },
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "0.004"},
+                                {"DimensionKey": "t1.micro", "Price": "0.001"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "24.528"},
+                                {"DimensionKey": "t1.micro", "Price": "0.4"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
+        {"Description": {"Visibility": "Limited"}},
+    ]
+    offer_config = {
+        "instance_types": [
+            {"name": "a1.large", "hourly": 0.004, "yearly": 24.528},
+            {"name": "t1.micro", "hourly": 0.001, "yearly": 0.4},
+        ],
+        "refund_policy": "refund_policy",
+        "eula_document": [{"type": "StandardEula", "version": "2025-04-05"}],
+    }
+
+    mock_get_client.return_value.list_entities.return_value = {
+        "EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]
+    }
+    ap.update_instance_types(offer_config, False)
+
+    change_set = mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"]
+
+    # The re-added restricted type should be in an AddInstanceTypes changeset, but not AddDimensions.
+    add_instance_types = next(c["DetailsDocument"] for c in change_set if c["ChangeType"] == "AddInstanceTypes")
+    assert add_instance_types == {"InstanceTypes": ["t1.micro"]}
+    assert not any(c["ChangeType"] == "AddDimensions" for c in change_set)
+
+    # Its pricing must remain in the rate card.
+    pricing_details = change_set[0]["DetailsDocument"]["Terms"]
+    hourly_rate_card = next(t for t in pricing_details if t["Type"] == "UsageBasedPricingTerm")["RateCards"][0][
+        "RateCard"
+    ]
+    assert {"DimensionKey": "t1.micro", "Price": "0.001"} in hourly_rate_card
 
 
 @patch("awsmp._driver.get_client")
@@ -439,7 +597,6 @@ def test_ami_product_update_instance_type_pricing_update(mock_get_details, mock_
     ap = _driver.AmiProduct(product_id="testing")
     mock_get_details.side_effect = [
         {"Dimensions": [{"Name": "c3.2xlarge"}, {"Name": "c3.4xlarge"}, {"Name": "c3.8xlarge"}]},
-        {"Description": {"Visibility": "Limited"}},
         {
             "Terms": [
                 {
@@ -468,6 +625,7 @@ def test_ami_product_update_instance_type_pricing_update(mock_get_details, mock_
                 },
             ]
         },
+        {"Description": {"Visibility": "Limited"}},
     ]
     offer_config = {
         "instance_types": [
@@ -596,7 +754,6 @@ def test_ami_product_update_instance_type_pricing_raise_on_restricted(mock_get_d
     ap = _driver.AmiProduct(product_id="testing")
     mock_get_details.side_effect = [
         {"Dimensions": []},
-        {"Description": {"Visibility": "Restricted"}},
         {
             "Terms": [
                 {
@@ -605,6 +762,7 @@ def test_ami_product_update_instance_type_pricing_raise_on_restricted(mock_get_d
                 },
             ]
         },
+        {"Description": {"Visibility": "Restricted"}},
     ]
     offer_config = {
         "instance_types": [
@@ -624,7 +782,6 @@ def test_ami_product_update_instance_type_pricing_update_exception(mock_get_deta
     ap = _driver.AmiProduct(product_id="testing")
     mock_get_details.side_effect = [
         {"Dimensions": [{"Name": "c3.2xlarge"}, {"Name": "c3.4xlarge"}, {"Name": "c3.8xlarge"}]},
-        {"Description": {"Visibility": "Limited"}},
         {
             "Terms": [
                 {
@@ -641,6 +798,7 @@ def test_ami_product_update_instance_type_pricing_update_exception(mock_get_deta
                 },
             ]
         },
+        {"Description": {"Visibility": "Limited"}},
     ]
     offer_config = {
         "instance_types": [
@@ -1033,11 +1191,11 @@ def test_build_pricing_diff(existing_prices, local_prices, expected_diffs):
 @patch("awsmp._driver.get_client")
 @patch("awsmp._driver.get_entity_details")
 def test_get_pricing_diff(mock_get_entity_details, mock_get_client, visibility, terms, changeset, expected_output):
-    mock_get_entity_details.side_effect = [{"Description": {"Visibility": visibility}}, terms]
+    mock_get_entity_details.side_effect = [{"Description": {"Visibility": visibility}}]
     mock_get_client.return_value.list_entities.return_value = {
         "EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]
     }
-    assert _driver._get_pricing_diff("prod-id", changeset, True) == expected_output
+    assert _driver._get_pricing_diff("prod-id", changeset, True, terms["Terms"]) == expected_output
 
 
 @patch("awsmp._driver.get_client")
@@ -1045,37 +1203,35 @@ def test_get_pricing_diff(mock_get_entity_details, mock_get_client, visibility, 
 def test_get_pricing_should_raise_on_change_from_zero_to_paid(mock_get_entity_details, mock_get_client):
     mock_get_entity_details.side_effect = [
         {"Description": {"Visibility": "Public"}},
+    ]
+    existing_terms = [
         {
-            "Terms": [
+            "Type": "UsageBasedPricingTerm",
+            "RateCards": [
                 {
-                    "Type": "UsageBasedPricingTerm",
-                    "RateCards": [
-                        {
-                            "RateCard": [
-                                {"DimensionKey": "c3.4xlarge", "Price": "0.0"},
-                                {"DimensionKey": "c3.8xlarge", "Price": "0.0"},
-                            ]
-                        }
-                    ],
-                },
+                    "RateCard": [
+                        {"DimensionKey": "c3.4xlarge", "Price": "0.0"},
+                        {"DimensionKey": "c3.8xlarge", "Price": "0.0"},
+                    ]
+                }
+            ],
+        },
+        {
+            "Type": "ConfigurableUpfrontPricingTerm",
+            "CurrencyCode": "USD",
+            "RateCards": [
                 {
-                    "Type": "ConfigurableUpfrontPricingTerm",
-                    "CurrencyCode": "USD",
-                    "RateCards": [
-                        {
-                            "Selector": {"Type": "Duration", "Value": "P365D"},
-                            "Constraints": {
-                                "MultipleDimensionSelection": "Allowed",
-                                "QuantityConfiguration": "Allowed",
-                            },
-                            "RateCard": [
-                                {"DimensionKey": "c3.4xlarge", "Price": "0.0"},
-                                {"DimensionKey": "c3.8xlarge", "Price": "0.0"},
-                            ],
-                        }
+                    "Selector": {"Type": "Duration", "Value": "P365D"},
+                    "Constraints": {
+                        "MultipleDimensionSelection": "Allowed",
+                        "QuantityConfiguration": "Allowed",
+                    },
+                    "RateCard": [
+                        {"DimensionKey": "c3.4xlarge", "Price": "0.0"},
+                        {"DimensionKey": "c3.8xlarge", "Price": "0.0"},
                     ],
-                },
-            ]
+                }
+            ],
         },
     ]
     mock_get_client.return_value.list_entities.return_value = {
@@ -1125,7 +1281,7 @@ def test_get_pricing_should_raise_on_change_from_zero_to_paid(mock_get_entity_de
         ],
     )
     with pytest.raises(AmiPriceChangeError) as excInfo:
-        _driver._get_pricing_diff("prod-id", changeset, False)
+        _driver._get_pricing_diff("prod-id", changeset, False, existing_terms)
     assert "Free product was attempted to be converted to paid product." in excInfo.value.args[0]
 
 
@@ -1187,7 +1343,6 @@ def test_get_pricing_should_raise_on_change_in_pricing_model(
 
     mock_get_entity_details.side_effect = [
         {"Description": {"Visibility": "Public"}},
-        {"Terms": _build_pricing_terms(existing_terms)},
     ]
     mock_get_client.return_value.list_entities.return_value = {
         "EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]
@@ -1203,7 +1358,7 @@ def test_get_pricing_should_raise_on_change_in_pricing_model(
         ],
     )
     with pytest.raises(AmiPricingModelChangeError) as excInfo:
-        _driver._get_pricing_diff("prod-id", changeset, True)
+        _driver._get_pricing_diff("prod-id", changeset, True, _build_pricing_terms(existing_terms))
 
     assert "Listing is published. Contact AWS Marketplace to change the pricing type." in excInfo.value.args[0]
 
@@ -1471,7 +1626,7 @@ def test_ami_product_update(mock_boto3, mock_get_details, mock_get_client):
         ]
     }
 
-    mock_get_details.side_effect = [{"Dimensions": []}, {"Description": {"Visibility": "Draft"}}, {"Terms": []}]
+    mock_get_details.side_effect = [{"Dimensions": []}, {"Terms": []}, {"Description": {"Visibility": "Draft"}}]
 
     mock_get_client.return_value.list_entities.return_value = {
         "EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]
@@ -1533,7 +1688,6 @@ def test_ami_product_update_pricing_exception_by_adding_yearly_price(mock_boto3,
 
     mock_get_details.side_effect = [
         {"Dimensions": [{"Name": "a1.large"}, {"Name": "a1.xlarge"}]},
-        {"Description": {"Visibility": "Limited"}},
         {
             "Terms": [
                 {
@@ -1549,6 +1703,7 @@ def test_ami_product_update_pricing_exception_by_adding_yearly_price(mock_boto3,
                 },
             ]
         },
+        {"Description": {"Visibility": "Limited"}},
     ]
 
     mock_get_client.return_value.list_entities.return_value = {

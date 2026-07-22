@@ -457,6 +457,7 @@ def get_ami_listing_update_instance_type_changesets(
     offer_detail: models.Offer,
     new_instance_types: List[str],
     removed_instance_types: List[str],
+    new_dimension_instance_types: Optional[List[str]] = None,
     removed_instance_type_pricing: Optional[List[models.InstanceTypePricing]] = None,
 ) -> List[ChangeSetType]:
     """
@@ -464,8 +465,12 @@ def get_ami_listing_update_instance_type_changesets(
     :param str product_id: product id
     :param str offer_id: offer id
     :param models.Offer offer_detail: offer configuration in local confi file
-    :param List[str] new_instance_types: list of instance types to add to the listing
+    :param List[str] new_instance_types: list of instance types to add to the listing (including types that
+        were previously restricted and are being added back)
     :param List[str] removed_instance_types: list of instance types to remove from the listing
+    :param Optional[List[str]] new_dimension_instance_types: subset of ``new_instance_types`` that do not
+        already have a pricing dimension and therefore require an ``AddDimensions`` changeset. Defaults to
+        ``new_instance_types``.
     :param Optional[List[models.InstanceTypePricing]] removed_instance_type_pricing: existing pricing for
         removed instance types. Required when removed_instance_types is non-empty. AWS requires all existing
         dimensions to have prices in the UpdatePricingTerms rate card even when those dimensions are being
@@ -487,12 +492,12 @@ def get_ami_listing_update_instance_type_changesets(
         )
     ]
     if new_instance_types:
-        changeset_list.extend(
-            [
-                _changeset_update_ami_product_dimension(product_id, new_instance_types),
-                _changeset_update_ami_product_instance_type(product_id, new_instance_types),
-            ]
+        dimension_types = (
+            new_dimension_instance_types if new_dimension_instance_types is not None else new_instance_types
         )
+        if dimension_types:
+            changeset_list.append(_changeset_update_ami_product_dimension(product_id, dimension_types))
+        changeset_list.append(_changeset_update_ami_product_instance_type(product_id, new_instance_types))
     if removed_instance_types:
         changeset_list.extend(
             [

@@ -143,25 +143,63 @@ class AmiProduct:
         offer_detail = models.Offer(**offer_config)
 
         local_instance_types = {instance_type.name for instance_type in offer_detail.instance_types}
-        existing_instance_types = _get_existing_instance_types(self.product_id)
-        new_instance_types = list(local_instance_types - existing_instance_types)
-        removed_instance_types = list(existing_instance_types - local_instance_types)
+        (
+            existing_instance_types,
+            already_restricted_instance_types,
+            available_instance_types,
+        ) = _get_existing_restricted_and_available_instance_types(self.product_id)
 
-        removed_instance_type_pricing = _get_removed_instance_type_pricing(self.offer_id, removed_instance_types)
+        # The offer's live rate card is the authoritative source of dimensions AWS validates completeness
+        # against - it can diverge from the AmiProduct's Dimensions list (e.g. a dimension priced on the
+        # offer but not yet reflected in Compatibility/Dimensions on the product side). Always fall back to
+        # it so we never drop a price AWS still expects.
+        existing_terms = get_entity_details(self.offer_id)["Terms"]
+        existing_hourly, existing_annual = _get_full_ratecard_info(existing_terms)
+        existing_hourly_map = {r["DimensionKey"]: r["Price"] for r in existing_hourly}
+        existing_annual_map = {r["DimensionKey"]: r["Price"] for r in existing_annual}
+        existing_priced_instance_types = set(existing_hourly_map) | set(existing_annual_map)
+
+        # Any local type that is not already available must be added. This covers both brand-new types and
+        # previously restricted types that the caller is adding back to the listing.
+        new_instance_types = list(local_instance_types - available_instance_types)
+        # Dimensions are never deleted, so only brand-new types need an AddDimensions changeset. Types that
+        # were restricted already have a dimension and only need AddInstanceTypes to make them available again.
+        new_dimension_instance_types = list(set(new_instance_types) - existing_instance_types)
+
+        # Instance types that must keep their pricing: anything currently a product dimension, or currently
+        # priced on the offer, that isn't in the local config. Rate card entries can never be removed, so
+        # any of these must still be supplied a price in the outgoing UpdatePricingTerms changeset.
+        removed_instance_types = (existing_instance_types | existing_priced_instance_types) - local_instance_types
+
+        # RestrictInstanceTypes/RestrictDimensions only operate on types that exist as a product dimension.
+        # An offer-only priced type (present in the rate card but not yet reflected in the product's
+        # Dimensions) has nothing to restrict on the product side - including it would ask AWS to restrict a
+        # dimension that doesn't exist there. Its price is still preserved via removed_instance_types/
+        # removed_instance_type_pricing above; it's simply excluded from these two changesets.
+        # Instance types already restricted on the live listing must also be excluded, since AWS rejects
+        # restricting an instance type that is already restricted.
+        newly_removed_instance_types = list(
+            (removed_instance_types & existing_instance_types) - already_restricted_instance_types
+        )
+
+        removed_instance_type_pricing = _get_removed_instance_type_pricing(
+            list(removed_instance_types), existing_hourly_map, existing_annual_map
+        )
 
         changeset = changesets.get_ami_listing_update_instance_type_changesets(
             self.product_id,
             self.offer_id,
             offer_detail,
             new_instance_types,
-            removed_instance_types,
+            newly_removed_instance_types,
+            new_dimension_instance_types=new_dimension_instance_types,
             removed_instance_type_pricing=removed_instance_type_pricing,
         )
 
-        hourly_diff, annual_diff = _get_pricing_diff(self.product_id, changeset, price_change_allowed)
+        hourly_diff, annual_diff = _get_pricing_diff(self.product_id, changeset, price_change_allowed, existing_terms)
 
         if not hourly_diff and not annual_diff:
-            if not new_instance_types and not removed_instance_types:
+            if not new_instance_types and not newly_removed_instance_types:
                 # There are nothing to update
                 logger.info("There is no instance information details to update.")
                 return None, [], []
@@ -394,28 +432,27 @@ def _get_full_ratecard_info(terms: List) -> Tuple[List, List]:
 
 
 def _get_removed_instance_type_pricing(
-    offer_id: str, removed_instance_types: List[str]
+    removed_instance_types: List[str],
+    existing_hourly_map: Dict[str, str],
+    existing_annual_map: Dict[str, str],
 ) -> Optional[List[models.InstanceTypePricing]]:
     """
-    Fetch existing pricing for instance types being removed from the listing.
+    Build pricing entries for instance types being removed/restricted from the listing.
 
     Removed instance types must still be included in the UpdatePricingTerms changeset because AWS validates
     rate card completeness before applying RestrictDimensions/RestrictInstanceTypes in the same batch.
     Omitting the removed types from the rate card causes a "Rates can't be removed from
     UsageBasedPricingTerm" rejection.
 
-    :param str offer_id: offer id for fetching existing terms
     :param List[str] removed_instance_types: instance types being removed
+    :param Dict[str, str] existing_hourly_map: dimension key -> hourly price from the live offer rate card
+    :param Dict[str, str] existing_annual_map: dimension key -> annual price from the live offer rate card
     :return: pricing for removed types, or None if none are being removed
     :rtype: Optional[List[models.InstanceTypePricing]]
     """
     if not removed_instance_types:
         return None
 
-    existing_terms = get_entity_details(offer_id)["Terms"]
-    existing_hourly, existing_annual = _get_full_ratecard_info(existing_terms)
-    existing_hourly_map = {r["DimensionKey"]: r["Price"] for r in existing_hourly}
-    existing_annual_map = {r["DimensionKey"]: r["Price"] for r in existing_annual}
     return [
         models.InstanceTypePricing(
             name=it,
@@ -450,11 +487,14 @@ def _build_pricing_diff(existing_prices: List, local_prices: List) -> List:
     return diffs
 
 
-def _get_pricing_diff(product_id: str, changeset: List[ChangeSetType], allow_price_update: bool) -> Tuple[List, List]:
+def _get_pricing_diff(
+    product_id: str, changeset: List[ChangeSetType], allow_price_update: bool, existing_terms: List
+) -> Tuple[List, List]:
     """
     Check if there are differences between the given changeset from the local configuration and the existing listing pricing terms
     :param str product_id: product id of existing/live listing
     :param List[ChangeSetType] chageset: changeset from local configuration file
+    :param List existing_terms: Terms from the live public offer, already fetched by the caller
     :return: Hourly and Anuual pricing diff details
     :rtype: Tuple[List, List]
     """
@@ -465,7 +505,6 @@ def _get_pricing_diff(product_id: str, changeset: List[ChangeSetType], allow_pri
 
     # existing pricing information from the listing
     existing_listing_status = get_entity_details(product_id)["Description"]["Visibility"]
-    existing_terms = get_entity_details(get_public_offer_id(product_id))["Terms"]
     existing_hourly, existing_annual = _get_full_ratecard_info(existing_terms)
 
     diffs_hourly = _build_pricing_diff(existing_hourly, local_hourly)
@@ -482,8 +521,6 @@ def _get_pricing_diff(product_id: str, changeset: List[ChangeSetType], allow_pri
         raise AmiPriceChangeError(error_message)
     elif existing_listing_status != "Draft" and _has_different_pricing_model():
         raise AmiPricingModelChangeError("Listing is published. Contact AWS Marketplace to change the pricing type.")
-
-    existing_hourly, existing_annual = _get_full_ratecard_info(existing_terms)
 
     def any_zero_to_paid(diffs):
         # check if pricing request from free (0.0) to non-zero prices
@@ -558,6 +595,46 @@ def _get_existing_instance_types(product_id: str):
     if "Dimensions" in entity:
         existing_instance_types = {t["Name"] for t in entity["Dimensions"]}
     return existing_instance_types
+
+
+def _get_existing_restricted_and_available_instance_types(product_id: str) -> Tuple[set[str], set[str], set[str]]:
+    """
+    Return the existing instance types (pricing dimensions), the subset already restricted, and the subset
+    currently available on the live listing, from a single ``get_entity_details`` call.
+
+    Pricing dimensions can never be deleted once created, so an instance type that was restricted in a
+    previous update remains in ``Dimensions`` forever. Without excluding already-restricted types from the
+    "to be restricted" set, every subsequent apply would resubmit RestrictInstanceTypes/RestrictDimensions
+    changesets for types that are already restricted, which AWS rejects.
+
+    Re-adding a previously restricted instance type requires an ``AddInstanceTypes`` changeset, so callers
+    should compare local configuration against ``available_instance_types`` rather than ``Dimensions`` when
+    deciding which types to add.
+
+    :param str product_id: product id of the listing
+    :return: tuple of (existing instance type names, already-restricted instance type names, available instance type names)
+    :rtype: Tuple[set[str], set[str], set[str]]
+    """
+    entity = get_entity_details(product_id)
+    existing_instance_types = set()
+    if "Dimensions" in entity:
+        existing_instance_types = {t["Name"] for t in entity["Dimensions"]}
+
+    compatibility = entity.get("Compatibility")
+    if not isinstance(compatibility, dict):
+        return existing_instance_types, set(), existing_instance_types
+
+    restricted_instance_types: set[str] = set()
+    restricted = compatibility.get("RestrictedInstanceTypes")
+    if isinstance(restricted, list):
+        restricted_instance_types = set(restricted)
+
+    available_instance_types = existing_instance_types - restricted_instance_types
+    available = compatibility.get("AvailableInstanceTypes")
+    if isinstance(available, list):
+        available_instance_types = set(available)
+
+    return existing_instance_types, restricted_instance_types, available_instance_types
 
 
 def get_available_instance_types(arch: str, virt: str) -> list[str]:
