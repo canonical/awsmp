@@ -435,6 +435,310 @@ def test_ami_product_update_instance_type_restrict_and_add_instance_type(mock_ge
 
 @patch("awsmp._driver.get_client")
 @patch("awsmp._driver.get_entity_details")
+def test_ami_product_update_instance_type_add_and_remove_with_prior_restriction(mock_get_details, mock_get_client):
+    """Use case: add/remove instance types on a listing that has previously had instance types
+    restricted. The already-restricted type (c3.16xlarge) must not be resubmitted to
+    RestrictInstanceTypes/RestrictDimensions, but must still be priced in the rate card."""
+    ap = _driver.AmiProduct(product_id="testing")
+    mock_get_details.side_effect = [
+        {
+            "Dimensions": [
+                {"Name": "c3.2xlarge"},
+                {"Name": "c3.4xlarge"},
+                {"Name": "c3.8xlarge"},
+                {"Name": "c3.16xlarge"},
+            ],
+            "Compatibility": {"RestrictedInstanceTypes": ["c3.16xlarge"]},
+        },
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.16xlarge", "Price": "0.00"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.16xlarge", "Price": "0.00"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
+        {"Description": {"Visibility": "Limited"}},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.2xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.16xlarge", "Price": "0.00"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.2xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.16xlarge", "Price": "0.00"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
+    ]
+    mock_get_client.return_value.list_entities.return_value = {
+        "EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]
+    }
+    offer_config = {
+        "instance_types": [
+            {"name": "c3.2xlarge", "hourly": 0.00, "yearly": 0.00},
+            {"name": "c3.4xlarge", "hourly": 0.00, "yearly": 0.00},
+            {"name": "c1.medium", "hourly": 0.00, "yearly": 0.00},
+        ],
+        "refund_policy": "refund_policy",
+        "eula_document": [{"type": "StandardEula", "version": "2025-04-05"}],
+    }
+    res = ap.update_instance_types(offer_config, False)
+
+    assert mock_get_client.return_value.start_change_set.call_count == 1
+    changeset = mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"]
+
+    # New instance type (c1.medium): AddDimensions + AddInstanceTypes
+    assert changeset[1]["DetailsDocument"][0]["Key"] == "c1.medium"
+    assert changeset[2]["DetailsDocument"] == {"InstanceTypes": ["c1.medium"]}
+
+    # Only the newly-dropped, currently-active type is restricted. The already-restricted
+    # c3.16xlarge must NOT appear here.
+    assert changeset[3]["DetailsDocument"] == {"InstanceTypes": ["c3.8xlarge"]}
+    assert changeset[4]["DetailsDocument"] == [{"Key": "c3.8xlarge", "Types": ["Metered"]}]
+
+    # No further changesets (i.e. no re-restriction of c3.16xlarge)
+    assert len(changeset) == 5  # pricing terms, add dim, add type, restrict type, restrict dim
+
+    # But the rate card still carries a price for the already-restricted type.
+    rate_card = changeset[0]["DetailsDocument"]["Terms"][0]["RateCards"][0]["RateCard"]
+    dimension_keys = {r["DimensionKey"] for r in rate_card}
+    assert dimension_keys == {"c3.2xlarge", "c3.4xlarge", "c1.medium", "c3.8xlarge", "c3.16xlarge"}
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_entity_details")
+def test_ami_product_update_instance_type_reenable_restricted_instance_type(mock_get_details, mock_get_client):
+    """Use case: re-add a previously-restricted instance type. AddInstanceTypes only is emitted
+    (the dimension already exists) and its price - here unchanged (free) - flows into the rate card."""
+    ap = _driver.AmiProduct(product_id="testing")
+    mock_get_details.side_effect = [
+        {
+            "Dimensions": [{"Name": "c3.2xlarge"}, {"Name": "c3.4xlarge"}, {"Name": "c3.8xlarge"}],
+            "Compatibility": {"RestrictedInstanceTypes": ["c3.8xlarge"]},
+        },
+        {"Description": {"Visibility": "Limited"}},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.2xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.00"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.2xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.00"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
+    ]
+    mock_get_client.return_value.list_entities.return_value = {
+        "EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]
+    }
+    offer_config = {
+        "instance_types": [
+            {"name": "c3.2xlarge", "hourly": 0.00, "yearly": 0.00},
+            {"name": "c3.4xlarge", "hourly": 0.00, "yearly": 0.00},
+            {"name": "c3.8xlarge", "hourly": 0.00, "yearly": 0.00},
+        ],
+        "refund_policy": "refund_policy",
+        "eula_document": [{"type": "StandardEula", "version": "2025-04-05"}],
+    }
+    res = ap.update_instance_types(offer_config, False)
+
+    assert mock_get_client.return_value.start_change_set.call_count == 1
+    changeset = mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"]
+
+    assert changeset[1]["ChangeType"] == "AddInstanceTypes"
+    assert changeset[1]["DetailsDocument"] == {"InstanceTypes": ["c3.8xlarge"]}
+    # No AddDimensions changeset - the dimension already exists.
+    assert all(c["ChangeType"] != "AddDimensions" for c in changeset)
+
+    rate_card = changeset[0]["DetailsDocument"]["Terms"][0]["RateCards"][0]["RateCard"]
+    prices = {r["DimensionKey"]: r["Price"] for r in rate_card}
+    assert prices["c3.8xlarge"] == "0.0"
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_entity_details")
+def test_ami_product_update_instance_type_reenable_restricted_instance_type_with_new_price(
+    mock_get_details, mock_get_client
+):
+    """Regression: re-enabling a previously-restricted instance type with a new (non-zero) price
+    must carry that new price into the rate card, and requires the price-change flag."""
+    ap = _driver.AmiProduct(product_id="testing")
+    mock_get_details.side_effect = [
+        {
+            "Dimensions": [{"Name": "c3.2xlarge"}, {"Name": "c3.4xlarge"}, {"Name": "c3.8xlarge"}],
+            "Compatibility": {"RestrictedInstanceTypes": ["c3.8xlarge"]},
+        },
+        {"Description": {"Visibility": "Limited"}},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.2xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.00"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.2xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.00"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
+    ]
+    mock_get_client.return_value.list_entities.return_value = {
+        "EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]
+    }
+    offer_config = {
+        "instance_types": [
+            {"name": "c3.2xlarge", "hourly": 0.00, "yearly": 0.00},
+            {"name": "c3.4xlarge", "hourly": 0.00, "yearly": 0.00},
+            {"name": "c3.8xlarge", "hourly": 0.75, "yearly": 100.00},
+        ],
+        "refund_policy": "refund_policy",
+        "eula_document": [{"type": "StandardEula", "version": "2025-04-05"}],
+    }
+    # Without the price-change flag, the new (non-zero) price for a previously-free type must raise.
+    with pytest.raises(AmiPriceChangeError):
+        ap.update_instance_types(offer_config, False)
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_entity_details")
+def test_ami_product_update_instance_type_reenable_restricted_instance_type_with_new_price_allowed(
+    mock_get_details, mock_get_client
+):
+    ap = _driver.AmiProduct(product_id="testing")
+    mock_get_details.side_effect = [
+        {
+            "Dimensions": [{"Name": "c3.2xlarge"}, {"Name": "c3.4xlarge"}, {"Name": "c3.8xlarge"}],
+            "Compatibility": {"RestrictedInstanceTypes": ["c3.8xlarge"]},
+        },
+        {"Description": {"Visibility": "Limited"}},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.2xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.00"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "c3.2xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.4xlarge", "Price": "0.00"},
+                                {"DimensionKey": "c3.8xlarge", "Price": "0.00"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
+    ]
+    mock_get_client.return_value.list_entities.return_value = {
+        "EntitySummaryList": [{"EntityType": "Offer", "EntityId": "test-offer"}]
+    }
+    offer_config = {
+        "instance_types": [
+            {"name": "c3.2xlarge", "hourly": 0.00, "yearly": 0.00},
+            {"name": "c3.4xlarge", "hourly": 0.00, "yearly": 0.00},
+            {"name": "c3.8xlarge", "hourly": 0.75, "yearly": 100.00},
+        ],
+        "refund_policy": "refund_policy",
+        "eula_document": [{"type": "StandardEula", "version": "2025-04-05"}],
+    }
+    res = ap.update_instance_types(offer_config, True)
+
+    assert mock_get_client.return_value.start_change_set.call_count == 1
+    changeset = mock_get_client.return_value.start_change_set.call_args_list[0].kwargs["ChangeSet"]
+
+    assert changeset[1]["ChangeType"] == "AddInstanceTypes"
+    assert changeset[1]["DetailsDocument"] == {"InstanceTypes": ["c3.8xlarge"]}
+
+    rate_card = changeset[0]["DetailsDocument"]["Terms"][0]["RateCards"][0]["RateCard"]
+    prices = {r["DimensionKey"]: r["Price"] for r in rate_card}
+    assert prices["c3.8xlarge"] == "0.75"
+
+
+@patch("awsmp._driver.get_client")
+@patch("awsmp._driver.get_entity_details")
 def test_ami_product_update_instance_type_pricing_update(mock_get_details, mock_get_client):
     ap = _driver.AmiProduct(product_id="testing")
     mock_get_details.side_effect = [

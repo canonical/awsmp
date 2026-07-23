@@ -457,6 +457,7 @@ def get_ami_listing_update_instance_type_changesets(
     offer_detail: models.Offer,
     new_instance_types: List[str],
     removed_instance_types: List[str],
+    reenabled_instance_types: Optional[List[str]] = None,
     removed_instance_type_pricing: Optional[List[models.InstanceTypePricing]] = None,
 ) -> List[ChangeSetType]:
     """
@@ -464,13 +465,20 @@ def get_ami_listing_update_instance_type_changesets(
     :param str product_id: product id
     :param str offer_id: offer id
     :param models.Offer offer_detail: offer configuration in local confi file
-    :param List[str] new_instance_types: list of instance types to add to the listing
-    :param List[str] removed_instance_types: list of instance types to remove from the listing
+    :param List[str] new_instance_types: list of instance types to add to the listing that have never
+        existed as a dimension before. Requires both AddDimensions and AddInstanceTypes.
+    :param List[str] removed_instance_types: list of currently-active instance types to newly restrict.
+        Types that are already restricted must not be included here - resubmitting an already-restricted
+        type to RestrictInstanceTypes/RestrictDimensions is rejected by AWS.
+    :param Optional[List[str]] reenabled_instance_types: list of previously-restricted instance types
+        that local config wants active again. The dimension already exists from when the type was first
+        added, so only AddInstanceTypes is required (no AddDimensions).
     :param Optional[List[models.InstanceTypePricing]] removed_instance_type_pricing: existing pricing for
-        removed instance types. Required when removed_instance_types is non-empty. AWS requires all existing
-        dimensions to have prices in the UpdatePricingTerms rate card even when those dimensions are being
-        restricted in the same change set batch - omitting them causes a "Rates can't be removed from
-        UsageBasedPricingTerm" rejection.
+        instance types absent from local config (newly restricted or already restricted). Required
+        whenever any dimension the listing has ever had is absent from local config. AWS requires all
+        existing dimensions to have prices in the UpdatePricingTerms rate card even when those dimensions
+        are being restricted (or remain restricted) in the same change set batch - omitting them causes a
+        "Rates can't be removed from UsageBasedPricingTerm" rejection.
     :return: List of Changesets
     :rtype: List[ChangeSetType]
     """
@@ -493,6 +501,8 @@ def get_ami_listing_update_instance_type_changesets(
                 _changeset_update_ami_product_instance_type(product_id, new_instance_types),
             ]
         )
+    if reenabled_instance_types:
+        changeset_list.append(_changeset_update_ami_product_instance_type(product_id, reenabled_instance_types))
     if removed_instance_types:
         changeset_list.extend(
             [
