@@ -555,6 +555,57 @@ def test_get_ami_listing_update_instance_type_changesets_no_restrict_and_add_ins
     )
 
 
+def test_get_ami_listing_update_instance_type_changesets_reenable_instance_type():
+    """A previously-restricted instance type re-added to local config must be re-enabled via
+    AddInstanceTypes only (no AddDimensions - the dimension already exists), and its (possibly new)
+    price must flow into the rate card."""
+    offer_config: Dict[str, Any] = {
+        "instance_types": [
+            {"name": "c3.xlarge", "yearly": 123.44, "hourly": 0.12},
+            {"name": "c4.large", "yearly": 78.56, "hourly": 0.55},
+        ],
+        "eula_document": [{"type": "StandardEula", "version": "2025-05-05"}],
+        "refund_policy": "refund_policy",
+    }
+    offer_detail = models.Offer(**offer_config)
+    res: List[types.ChangeSetType] = changesets.get_ami_listing_update_instance_type_changesets(
+        "test-id", "test-offer_id", offer_detail, [], [], reenabled_instance_types=["c4.large"]
+    )
+    details_document = [cast(Any, item["DetailsDocument"]) for item in res[:]]
+
+    assert len(res) == 2
+    assert res[1]["ChangeType"] == "AddInstanceTypes"
+    assert details_document[1] == {"InstanceTypes": ["c4.large"]}
+    assert details_document[0]["Terms"][0]["RateCards"][0]["RateCard"][1] == {
+        "DimensionKey": "c4.large",
+        "Price": "0.55",
+    }
+
+
+def test_get_ami_listing_update_instance_type_changesets_reenable_free_instance_type():
+    """Regression: a re-enabled instance type kept at a free (0.00) price must still carry that
+    price through to the rate card rather than being silently dropped."""
+    offer_config: Dict[str, Any] = {
+        "instance_types": [
+            {"name": "c3.xlarge", "yearly": 0.00, "hourly": 0.00},
+            {"name": "c4.large", "yearly": 0.00, "hourly": 0.00},
+        ],
+        "eula_document": [{"type": "StandardEula", "version": "2025-05-05"}],
+        "refund_policy": "refund_policy",
+    }
+    offer_detail = models.Offer(**offer_config)
+    res: List[types.ChangeSetType] = changesets.get_ami_listing_update_instance_type_changesets(
+        "test-id", "test-offer_id", offer_detail, [], [], reenabled_instance_types=["c4.large"]
+    )
+    details_document = [cast(Any, item["DetailsDocument"]) for item in res[:]]
+
+    assert details_document[1] == {"InstanceTypes": ["c4.large"]}
+    assert details_document[0]["Terms"][0]["RateCards"][0]["RateCard"][1] == {
+        "DimensionKey": "c4.large",
+        "Price": "0.0",
+    }
+
+
 # ---------------------------------------------------------------------------
 # EC2 Image Builder changeset tests
 # ---------------------------------------------------------------------------
