@@ -356,6 +356,30 @@ def test_public_offer_product_update_details(mock_get_client, mock_get_details, 
 
     mock_get_details.side_effect = [
         {"Dimensions": [{"Name": "a1.large"}]},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "0.004"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "24.528"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
         {"Description": {"Visibility": "Limited"}},
         {
             "Terms": [
@@ -414,6 +438,32 @@ def test_public_offer_product_update_details_pricing_change(mock_get_client, moc
 
     mock_get_details.side_effect = [
         {"Dimensions": [{"Name": "a1.large"}, {"Name": "a1.xlarge"}]},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "0.004"},
+                                {"DimensionKey": "a1.xlarge", "Price": "0.007"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "24.528"},
+                                {"DimensionKey": "a1.xlarge", "Price": "50.056"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
         {"Description": {"Visibility": "Limited"}},
         {
             "Terms": [
@@ -474,6 +524,21 @@ def test_public_offer_product_update_details_raise_exception(mock_get_client, mo
 
     mock_get_details.side_effect = [
         {"Dimensions": [{"Name": "a1.large"}, {"Name": "a1.xlarge"}]},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "0.004"},
+                                {"DimensionKey": "a1.xlarge", "Price": "0.007"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
         {"Description": {"Visibility": "Restricted"}},
         {
             "Terms": [
@@ -604,7 +669,9 @@ def test_public_offer_product_update_details_restrict_instance_types(mock_get_cl
         "RateCards"
     ][0]["RateCard"]
     rate_card_keys = {r["DimensionKey"] for r in rate_card}
-    assert "t1.micro" in rate_card_keys
+    # t1.micro is being restricted in this same batch, so it must be excluded from the new rate
+    # card entirely - AWS rejects resubmitting a price for it as an unavailable dimension.
+    assert "t1.micro" not in rate_card_keys
 
 
 @patch("awsmp._driver.changesets.models.boto3")
@@ -622,6 +689,32 @@ def test_public_offer_product_update_details_pricing_change_allowed(
 
     mock_get_details.side_effect = [
         {"Dimensions": [{"Name": "a1.large"}, {"Name": "a1.xlarge"}]},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "0.004"},
+                                {"DimensionKey": "a1.xlarge", "Price": "0.007"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "24.528"},
+                                {"DimensionKey": "a1.xlarge", "Price": "50.056"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
         {"Description": {"Visibility": "Limited"}},
         {
             "Terms": [
@@ -691,6 +784,30 @@ def test_public_offer_product_update_instance_type(mock_get_client, mock_get_det
 
     mock_get_details.side_effect = [
         {"Dimensions": [{"Name": "a1.large"}]},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "0.004"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "24.528"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
         {"Description": {"Visibility": "Limited"}},
         {
             "Terms": [
@@ -844,6 +961,32 @@ def test_public_offer_product_update_instance_type_pricing_change(mock_get_clien
 
     mock_get_details.side_effect = [
         {"Dimensions": [{"Name": "a1.large"}, {"Name": "a1.xlarge"}]},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "0.004"},
+                                {"DimensionKey": "a1.xlarge", "Price": "0.007"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "24.528"},
+                                {"DimensionKey": "a1.xlarge", "Price": "30.056"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
         {"Description": {"Visibility": "Limited"}},
         {
             "Terms": [
@@ -913,6 +1056,32 @@ def test_public_offer_product_update_instance_type_pricing_change_not_allowed(
 
     mock_get_details.side_effect = [
         {"Dimensions": [{"Name": "a1.large"}, {"Name": "a1.xlarge"}]},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "0.004"},
+                                {"DimensionKey": "a1.xlarge", "Price": "0.007"},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "Type": "ConfigurableUpfrontPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "24.528"},
+                                {"DimensionKey": "a1.xlarge", "Price": "30.056"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
         {"Description": {"Visibility": "Limited"}},
         {
             "Terms": [
@@ -970,6 +1139,21 @@ def test_public_offer_product_update_instance_type_pricing_change_exception(
 
     mock_get_details.side_effect = [
         {"Dimensions": [{"Name": "a1.large"}, {"Name": "a1.xlarge"}]},
+        {
+            "Terms": [
+                {
+                    "Type": "UsageBasedPricingTerm",
+                    "RateCards": [
+                        {
+                            "RateCard": [
+                                {"DimensionKey": "a1.large", "Price": "0.004"},
+                                {"DimensionKey": "a1.xlarge", "Price": "0.007"},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
         {"Description": {"Visibility": "Restricted"}},
         {
             "Terms": [

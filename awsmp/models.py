@@ -228,7 +228,7 @@ class Offer(BaseModel):
 
 
 class Region(BaseModel):
-    commercial_regions: conlist(str)  # type:ignore
+    commercial_regions: conlist(str)  # type: ignore
     future_region_support: bool
 
     @field_validator("commercial_regions")
@@ -268,14 +268,14 @@ class Description(BaseModel):
     short_description: str = Field(max_length=1000)
     long_description: str = Field(max_length=5000)
     logourl: HttpUrl
-    highlights: conlist(str, min_length=1, max_length=3)  # type:ignore
-    categories: conlist(str, min_length=1, max_length=3)  # type:ignore
-    search_keywords: conlist(str, min_length=1)  # type:ignore
+    highlights: conlist(str, min_length=1, max_length=3)  # type: ignore
+    categories: conlist(str, min_length=1, max_length=3)  # type: ignore
+    search_keywords: conlist(str, min_length=1)  # type: ignore
     support_description: str = Field(max_length=2000)
     support_resources: Optional[List[str]] = Field(default=[])
     sku: Optional[str] = Field(max_length=100, default=None)
-    video_urls: Optional[conlist(HttpUrl, min_length=0, max_length=1)] = Field(default=[])  # type:ignore
-    additional_resources: Optional[conlist(Dict[str, HttpUrl], min_length=0, max_length=3)] = Field(  # type:ignore
+    video_urls: Optional[conlist(HttpUrl, min_length=0, max_length=1)] = Field(default=[])  # type: ignore
+    additional_resources: Optional[conlist(Dict[str, HttpUrl], min_length=0, max_length=3)] = Field(  # type: ignore
         default=[]
     )
 
@@ -330,13 +330,13 @@ class AmiVersion(BaseModel):
     ami_id: str = Field(max_length=21)
     access_role_arn: str = Field(max_length=150)
     os_user_name: str = Field(max_length=100)
-    os_system_name: constr(to_upper=True)  # type:ignore
+    os_system_name: constr(to_upper=True)  # type: ignore
     os_system_version: str = Field(max_length=100)
     scanning_port: int = Field(gt=1, le=65535)
     usage_instructions: str = Field(max_length=2000)
     recommended_instance_type: str = Field(max_length=27)
     ip_protocol: Literal["tcp", "udp"]
-    ip_ranges: conlist(str, min_length=0, max_length=5)  # type:ignore
+    ip_ranges: conlist(str, min_length=0, max_length=5)  # type: ignore
     to_port: int = Field(gt=1, le=65535)
     from_port: int = Field(gt=1, le=65535)
 
@@ -403,7 +403,7 @@ class IBVersion(BaseModel):
     version_title: str = Field(min_length=1)
     release_notes: str = Field(max_length=30000)
     access_role_arn: str = Field(max_length=150)
-    delivery_options: conlist(IBDeliveryOption, min_length=1)  # type:ignore
+    delivery_options: conlist(IBDeliveryOption, min_length=1)  # type: ignore
 
     @field_validator("access_role_arn")
     def ib_access_role_arn_validator(cls, value):

@@ -143,8 +143,9 @@ class AmiProduct:
         offer_detail = models.Offer(**offer_config)
 
         local_instance_types = {instance_type.name for instance_type in offer_detail.instance_types}
-        # All dimensions the listing has ever had, regardless of current active/restricted state,
-        # plus the subset currently restricted (inactive).
+        # Currently-active dimensions the listing has (from the product's Dimensions field), plus
+        # the subset currently restricted (inactive). Restricted instance types are excluded from
+        # Dimensions.
         existing_instance_types, restricted_instance_types = _get_existing_and_restricted_instance_types(
             self.product_id
         )
@@ -153,16 +154,36 @@ class AmiProduct:
         # Previously restricted types that local config wants active again. The dimension already
         # exists, so only AddInstanceTypes is required (no AddDimensions).
         reenabled_instance_types = list(local_instance_types & restricted_instance_types)
-        # Everything missing from local config, whether currently active or already restricted.
-        # All of these still need a price in the rate card for AWS's completeness check.
-        missing_from_local_instance_types = list(existing_instance_types - local_instance_types)
-        # Only currently-active types dropped from local config need to be newly restricted.
-        # Types already restricted must not be resubmitted to RestrictInstanceTypes/RestrictDimensions.
-        removed_instance_types = list(set(missing_from_local_instance_types) - restricted_instance_types)
+        # Currently-active types dropped from local config: these must be newly restricted in this
+        # batch. Types already restricted from a prior update must not be resubmitted to
+        # RestrictInstanceTypes/RestrictDimensions.
+        removed_instance_types = list((existing_instance_types - local_instance_types) - restricted_instance_types)
 
-        removed_instance_type_pricing = _get_missing_local_instance_type_pricing(
-            self.offer_id, missing_from_local_instance_types
-        )
+        # The new UpdatePricingTerms rate card must be built by *modifying* the existing offer rate
+        # card, not by rebuilding it from local config alone:
+        #   - Only dimensions being restricted/removed in THIS change set batch may be dropped.
+        #   - Dimensions already restricted from a PRIOR update must keep their existing price -
+        #     AWS rejects a rate card that silently drops rates for dimensions it still considers
+        #     part of the "existing rate card" with
+        #     "INVALID_RATE_CARD: Rates can't be removed from UsageBasedPricingTerm."
+        #   - Conversely, a dimension being restricted/removed in this same batch must NOT keep a
+        #     price - AWS rejects that with "INCOMPATIBLE_PRODUCT: Use existing, available
+        #     dimensions in the product in UsageBasedPricingTerm."
+        # local_instance_types (new/reenabled/unchanged-active) get their price from local config;
+        # every other pre-existing dimension not being removed this batch (e.g. an already-restricted
+        # type the operator isn't touching) is carried over unchanged from the existing rate card.
+        existing_terms = get_entity_details(self.offer_id)["Terms"]
+        existing_hourly, existing_annual = _get_full_ratecard_info(existing_terms)
+        preserved_rate_card_hourly = [
+            entry
+            for entry in existing_hourly
+            if entry["DimensionKey"] not in local_instance_types and entry["DimensionKey"] not in removed_instance_types
+        ]
+        preserved_rate_card_annual = [
+            entry
+            for entry in existing_annual
+            if entry["DimensionKey"] not in local_instance_types and entry["DimensionKey"] not in removed_instance_types
+        ]
 
         changeset = changesets.get_ami_listing_update_instance_type_changesets(
             self.product_id,
@@ -171,14 +192,18 @@ class AmiProduct:
             new_instance_types,
             removed_instance_types,
             reenabled_instance_types=reenabled_instance_types,
-            removed_instance_type_pricing=removed_instance_type_pricing,
+            preserved_rate_card_hourly=preserved_rate_card_hourly,
+            preserved_rate_card_annual=preserved_rate_card_annual,
         )
 
-        # Safety net: every dimension the listing will have after this update (all pre-existing
-        # dimensions plus any brand-new ones) must have a price in the rate card. AWS rejects the
-        # change set otherwise ("Rates can't be removed from UsageBasedPricingTerm").
+        # Safety net: every dimension the listing will still have after this update (locally
+        # configured types, plus any still-restricted types the operator isn't touching) must have
+        # a price in the rate card. This guards against the existing offer rate card being stale or
+        # incomplete relative to the product entity, which would otherwise surface as an opaque AWS
+        # rejection ("Rates can't be removed from UsageBasedPricingTerm").
+        still_restricted_instance_types = restricted_instance_types - set(reenabled_instance_types)
         _validate_pricing_terms_dimension_coverage(
-            changeset, expected_instance_types=local_instance_types | existing_instance_types
+            changeset, expected_instance_types=local_instance_types | still_restricted_instance_types
         )
 
         hourly_diff, annual_diff = _get_pricing_diff(self.product_id, changeset, price_change_allowed)
@@ -416,50 +441,18 @@ def _get_full_ratecard_info(terms: List) -> Tuple[List, List]:
     return hourly, annual
 
 
-def _get_missing_local_instance_type_pricing(
-    offer_id: str, missing_instance_types: List[str]
-) -> Optional[List[models.InstanceTypePricing]]:
-    """
-    Fetch existing pricing for dimensions absent from the local config (currently active types being
-    newly restricted, and types that were already restricted and remain absent from local config).
-
-    Every dimension the listing has ever had must still be included in the UpdatePricingTerms rate
-    card, because AWS validates rate card completeness before applying RestrictDimensions/
-    RestrictInstanceTypes in the same batch. Omitting any of them causes a "Rates can't be removed
-    from UsageBasedPricingTerm" rejection.
-
-    :param str offer_id: offer id for fetching existing terms
-    :param List[str] missing_instance_types: instance types absent from local config
-    :return: pricing for the missing types, or None if none are missing
-    :rtype: Optional[List[models.InstanceTypePricing]]
-    """
-    if not missing_instance_types:
-        return None
-
-    existing_terms = get_entity_details(offer_id)["Terms"]
-    existing_hourly, existing_annual = _get_full_ratecard_info(existing_terms)
-    existing_hourly_map = {r["DimensionKey"]: r["Price"] for r in existing_hourly}
-    existing_annual_map = {r["DimensionKey"]: r["Price"] for r in existing_annual}
-    return [
-        models.InstanceTypePricing(
-            name=it,
-            price_hourly=existing_hourly_map.get(it, "0.000"),
-            price_annual=existing_annual_map.get(it),
-        )
-        for it in missing_instance_types
-    ]
-
-
 def _validate_pricing_terms_dimension_coverage(
     changeset: List[ChangeSetType], expected_instance_types: set[str]
 ) -> None:
     """
     Verify the UpdatePricingTerms rate card in the changeset covers every expected dimension.
 
-    Safety net for the invariant that every instance type dimension the listing will have after an
-    update (active, newly restricted, or still restricted) must have a price defined. Missing
-    coverage causes AWS to reject the change set with "Rates can't be removed from
-    UsageBasedPricingTerm".
+    Safety net for the invariant that every instance type dimension the listing will still have
+    after an update (locally configured, or still restricted and untouched this batch) must have a
+    price defined. This does not re-derive which dimensions are expected - the caller is
+    responsible for that - it only guards against the existing offer rate card being stale or
+    incomplete relative to the product entity, which would otherwise surface as an opaque AWS
+    rejection ("Rates can't be removed from UsageBasedPricingTerm").
 
     :param List[ChangeSetType] changeset: changeset produced for the update
     :param set expected_instance_types: instance types that must be priced
@@ -613,12 +606,20 @@ def _get_existing_instance_types(product_id: str):
 
 def _get_existing_and_restricted_instance_types(product_id: str) -> Tuple[set[str], set[str]]:
     """
-    Return all dimensions the listing has ever had, plus the subset currently restricted.
+    Return the active dimensions the listing currently has, plus the subset currently restricted.
 
-    Combines both extractions into a single describe_entity call.
+    Combines both extractions into a single describe_entity call. Note that the returned
+    "existing" set (from the product's Dimensions field) does NOT include currently-restricted
+    instance types.
+
+    These sets drive which instance types get RestrictInstanceTypes/RestrictDimensions calls, but
+    they must NOT be used to decide what stays priced in UpdatePricingTerms: pricing must be derived
+    from the existing offer rate card (see _get_instance_type_changeset_and_pricing_diff) since a
+    dimension already restricted from a prior update must keep its existing price, while a
+    dimension newly restricted/removed in this same batch must have its price dropped.
 
     :param str product_id: product id
-    :return: Tuple of (all existing instance types, currently restricted instance types)
+    :return: Tuple of (active existing instance types, currently restricted instance types)
     :rtype: Tuple[set[str], set[str]]
     """
     entity = get_entity_details(product_id)
@@ -632,9 +633,13 @@ def _extract_restricted_instance_types(entity: Dict) -> set[str]:
     """
     Extract the set of currently-restricted instance types from an entity/product details document.
 
-    Restricting an instance type does not remove its dimension - dimensions persist for the
-    lifetime of the listing. Compatibility.RestrictedInstanceTypes tracks which of those
-    dimensions are currently inactive.
+    Restricted instance types are excluded from the product's Dimensions list in
+    describe_entity output, even though the underlying rate card dimension (and its price) is
+    still present on the offer. AWS requires that dimension keep its price if it was restricted in
+    a prior update (removing it triggers "INVALID_RATE_CARD: Rates can't be removed from
+    UsageBasedPricingTerm"), but rejects a price for it if it is being restricted in this same
+    change-set batch ("INCOMPATIBLE_PRODUCT: Use existing, available dimensions"). Compatibility.
+    RestrictedInstanceTypes is the only place these types can be discovered from the product entity.
 
     :param Dict entity: entity details document (as returned by describe_entity)
     :return: Set of instance type names currently restricted
@@ -708,7 +713,7 @@ def offer_create(
     hourly: bool = False,
 ) -> ChangeSetReturnType:
     csvreader = csv.DictReader(pricing, fieldnames=["name", "price_hourly", "price_annual"])
-    instance_type_pricing = [models.InstanceTypePricing(**line) for line in csvreader]  # type:ignore
+    instance_type_pricing = [models.InstanceTypePricing(**line) for line in csvreader]  # type: ignore
 
     if hourly:
         for i in instance_type_pricing:
