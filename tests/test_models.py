@@ -708,7 +708,7 @@ class TestEntity:
             (
                 {
                     "PromotionalResources": models.PromotionalResourcesModel(
-                        LogoUrl="https://test-logourl",
+                        LogoUrl=HttpUrl("https://test-logourl"),
                         Videos=[],
                         AdditionalResources=[{"Text": "test-link1", "Url": "https://test-url/"}],
                     ),
@@ -728,7 +728,7 @@ class TestEntity:
             (
                 {
                     "PromotionalResources": models.PromotionalResourcesModel(
-                        LogoUrl="https://test-logourl",
+                        LogoUrl=HttpUrl("https://test-logourl"),
                         Videos=[{"Type": "Link", "Title": "Product Video", "Url": "https://video-url"}],
                         AdditionalResources=[{"Text": "test-link", "Url": "https://test-url/"}],
                     ),

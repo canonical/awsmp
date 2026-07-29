@@ -13,6 +13,7 @@ __pycache__/
 build
 dist
 venv/
+.venv/
 .coverage
 /.eggs/
 

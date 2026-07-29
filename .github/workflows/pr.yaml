@@ -10,23 +10,39 @@ jobs:
   tox:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python: ["3.10", "3.11", "3.12", "3.13"]
     steps:
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           python-version: ${{ matrix.python }}
-      - name: Install tox and any other packages
-        run: |
-          # FIXME: not pining to an exact version results in getting poetry 1.0.10 which doesn't work
-          pip3 install tox poetry==1.7.1
-          poetry --version
-      - uses: actions/checkout@v5
       - name: Run tox
-        run: tox
+        run: uvx --with tox-uv tox run -e py${{ replace(matrix.python, '.', '') }}
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          python-version: "3.13"
+      - name: Run tox
+        run: uvx --with tox-uv tox run -e lint
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          python-version: "3.13"
+      - name: Run tox
+        run: uvx --with tox-uv tox run -e test
   snap:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: snapcore/action-build@v1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: snapcore/action-build@3bdaa03e1ba6bf59a65f84a751d943d549a54e79 # v1.3.0
