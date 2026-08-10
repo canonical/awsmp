@@ -1,50 +1,39 @@
-[tool.poetry]
+[project]
 name = "awsmp"
 version = "0.1.0"
 description = ""
 authors = [
-    "Thomas Bechtold <thomas.bechtold@canonical.com>",
-    "Jess Jang <jess.jang@canonical.com>",
-    "Ryan Hill <ryan.hill@canonical.com>",
+    {name = "Thomas Bechtold", email = "thomas.bechtold@canonical.com"},
+    {name = "Jess Jang", email = "jess.jang@canonical.com"},
+    {name = "Ryan Hill", email = "ryan.hill@canonical.com"},
+]
+readme = "README.rst"
+requires-python = ">=3.10"
+dependencies = [
+    "boto3>=1.39.3,<2",
+    "pydantic>=2.2.0,<3",
+    "click>=8.1.6,<9",
+    "prettytable>=3.8.0,<4",
+    "pyyaml>=6.0.1,<7",
 ]
 
-readme = "README.rst"
-
-[tool.poetry.scripts]
+[project.scripts]
 awsmpcli = "awsmp.cli:main"
 awsmp = "awsmp.cli:main"
 
-[tool.poetry.dependencies]
-python = "^3.10"
-boto3 = "^1.39.3"
-pydantic = "^2.2.0"
-click = "^8.1.6"
-prettytable = "^3.8.0"
-pyyaml = "^6.0.1"
-
-[tool.poetry.group.dev.dependencies]
-black = "^24.0.0"
-poethepoet = "^0.36.0"
-pytest = "^8.0.0"
-tox = "^4.10.0"
-isort = "^5.12.0"
-mypy = "^1.6.1"
-boto3-stubs = "^1.39.3"
-types-pyyaml = "^6.0.12.12"
-pytest-cov = "^4.1.0"
-typing-extensions = "^4.8.0"
-
-[tool.poe.tasks]
-tox = "tox"
-lint = ["isort-check", "black-check", "mypy"]
-format = ["isort", "black"]
-test = "pytest --cov=awsmp"
-test-cov-details = "pytest --cov=awsmp --cov-report term-missing"
-black = "black ."
-black-check = "black --check ."
-isort = "isort ."
-isort-check = "isort --check ."
-mypy = "mypy . --check-untyped-defs"
+[dependency-groups]
+dev = [
+    "black>=24.0.0,<25",
+    "pytest>=8.0.0,<9",
+    "tox>=4.10.0,<5",
+    "tox-uv>=1.16.0,<2",
+    "isort>=5.12.0,<6",
+    "mypy>=1.6.1,<2",
+    "boto3-stubs>=1.39.3,<2",
+    "types-pyyaml>=6.0.12.12,<7",
+    "pytest-cov>=4.1.0,<5",
+    "typing-extensions>=4.8.0,<5",
+]
 
 [tool.black]
 line-length = 120
@@ -62,7 +51,10 @@ skip_glob = ["docs/*"]
 [tool.mypy]
 exclude = "docs/"
 
+[tool.uv.build-backend]
+module-root = ""
+
 
 [build-system]
-requires = ["poetry-core>=1.2.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["uv_build>=0.11.21,<0.12.0"]
+build-backend = "uv_build"
