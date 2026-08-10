@@ -24,7 +24,7 @@ awsmp = "awsmp.cli:main"
 [dependency-groups]
 dev = [
     "black>=24.0.0,<25",
-    "pytest>=8.0.0,<9",
+    "pytest>=9.0.3,<10",
     "tox>=4.10.0,<5",
     "tox-uv>=1.16.0,<2",
     "isort>=5.12.0,<6",
