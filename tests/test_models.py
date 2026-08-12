@@ -442,7 +442,7 @@ class TestPricingTermModel:
                 }
             ],
         }
-        term = models.PricingTermModel(**data)  #  type: ignore
+        term = models.PricingTermModel(**data)  # type: ignore
         assert term.RateCards[0].RateCard[1].DimensionKey == "c1.xlarge"
 
     def test_pricing_term_model_annual(self):
@@ -462,7 +462,7 @@ class TestPricingTermModel:
                 }
             ],
         }
-        term = models.PricingTermModel(**data)  #  type: ignore
+        term = models.PricingTermModel(**data)  # type: ignore
         selector = cast(models.SelectorModel, term.RateCards[0].Selector)
         assert term.RateCards[0].RateCard[1].DimensionKey == "c1.xlarge" and selector.Value == "P365D"
 
@@ -484,7 +484,7 @@ class TestPricingTermModel:
             ],
         }
         with pytest.raises(ValidationError) as e:
-            models.PricingTermModel(**data)  #  type: ignore
+            models.PricingTermModel(**data)  # type: ignore
 
 
 class TestEntity:

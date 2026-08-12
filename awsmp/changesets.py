@@ -59,6 +59,8 @@ def _changeset_update_pricing_terms(
     instance_type_pricing: List[models.InstanceTypePricing],
     monthly_subscription_fee: Optional[Decimal] = None,
     offer_id: Optional[str] = None,
+    preserved_rate_card_hourly: Optional[List[Dict[str, str]]] = None,
+    preserved_rate_card_annual: Optional[List[Dict[str, str]]] = None,
 ) -> ChangeSetType:
     """
     Construct the changeset for update pricing term API reqeust
@@ -66,11 +68,17 @@ def _changeset_update_pricing_terms(
     :param List[models.InstanceTypePricing] instance_type_pricing: List of InstanceTypePricing objects
     :param Optional[Decimal] monthly_subscription_fee: Monthly subscription price for monthly recurring charge
     :param Optional[str] offer_id: Offer Id to request API
+    :param Optional[List[Dict[str, str]]] preserved_rate_card_hourly: pre-existing hourly rate card
+        entries (DimensionKey/Price) to carry over unchanged - e.g. dimensions already restricted
+        from a prior update, which AWS requires to keep their price ("INVALID_RATE_CARD: Rates
+        can't be removed from UsageBasedPricingTerm").
+    :param Optional[List[Dict[str, str]]] preserved_rate_card_annual: same as above for the annual
+        rate card.
     :return: Changeset of updating pricing term
     :rtype: ChangeSetReturnType
     """
-    rate_cards_hourly: List[Dict[str, str]] = []
-    rate_cards_annual: List[Dict[str, str]] = []
+    rate_cards_hourly: List[Dict[str, str]] = list(preserved_rate_card_hourly or [])
+    rate_cards_annual: List[Dict[str, str]] = list(preserved_rate_card_annual or [])
 
     # set offer_id for combined call for private offer creation
     if not offer_id:
@@ -458,7 +466,8 @@ def get_ami_listing_update_instance_type_changesets(
     new_instance_types: List[str],
     removed_instance_types: List[str],
     reenabled_instance_types: Optional[List[str]] = None,
-    removed_instance_type_pricing: Optional[List[models.InstanceTypePricing]] = None,
+    preserved_rate_card_hourly: Optional[List[Dict[str, str]]] = None,
+    preserved_rate_card_annual: Optional[List[Dict[str, str]]] = None,
 ) -> List[ChangeSetType]:
     """
     Return list of changeset to restrict instance types with pricing term
@@ -473,25 +482,34 @@ def get_ami_listing_update_instance_type_changesets(
     :param Optional[List[str]] reenabled_instance_types: list of previously-restricted instance types
         that local config wants active again. The dimension already exists from when the type was first
         added, so only AddInstanceTypes is required (no AddDimensions).
-    :param Optional[List[models.InstanceTypePricing]] removed_instance_type_pricing: existing pricing for
-        instance types absent from local config (newly restricted or already restricted). Required
-        whenever any dimension the listing has ever had is absent from local config. AWS requires all
-        existing dimensions to have prices in the UpdatePricingTerms rate card even when those dimensions
-        are being restricted (or remain restricted) in the same change set batch - omitting them causes a
-        "Rates can't be removed from UsageBasedPricingTerm" rejection.
+    :param Optional[List[Dict[str, str]]] preserved_rate_card_hourly: existing hourly rate card entries
+        (DimensionKey/Price) for dimensions not covered by offer_detail.instance_types and not being
+        removed this batch - e.g. dimensions already restricted from a prior update. AWS requires these
+        to keep their price ("INVALID_RATE_CARD: Rates can't be removed from UsageBasedPricingTerm").
+    :param Optional[List[Dict[str, str]]] preserved_rate_card_annual: same as above for the annual
+        rate card.
     :return: List of Changesets
     :rtype: List[ChangeSetType]
     """
 
+    # The UpdatePricingTerms rate card is built by modifying the existing offer rate card rather
+    # than rebuilding it from local config: offer_detail.instance_types supplies prices for the
+    # instance types that will be locally active after this update (new/reenabled/unchanged), while
+    # preserved_rate_card_hourly/annual carries over every other pre-existing dimension the caller
+    # has determined should be left untouched (e.g. already-restricted types). Dimensions being
+    # restricted/removed in this same batch (removed_instance_types) must be excluded from both -
+    # AWS rejects a rate card that still prices a dimension being restricted this batch with
+    # "INCOMPATIBLE_PRODUCT: Use existing, available dimensions in the product in
+    # UsageBasedPricingTerm".
     all_instance_type_pricing = list(offer_detail.instance_types)
-    if removed_instance_type_pricing:
-        all_instance_type_pricing.extend(removed_instance_type_pricing)
 
     changeset_list = [
         _changeset_update_pricing_terms(
             all_instance_type_pricing,
             monthly_subscription_fee=offer_detail.monthly_subscription_fee,
             offer_id=offer_id,
+            preserved_rate_card_hourly=preserved_rate_card_hourly,
+            preserved_rate_card_annual=preserved_rate_card_annual,
         )
     ]
     if new_instance_types:
