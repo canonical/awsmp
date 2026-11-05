@@ -973,12 +973,9 @@ class EntityModel(BaseModel):
         :return: True or False
         :rtypr: bool
         """
-        # These fields don't need to consider the ordering between values.
-        # If the items in the list are same, there will be no listing changes.
-        non_ordered_fields = ["Regions"]
-
-        if name in non_ordered_fields:
-            return set(value1) != set(value2)
+        if name == "Regions":
+            # Marketplace supports adding regions but not removing retained ones.
+            return not set(value2).issubset(value1)
         elif name == "Price":
             try:
                 return Decimal(value1) != Decimal(value2)
@@ -1002,10 +999,6 @@ class EntityModel(BaseModel):
         :return: Types of diff models or None
         :rtype: Optional[Union[DiffAddedModel, DiffRemovedModel, DiffChangedModel]]
         """
-        # These fields don't need to consider the ordering between values.
-        # If the items in the list are same, there will be no listing changes.
-        non_ordered_fields = ["Regions"]
-
         if not value1 and value2:
             return DiffAddedModel(name=field_name, value=value2)
         elif value1 and not value2:
