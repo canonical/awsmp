@@ -684,12 +684,23 @@ class TestEntity:
                         FutureRegionSupport="All",
                     ),
                 },
+                models.DiffModel(added=[], removed=[], changed=[]),
+            ),
+            (
+                {
+                    "RegionAvailability": models.RegionAvailabilityModel(
+                        Regions=["us-east-1", "us-east-2", "us-west-1"],
+                        FutureRegionSupport="All",
+                    ),
+                },
                 models.DiffModel(
                     added=[],
                     removed=[],
                     changed=[
                         models.DiffChangedModel(
-                            name="Regions", old_value=["us-east-1", "us-east-2"], new_value=["us-east-1"]
+                            name="Regions",
+                            old_value=["us-east-1", "us-east-2"],
+                            new_value=["us-east-1", "us-east-2", "us-west-1"],
                         )
                     ],
                 ),
